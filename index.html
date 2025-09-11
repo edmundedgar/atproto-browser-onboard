@@ -140,6 +140,62 @@
             border: 1px solid #e1e8ed;
         }
 
+        .public-key-display {
+            background: #f0f8f0;
+            border: 2px dashed #28a745;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .public-key-display h3 {
+            color: #155724;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 1.2em;
+        }
+
+        .public-key-text {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #155724;
+            word-break: break-all;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #c3e6cb;
+        }
+
+        .did-key-display {
+            background: #f8f0ff;
+            border: 2px dashed #6f42c1;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .did-key-display h3 {
+            color: #4a2c7a;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 1.2em;
+        }
+
+        .did-key-text {
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            color: #4a2c7a;
+            word-break: break-all;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #d1c4e9;
+        }
+
         .button-group {
             display: flex;
             flex-wrap: wrap;
@@ -292,17 +348,35 @@
             <div class="mnemonic-text" id="mnemonicText"></div>
         </div>
         
+        <div class="public-key-display" id="publicKeyDisplay" style="display: none;">
+            <h3>🔑 secp256k1 Public Key</h3>
+            <div class="public-key-text" id="publicKeyText"></div>
+        </div>
+        
+        <div class="did-key-display" id="didKeyDisplay" style="display: none;">
+            <h3>🆔 DID Key</h3>
+            <div class="did-key-text" id="didKeyText"></div>
+        </div>
+        
         <div class="button-group">
-            <button class="generate-btn" id="generateBtn" onclick="generateKey()">
+            <button class="generate-btn" id="generateBtn">
                 Generate New Key
             </button>
             
-            <button class="copy-btn" id="copyBtn" onclick="copyKey()" disabled>
+            <button class="copy-btn" id="copyBtn" disabled>
                 Copy Key
             </button>
             
-            <button class="copy-btn" id="copyMnemonicBtn" onclick="copyMnemonic()" disabled>
+            <button class="copy-btn" id="copyMnemonicBtn" disabled>
                 Copy Mnemonic
+            </button>
+            
+            <button class="copy-btn" id="copyPublicKeyBtn" disabled>
+                Copy Public Key
+            </button>
+            
+            <button class="copy-btn" id="copyDidKeyBtn" disabled>
+                Copy DID Key
             </button>
         </div>
         
@@ -319,11 +393,11 @@
             </div>
             
             <div class="restore-button-group">
-                <button class="restore-btn" id="restoreBtn" onclick="restoreFromMnemonic()">
+                <button class="restore-btn" id="restoreBtn">
                     Restore Private Key
                 </button>
                 
-                <button class="clear-btn" id="clearBtn" onclick="clearInput()">
+                <button class="clear-btn" id="clearBtn">
                     Clear
                 </button>
             </div>
@@ -335,17 +409,51 @@
                 This tool generates cryptographically secure 256-bit private keys using the Web Crypto API. 
                 The key is generated entirely in your browser and never transmitted over the network. 
                 Each key is unique and suitable for cryptographic operations. The tool also generates 
-                a corresponding BIP39 mnemonic phrase for easier backup and recovery. You can also restore 
-                a private key from a valid BIP39 mnemonic phrase.
+                a corresponding BIP39 mnemonic phrase for easier backup and recovery, computes the 
+                secp256k1 public key for use in blockchain applications, and formats the public key 
+                as a DID key for decentralized identity use cases. You can also restore a private 
+                key from a valid BIP39 mnemonic phrase.
             </p>
         </div>
         
         <div id="status"></div>
     </div>
 
-    <script>
+    <script type="module">
+        import * as secp256k1 from 'https://cdn.jsdelivr.net/npm/@noble/secp256k1@1.7.1/+esm';
+        
+        // Base58 alphabet
+        const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+        
+        // Simple base58 encoder
+        function base58Encode(bytes) {
+            if (bytes.length === 0) return '';
+            
+            // Convert bytes to big integer
+            let num = 0n;
+            for (let i = 0; i < bytes.length; i++) {
+                num = num * 256n + BigInt(bytes[i]);
+            }
+            
+            // Convert to base58
+            let result = '';
+            while (num > 0n) {
+                result = BASE58_ALPHABET[Number(num % 58n)] + result;
+                num = num / 58n;
+            }
+            
+            // Add leading '1's for leading zeros
+            for (let i = 0; i < bytes.length && bytes[i] === 0; i++) {
+                result = '1' + result;
+            }
+            
+            return result;
+        }
+        
         let currentKey = null;
         let currentMnemonic = null;
+        let currentPublicKey = null;
+        let currentDidKey = null;
         
         // BIP39 English wordlist (first 2048 words)
         const BIP39_WORDLIST = [
@@ -668,12 +776,68 @@
             }
         }
 
+        // Generate secp256k1 public key from private key
+        function generatePublicKey(privateKeyHex) {
+            try {
+                // Convert hex string to Uint8Array
+                const privateKeyBytes = new Uint8Array(32);
+                for (let i = 0; i < privateKeyHex.length; i += 2) {
+                    privateKeyBytes[i / 2] = parseInt(privateKeyHex.substr(i, 2), 16);
+                }
+                
+                // Generate public key using @noble/secp256k1
+                const publicKeyBytes = secp256k1.getPublicKey(privateKeyBytes, true); // true = compressed
+                
+                // Convert public key bytes to hex string
+                const publicKeyHex = Array.from(publicKeyBytes)
+                    .map(byte => byte.toString(16).padStart(2, '0'))
+                    .join('');
+                
+                return publicKeyHex;
+            } catch (error) {
+                console.error('Error generating public key:', error);
+                throw new Error('Failed to generate public key: ' + error.message);
+            }
+        }
+
+        // Generate DID key from secp256k1 public key
+        function generateDidKey(publicKeyHex) {
+            try {
+                // Convert hex string to Uint8Array
+                const publicKeyBytes = new Uint8Array(33);
+                for (let i = 0; i < publicKeyHex.length; i += 2) {
+                    publicKeyBytes[i / 2] = parseInt(publicKeyHex.substr(i, 2), 16);
+                }
+                
+                // Add multicodec prefix for secp256k1 compressed public key (0xe7)
+                const multicodecPrefix = new Uint8Array([0xe7, 0x01]);
+                const prefixedKey = new Uint8Array([...multicodecPrefix, ...publicKeyBytes]);
+                
+                // Encode using base58
+                const encoded = base58Encode(prefixedKey);
+                
+                // Construct DID key with 'z' prefix for base58btc
+                const didKey = `did:key:z${encoded}`;
+                
+                return didKey;
+            } catch (error) {
+                console.error('Error generating DID key:', error);
+                throw new Error('Failed to generate DID key: ' + error.message);
+            }
+        }
+
         async function generateKey() {
             const keyDisplay = document.getElementById('keyDisplay');
             const mnemonicDisplay = document.getElementById('mnemonicDisplay');
             const mnemonicText = document.getElementById('mnemonicText');
+            const publicKeyDisplay = document.getElementById('publicKeyDisplay');
+            const publicKeyText = document.getElementById('publicKeyText');
+            const didKeyDisplay = document.getElementById('didKeyDisplay');
+            const didKeyText = document.getElementById('didKeyText');
             const copyBtn = document.getElementById('copyBtn');
             const copyMnemonicBtn = document.getElementById('copyMnemonicBtn');
+            const copyPublicKeyBtn = document.getElementById('copyPublicKeyBtn');
+            const copyDidKeyBtn = document.getElementById('copyDidKeyBtn');
             const generateBtn = document.getElementById('generateBtn');
             const status = document.getElementById('status');
 
@@ -681,8 +845,9 @@
                 // Show loading state
                 generateBtn.disabled = true;
                 generateBtn.textContent = 'Generating...';
-                keyDisplay.textContent = 'Generating secure random key and mnemonic...';
+                keyDisplay.textContent = 'Generating secure random key, mnemonic, and public key...';
                 mnemonicDisplay.style.display = 'none';
+                publicKeyDisplay.style.display = 'none';
                 status.innerHTML = '';
 
                 // Generate 256 bits (32 bytes) of random data
@@ -697,6 +862,12 @@
                 // Generate BIP39 mnemonic from the entropy
                 currentMnemonic = generateMnemonic(currentKey);
 
+                // Generate secp256k1 public key
+                currentPublicKey = generatePublicKey(currentKey);
+
+                // Generate DID key
+                currentDidKey = generateDidKey(currentPublicKey);
+
                 // Display the key
                 keyDisplay.textContent = currentKey;
                 keyDisplay.classList.add('has-key');
@@ -705,11 +876,21 @@
                 mnemonicText.textContent = currentMnemonic;
                 mnemonicDisplay.style.display = 'block';
                 
+                // Display the public key
+                publicKeyText.textContent = currentPublicKey;
+                publicKeyDisplay.style.display = 'block';
+                
+                // Display the DID key
+                didKeyText.textContent = currentDidKey;
+                didKeyDisplay.style.display = 'block';
+                
                 // Enable copy buttons
                 copyBtn.disabled = false;
                 copyMnemonicBtn.disabled = false;
+                copyPublicKeyBtn.disabled = false;
+                copyDidKeyBtn.disabled = false;
 
-                status.innerHTML = '<div class="status success">✅ Key and mnemonic generated successfully!</div>';
+                status.innerHTML = '<div class="status success">✅ Key, mnemonic, public key, and DID key generated successfully!</div>';
 
             } catch (error) {
                 console.error('Error generating key:', error);
@@ -717,6 +898,8 @@
                 keyDisplay.textContent = 'Error generating key. Please try again.';
                 keyDisplay.classList.remove('has-key');
                 mnemonicDisplay.style.display = 'none';
+                publicKeyDisplay.style.display = 'none';
+                didKeyDisplay.style.display = 'none';
             } finally {
                 generateBtn.disabled = false;
                 generateBtn.textContent = 'Generate New Key';
@@ -761,13 +944,57 @@
             }
         }
 
+        async function copyPublicKey() {
+            if (!currentPublicKey) return;
+
+            try {
+                await navigator.clipboard.writeText(currentPublicKey);
+                const status = document.getElementById('status');
+                status.innerHTML = '<div class="status success">📋 Public key copied to clipboard!</div>';
+                
+                // Clear status after 3 seconds
+                setTimeout(() => {
+                    status.innerHTML = '';
+                }, 3000);
+            } catch (error) {
+                console.error('Error copying public key to clipboard:', error);
+                const status = document.getElementById('status');
+                status.innerHTML = '<div class="status error">❌ Failed to copy public key to clipboard</div>';
+            }
+        }
+
+        async function copyDidKey() {
+            if (!currentDidKey) return;
+
+            try {
+                await navigator.clipboard.writeText(currentDidKey);
+                const status = document.getElementById('status');
+                status.innerHTML = '<div class="status success">📋 DID key copied to clipboard!</div>';
+                
+                // Clear status after 3 seconds
+                setTimeout(() => {
+                    status.innerHTML = '';
+                }, 3000);
+            } catch (error) {
+                console.error('Error copying DID key to clipboard:', error);
+                const status = document.getElementById('status');
+                status.innerHTML = '<div class="status error">❌ Failed to copy DID key to clipboard</div>';
+            }
+        }
+
         async function restoreFromMnemonic() {
             const mnemonicInput = document.getElementById('mnemonicInput');
             const keyDisplay = document.getElementById('keyDisplay');
             const mnemonicDisplay = document.getElementById('mnemonicDisplay');
             const mnemonicText = document.getElementById('mnemonicText');
+            const publicKeyDisplay = document.getElementById('publicKeyDisplay');
+            const publicKeyText = document.getElementById('publicKeyText');
+            const didKeyDisplay = document.getElementById('didKeyDisplay');
+            const didKeyText = document.getElementById('didKeyText');
             const copyBtn = document.getElementById('copyBtn');
             const copyMnemonicBtn = document.getElementById('copyMnemonicBtn');
+            const copyPublicKeyBtn = document.getElementById('copyPublicKeyBtn');
+            const copyDidKeyBtn = document.getElementById('copyDidKeyBtn');
             const restoreBtn = document.getElementById('restoreBtn');
             const status = document.getElementById('status');
 
@@ -793,9 +1020,17 @@
                 // Convert mnemonic to entropy
                 const restoredKey = mnemonicToEntropy(inputMnemonic);
 
+                // Generate secp256k1 public key
+                const restoredPublicKey = generatePublicKey(restoredKey);
+
+                // Generate DID key
+                const restoredDidKey = generateDidKey(restoredPublicKey);
+
                 // Update global variables
                 currentKey = restoredKey;
                 currentMnemonic = inputMnemonic;
+                currentPublicKey = restoredPublicKey;
+                currentDidKey = restoredDidKey;
 
                 // Display the restored key
                 keyDisplay.textContent = currentKey;
@@ -805,11 +1040,21 @@
                 mnemonicText.textContent = currentMnemonic;
                 mnemonicDisplay.style.display = 'block';
 
+                // Display the public key
+                publicKeyText.textContent = currentPublicKey;
+                publicKeyDisplay.style.display = 'block';
+
+                // Display the DID key
+                didKeyText.textContent = currentDidKey;
+                didKeyDisplay.style.display = 'block';
+
                 // Enable copy buttons
                 copyBtn.disabled = false;
                 copyMnemonicBtn.disabled = false;
+                copyPublicKeyBtn.disabled = false;
+                copyDidKeyBtn.disabled = false;
 
-                status.innerHTML = '<div class="status success">✅ Private key restored successfully!</div>';
+                status.innerHTML = '<div class="status success">✅ Private key, mnemonic, public key, and DID key restored successfully!</div>';
 
             } catch (error) {
                 console.error('Error restoring from mnemonic:', error);
@@ -817,6 +1062,8 @@
                 keyDisplay.textContent = 'Error restoring key. Please check your mnemonic phrase.';
                 keyDisplay.classList.remove('has-key');
                 mnemonicDisplay.style.display = 'none';
+                publicKeyDisplay.style.display = 'none';
+                didKeyDisplay.style.display = 'none';
             } finally {
                 restoreBtn.disabled = false;
                 restoreBtn.textContent = 'Restore Private Key';
@@ -835,8 +1082,19 @@
         window.generateKey = generateKey;
         window.copyKey = copyKey;
         window.copyMnemonic = copyMnemonic;
+        window.copyPublicKey = copyPublicKey;
+        window.copyDidKey = copyDidKey;
         window.restoreFromMnemonic = restoreFromMnemonic;
         window.clearInput = clearInput;
+
+        // Add event listeners
+        document.getElementById('generateBtn').addEventListener('click', generateKey);
+        document.getElementById('copyBtn').addEventListener('click', copyKey);
+        document.getElementById('copyMnemonicBtn').addEventListener('click', copyMnemonic);
+        document.getElementById('copyPublicKeyBtn').addEventListener('click', copyPublicKey);
+        document.getElementById('copyDidKeyBtn').addEventListener('click', copyDidKey);
+        document.getElementById('restoreBtn').addEventListener('click', restoreFromMnemonic);
+        document.getElementById('clearBtn').addEventListener('click', clearInput);
 
         // Check if Web Crypto API is available
         if (!window.crypto || !window.crypto.getRandomValues) {
