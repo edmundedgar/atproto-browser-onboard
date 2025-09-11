@@ -148,6 +148,97 @@
             margin: 20px 0;
         }
 
+        .restore-section {
+            background: #fff3cd;
+            border: 2px dashed #ffc107;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .restore-section h3 {
+            color: #856404;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+
+        .restore-subtitle {
+            color: #856404;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+
+        .mnemonic-input-container {
+            margin: 15px 0;
+        }
+
+        .mnemonic-input-container textarea {
+            width: 100%;
+            max-width: 600px;
+            padding: 15px;
+            border: 2px solid #ffc107;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+            background: white;
+        }
+
+        .mnemonic-input-container textarea:focus {
+            outline: none;
+            border-color: #ff8c00;
+            box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.1);
+        }
+
+        .restore-button-group {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .restore-btn {
+            background: #ffc107;
+            color: #212529;
+            border: none;
+            padding: 12px 24px;
+            font-size: 1em;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .restore-btn:hover {
+            background: #ff8c00;
+            transform: translateY(-1px);
+        }
+
+        .restore-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .clear-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            font-size: 1em;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .clear-btn:hover {
+            background: #5a6268;
+            transform: translateY(-1px);
+        }
+
         .info {
             background: #e3f2fd;
             border-left: 4px solid #2196f3;
@@ -215,13 +306,37 @@
             </button>
         </div>
         
+        <div class="restore-section">
+            <h3>🔄 Restore from Mnemonic</h3>
+            <p class="restore-subtitle">Enter a 24-word BIP39 mnemonic phrase to restore the private key</p>
+            
+            <div class="mnemonic-input-container">
+                <textarea 
+                    id="mnemonicInput" 
+                    placeholder="Enter your 24-word mnemonic phrase here..."
+                    rows="3"
+                ></textarea>
+            </div>
+            
+            <div class="restore-button-group">
+                <button class="restore-btn" id="restoreBtn" onclick="restoreFromMnemonic()">
+                    Restore Private Key
+                </button>
+                
+                <button class="clear-btn" id="clearBtn" onclick="clearInput()">
+                    Clear
+                </button>
+            </div>
+        </div>
+        
         <div class="info">
             <h3>ℹ️ About This Tool</h3>
             <p>
                 This tool generates cryptographically secure 256-bit private keys using the Web Crypto API. 
                 The key is generated entirely in your browser and never transmitted over the network. 
                 Each key is unique and suitable for cryptographic operations. The tool also generates 
-                a corresponding BIP39 mnemonic phrase for easier backup and recovery.
+                a corresponding BIP39 mnemonic phrase for easier backup and recovery. You can also restore 
+                a private key from a valid BIP39 mnemonic phrase.
             </p>
         </div>
         
@@ -485,6 +600,74 @@
             return words.join(' ');
         }
 
+        // Convert mnemonic back to entropy
+        function mnemonicToEntropy(mnemonic) {
+            const words = mnemonic.trim().split(/\s+/);
+            
+            // Validate word count
+            if (words.length !== 24) {
+                throw new Error('Mnemonic must contain exactly 24 words');
+            }
+            
+            // Convert words to binary
+            let binary = '';
+            for (const word of words) {
+                const index = BIP39_WORDLIST.indexOf(word.toLowerCase());
+                if (index === -1) {
+                    throw new Error(`Invalid word: "${word}"`);
+                }
+                binary += index.toString(2).padStart(11, '0');
+            }
+            
+            // Split into entropy and checksum
+            const entropyBinary = binary.substring(0, 256);
+            const checksumBinary = binary.substring(256);
+            
+            // Convert entropy binary to hex
+            let entropyHex = '';
+            for (let i = 0; i < entropyBinary.length; i += 8) {
+                const byte = entropyBinary.substr(i, 8);
+                entropyHex += parseInt(byte, 2).toString(16).padStart(2, '0');
+            }
+            
+            // Verify checksum
+            let calculatedChecksum = 0;
+            for (let i = 0; i < entropyHex.length; i += 2) {
+                calculatedChecksum ^= parseInt(entropyHex.substr(i, 2), 16);
+            }
+            const expectedChecksum = parseInt(checksumBinary, 2);
+            
+            if (calculatedChecksum !== expectedChecksum) {
+                throw new Error('Invalid mnemonic: checksum verification failed');
+            }
+            
+            return entropyHex;
+        }
+
+        // Validate mnemonic phrase
+        function validateMnemonic(mnemonic) {
+            try {
+                const words = mnemonic.trim().split(/\s+/);
+                
+                if (words.length !== 24) {
+                    return { valid: false, error: 'Mnemonic must contain exactly 24 words' };
+                }
+                
+                for (const word of words) {
+                    if (BIP39_WORDLIST.indexOf(word.toLowerCase()) === -1) {
+                        return { valid: false, error: `Invalid word: "${word}"` };
+                    }
+                }
+                
+                // Try to convert to entropy to verify checksum
+                mnemonicToEntropy(mnemonic);
+                
+                return { valid: true };
+            } catch (error) {
+                return { valid: false, error: error.message };
+            }
+        }
+
         async function generateKey() {
             const keyDisplay = document.getElementById('keyDisplay');
             const mnemonicDisplay = document.getElementById('mnemonicDisplay');
@@ -578,10 +761,82 @@
             }
         }
 
+        async function restoreFromMnemonic() {
+            const mnemonicInput = document.getElementById('mnemonicInput');
+            const keyDisplay = document.getElementById('keyDisplay');
+            const mnemonicDisplay = document.getElementById('mnemonicDisplay');
+            const mnemonicText = document.getElementById('mnemonicText');
+            const copyBtn = document.getElementById('copyBtn');
+            const copyMnemonicBtn = document.getElementById('copyMnemonicBtn');
+            const restoreBtn = document.getElementById('restoreBtn');
+            const status = document.getElementById('status');
+
+            const inputMnemonic = mnemonicInput.value.trim();
+
+            if (!inputMnemonic) {
+                status.innerHTML = '<div class="status error">❌ Please enter a mnemonic phrase</div>';
+                return;
+            }
+
+            try {
+                // Show loading state
+                restoreBtn.disabled = true;
+                restoreBtn.textContent = 'Restoring...';
+                status.innerHTML = '';
+
+                // Validate mnemonic
+                const validation = validateMnemonic(inputMnemonic);
+                if (!validation.valid) {
+                    throw new Error(validation.error);
+                }
+
+                // Convert mnemonic to entropy
+                const restoredKey = mnemonicToEntropy(inputMnemonic);
+
+                // Update global variables
+                currentKey = restoredKey;
+                currentMnemonic = inputMnemonic;
+
+                // Display the restored key
+                keyDisplay.textContent = currentKey;
+                keyDisplay.classList.add('has-key');
+
+                // Display the mnemonic
+                mnemonicText.textContent = currentMnemonic;
+                mnemonicDisplay.style.display = 'block';
+
+                // Enable copy buttons
+                copyBtn.disabled = false;
+                copyMnemonicBtn.disabled = false;
+
+                status.innerHTML = '<div class="status success">✅ Private key restored successfully!</div>';
+
+            } catch (error) {
+                console.error('Error restoring from mnemonic:', error);
+                status.innerHTML = `<div class="status error">❌ ${error.message}</div>`;
+                keyDisplay.textContent = 'Error restoring key. Please check your mnemonic phrase.';
+                keyDisplay.classList.remove('has-key');
+                mnemonicDisplay.style.display = 'none';
+            } finally {
+                restoreBtn.disabled = false;
+                restoreBtn.textContent = 'Restore Private Key';
+            }
+        }
+
+        function clearInput() {
+            const mnemonicInput = document.getElementById('mnemonicInput');
+            const status = document.getElementById('status');
+            
+            mnemonicInput.value = '';
+            status.innerHTML = '';
+        }
+
         // Make functions globally accessible for onclick handlers
         window.generateKey = generateKey;
         window.copyKey = copyKey;
         window.copyMnemonic = copyMnemonic;
+        window.restoreFromMnemonic = restoreFromMnemonic;
+        window.clearInput = clearInput;
 
         // Check if Web Crypto API is available
         if (!window.crypto || !window.crypto.getRandomValues) {
