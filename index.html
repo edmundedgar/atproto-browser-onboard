@@ -509,6 +509,50 @@
         #add-rotation-key-btn:hover {
             background: #218838;
         }
+        
+        .also-known-as-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .also-known-as-input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .remove-also-known-as-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .remove-also-known-as-btn:hover {
+            background: #c82333;
+        }
+        
+        #add-also-known-as-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        
+        #add-also-known-as-btn:hover {
+            background: #218838;
+        }
 
         .form-group input:focus,
         .form-group textarea:focus {
@@ -758,15 +802,21 @@
                         </div>
                         
                         <div class="form-group">
-                            <label for="plc-also-known-as">Also Known As</label>
-                            <textarea id="plc-also-known-as" name="alsoKnownAs" rows="2" placeholder="Enter alternative identifiers (one per line)"></textarea>
+                            <label>Also Known As</label>
+                            <div id="also-known-as-container">
+                                <div class="also-known-as-group">
+                                    <input type="text" class="also-known-as-input" placeholder="Enter alternative identifier (e.g., at://goat.navy)">
+                                    <button type="button" class="remove-also-known-as-btn" style="display: none;">Remove</button>
+                                </div>
+                            </div>
+                            <button type="button" id="add-also-known-as-btn">Add Also Known As</button>
                             <small class="form-help">Optional: Alternative identifiers or handles</small>
                         </div>
                         
                         <div class="form-group">
-                            <label for="plc-previous-rotation-key">Previous Rotation Key</label>
-                            <input type="text" id="plc-previous-rotation-key" name="previousRotationKey" placeholder="Previous rotation key (if applicable)">
-                            <small class="form-help">Optional: Previous rotation key for key rotation history</small>
+                            <label for="plc-previous-update">Previous Update</label>
+                            <input type="text" id="plc-previous-update" name="previousUpdate" placeholder="Previous update operation CID (if applicable)">
+                            <small class="form-help">Optional: CID of the previous update operation for operation history</small>
                         </div>
                         
                         <div class="form-button-group">
@@ -1512,7 +1562,7 @@
                 "verificationMethods": {
                     "atproto": formData.atprotoVerificationMethod
                 },
-                "alsoKnownAs": formData.alsoKnownAs ? formData.alsoKnownAs.split('\n').filter(aka => aka.trim()) : [],
+                "alsoKnownAs": getAlsoKnownAs(),
                 "services": {
                     "atproto_pds": {
                         "type": "AtprotoPersonalDataServer",
@@ -1521,9 +1571,9 @@
                 }
             };
 
-            // Add previous rotation key if provided
-            if (formData.previousRotationKey && formData.previousRotationKey.trim()) {
-                entry.previousRotationKey = formData.previousRotationKey.trim();
+            // Add previous update if provided
+            if (formData.previousUpdate && formData.previousUpdate.trim()) {
+                entry.previousUpdate = formData.previousUpdate.trim();
             }
 
             return entry;
@@ -1591,6 +1641,31 @@
             group.appendChild(input);
             group.appendChild(removeBtn);
             container.appendChild(group);
+            
+            // Reset also known as to single input
+            const alsoKnownAsContainer = document.getElementById('also-known-as-container');
+            alsoKnownAsContainer.innerHTML = '';
+            
+            const alsoKnownAsGroup = document.createElement('div');
+            alsoKnownAsGroup.className = 'also-known-as-group';
+            
+            const alsoKnownAsInput = document.createElement('input');
+            alsoKnownAsInput.type = 'text';
+            alsoKnownAsInput.className = 'also-known-as-input';
+            alsoKnownAsInput.placeholder = 'Enter alternative identifier (e.g., at://goat.navy)';
+            
+            const alsoKnownAsRemoveBtn = document.createElement('button');
+            alsoKnownAsRemoveBtn.type = 'button';
+            alsoKnownAsRemoveBtn.className = 'remove-also-known-as-btn';
+            alsoKnownAsRemoveBtn.textContent = 'Remove';
+            alsoKnownAsRemoveBtn.style.display = 'none';
+            alsoKnownAsRemoveBtn.addEventListener('click', function() {
+                removeAlsoKnownAs(this);
+            });
+            
+            alsoKnownAsGroup.appendChild(alsoKnownAsInput);
+            alsoKnownAsGroup.appendChild(alsoKnownAsRemoveBtn);
+            alsoKnownAsContainer.appendChild(alsoKnownAsGroup);
         }
         
         function addRotationKey() {
@@ -1689,6 +1764,97 @@
             
             updateRemoveButtons();
             console.log('setRotationKeys completed');
+        }
+        
+        function addAlsoKnownAs() {
+            const container = document.getElementById('also-known-as-container');
+            const newGroup = document.createElement('div');
+            newGroup.className = 'also-known-as-group';
+            
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'also-known-as-input';
+            input.placeholder = 'Enter alternative identifier (e.g., at://goat.navy)';
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'remove-also-known-as-btn';
+            removeBtn.textContent = 'Remove';
+            removeBtn.addEventListener('click', function() {
+                removeAlsoKnownAs(this);
+            });
+            
+            newGroup.appendChild(input);
+            newGroup.appendChild(removeBtn);
+            container.appendChild(newGroup);
+            
+            // Show remove buttons if there are multiple inputs
+            updateAlsoKnownAsRemoveButtons();
+        }
+        
+        function removeAlsoKnownAs(button) {
+            const group = button.parentElement;
+            const container = document.getElementById('also-known-as-container');
+            
+            // Don't remove if it's the only input
+            if (container.children.length > 1) {
+                group.remove();
+                updateAlsoKnownAsRemoveButtons();
+            }
+        }
+        
+        function updateAlsoKnownAsRemoveButtons() {
+            const container = document.getElementById('also-known-as-container');
+            const removeButtons = container.querySelectorAll('.remove-also-known-as-btn');
+            
+            removeButtons.forEach(button => {
+                button.style.display = container.children.length > 1 ? 'block' : 'none';
+            });
+        }
+        
+        function getAlsoKnownAs() {
+            const inputs = document.querySelectorAll('.also-known-as-input');
+            return Array.from(inputs)
+                .map(input => input.value.trim())
+                .filter(value => value !== '');
+        }
+        
+        function setAlsoKnownAs(entries) {
+            const container = document.getElementById('also-known-as-container');
+            
+            // Clear existing inputs
+            container.innerHTML = '';
+            
+            // Add inputs for each entry
+            entries.forEach((entry, index) => {
+                const group = document.createElement('div');
+                group.className = 'also-known-as-group';
+                
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'also-known-as-input';
+                input.placeholder = 'Enter alternative identifier (e.g., at://goat.navy)';
+                input.value = entry;
+                
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'remove-also-known-as-btn';
+                removeBtn.textContent = 'Remove';
+                removeBtn.addEventListener('click', function() {
+                    removeAlsoKnownAs(this);
+                });
+                
+                group.appendChild(input);
+                group.appendChild(removeBtn);
+                container.appendChild(group);
+            });
+            
+            // If no entries, add one empty input
+            if (entries.length === 0) {
+                addAlsoKnownAs();
+            }
+            
+            updateAlsoKnownAsRemoveButtons();
         }
 
         // Add DID:PLC form event listeners
@@ -1883,18 +2049,19 @@
 
                 // Populate also known as
                 if (didDocument.alsoKnownAs && Array.isArray(didDocument.alsoKnownAs)) {
-                    document.getElementById('plc-also-known-as').value = didDocument.alsoKnownAs.join('\n');
+                    setAlsoKnownAs(didDocument.alsoKnownAs);
                     console.log('Set alsoKnownAs:', didDocument.alsoKnownAs);
-                } else if (didDocument.alsoKnownAs) {
-                    document.getElementById('plc-also-known-as').value = didDocument.alsoKnownAs;
-                    console.log('Set alsoKnownAs (single):', didDocument.alsoKnownAs);
+                } else {
+                    // If no alsoKnownAs or not an array, set empty
+                    setAlsoKnownAs([]);
+                    console.log('No alsoKnownAs found or not an array');
                 }
 
-                // Populate previous rotation key
-                let previousRotationKey = didDocument.previousRotationKey || didDocument.previous_rotation_key;
-                if (previousRotationKey) {
-                    document.getElementById('plc-previous-rotation-key').value = previousRotationKey;
-                    console.log('Set previous rotation key:', previousRotationKey);
+                // Populate previous update
+                let previousUpdate = didDocument.previousRotationKey || didDocument.previous_rotation_key || didDocument.previousUpdate;
+                if (previousUpdate) {
+                    document.getElementById('plc-previous-update').value = previousUpdate;
+                    console.log('Set previous update:', previousUpdate);
                 }
 
                 // Log all available fields for debugging
@@ -1914,7 +2081,7 @@
                 console.log('- service:', didDocument.service);
                 console.log('- service_endpoints:', didDocument.service_endpoints);
                 console.log('- alsoKnownAs:', didDocument.alsoKnownAs);
-                console.log('- previousRotationKey:', didDocument.previousRotationKey);
+                console.log('- previousUpdate:', didDocument.previousUpdate);
                 console.log('- previous_rotation_key:', didDocument.previous_rotation_key);
                 
                 // Log all available fields for debugging
@@ -2012,6 +2179,17 @@
         if (initialRemoveBtn) {
             initialRemoveBtn.addEventListener('click', function() {
                 removeRotationKey(this);
+            });
+        }
+        
+        // Add event listeners for also known as buttons
+        document.getElementById('add-also-known-as-btn').addEventListener('click', addAlsoKnownAs);
+        
+        // Add event listener for the initial also known as remove button
+        const initialAlsoKnownAsRemoveBtn = document.querySelector('.remove-also-known-as-btn');
+        if (initialAlsoKnownAsRemoveBtn) {
+            initialAlsoKnownAsRemoveBtn.addEventListener('click', function() {
+                removeAlsoKnownAs(this);
             });
         }
 
