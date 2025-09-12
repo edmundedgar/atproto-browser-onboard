@@ -332,12 +332,308 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+
+        /* Tab Navigation Styles */
+        .tab-navigation {
+            display: flex;
+            justify-content: center;
+            margin: 30px 0 20px 0;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #6c757d;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+            margin: 0 10px;
+        }
+
+        .tab-btn:hover {
+            color: #495057;
+            background-color: #f8f9fa;
+        }
+
+        .tab-btn.active {
+            color: #007bff;
+            border-bottom-color: #007bff;
+            background-color: #f8f9fa;
+        }
+
+        .tab-content {
+            position: relative;
+        }
+
+        .tab-pane {
+            display: none;
+        }
+
+        .tab-pane.active {
+            display: block;
+        }
+
+        /* DID:PLC Form Styles */
+        .plc-form-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .plc-form-container h2 {
+            color: #495057;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 1.8em;
+        }
+
+        .plc-subtitle {
+            text-align: center;
+            color: #6c757d;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .plc-form {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 15px;
+            border: 2px solid #e9ecef;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 8px;
+            font-size: 1.1em;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            transition: border-color 0.3s ease;
+            box-sizing: border-box;
+        }
+
+        .did-input-group {
+            display: flex;
+            gap: 10px;
+            align-items: stretch;
+        }
+
+        .did-input-group input {
+            flex: 1;
+        }
+
+        .fetch-btn {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+        }
+
+        .fetch-btn:hover {
+            background: linear-gradient(135deg, #20c997, #17a2b8);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+        }
+
+        .fetch-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .rotation-key-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .rotation-key-input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .remove-rotation-key-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .remove-rotation-key-btn:hover {
+            background: #c82333;
+        }
+        
+        #add-rotation-key-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        
+        #add-rotation-key-btn:hover {
+            background: #218838;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .form-help {
+            display: block;
+            color: #6c757d;
+            font-size: 0.9em;
+            margin-top: 5px;
+            font-style: italic;
+        }
+
+        .form-button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+
+        .submit-btn {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+        }
+
+        .submit-btn:hover {
+            background: linear-gradient(135deg, #0056b3, #004085);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
+        }
+
+        .plc-result {
+            background: #e8f5e8;
+            border: 2px solid #28a745;
+            border-radius: 15px;
+            padding: 25px;
+            margin-top: 30px;
+            text-align: center;
+        }
+
+        .plc-result h3 {
+            color: #155724;
+            margin-bottom: 15px;
+        }
+
+        .plc-result-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #c3e6cb;
+            margin-bottom: 15px;
+            text-align: left;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .plc-debug {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 15px;
+            padding: 25px;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .plc-debug h3 {
+            color: #856404;
+            margin-bottom: 15px;
+        }
+
+        .plc-debug-content {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #ffeaa7;
+            margin-bottom: 15px;
+            text-align: left;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 400px;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🔐 Private Key Generator</h1>
-        <p class="subtitle">Generate a cryptographically secure 256-bit private key</p>
+        <h1>🔐 Cryptographic Key Generator</h1>
+        <p class="subtitle">Generate secure 256-bit private keys, BIP39 mnemonics, secp256k1 public keys, and DID keys in your browser</p>
+        
+        <!-- Tab Navigation -->
+        <div class="tab-navigation">
+            <button class="tab-btn active" id="keygen-tab" data-tab="keygen">
+                🔑 Key Generation
+            </button>
+            <button class="tab-btn" id="didplc-tab" data-tab="didplc">
+                🆔 DID:PLC Entry
+            </button>
+        </div>
+        
+        <!-- Tab Content -->
+        <div class="tab-content">
+            <!-- Key Generation Tab -->
+            <div class="tab-pane active" id="keygen-pane">
         
         <div class="key-display" id="keyDisplay">
             Click "Generate Key" to create a new 256-bit private key
@@ -414,6 +710,92 @@
                 as a DID key for decentralized identity use cases. You can also restore a private 
                 key from a valid BIP39 mnemonic phrase.
             </p>
+        </div>
+        
+        <div id="status"></div>
+            </div>
+            
+            <!-- DID:PLC Entry Tab -->
+            <div class="tab-pane" id="didplc-pane">
+                <div class="plc-form-container">
+                    <h2>🆔 DID:PLC Entry Form</h2>
+                    <p class="plc-subtitle">Create a DID:PLC entry with all required fields for decentralized identity</p>
+                    
+                    <form id="didplc-form" class="plc-form">
+                        <div class="form-group">
+                            <label for="plc-did">DID Identifier</label>
+                            <div class="did-input-group">
+                                <input type="text" id="plc-did" name="did" placeholder="did:plc:example" required>
+                                <button type="button" class="fetch-btn" id="fetch-did-btn">
+                                    🔍 Fetch Record
+                                </button>
+                            </div>
+                            <small class="form-help">The decentralized identifier (e.g., did:plc:abc123) - click "Fetch Record" to load existing data</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Rotation Keys</label>
+                            <div id="rotation-keys-container">
+                                <div class="rotation-key-group">
+                                    <input type="text" class="rotation-key-input" placeholder="Enter rotation key" required>
+                                    <button type="button" class="remove-rotation-key-btn" style="display: none;">Remove</button>
+                                </div>
+                            </div>
+                            <button type="button" id="add-rotation-key-btn">Add Rotation Key</button>
+                            <small class="form-help">Public keys used for key rotation</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="plc-verification-methods">Verification Methods</label>
+                            <textarea id="plc-verification-methods" name="verificationMethods" rows="4" placeholder="Enter verification methods (one per line)" required></textarea>
+                            <small class="form-help">Methods for verifying signatures and authentication</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="plc-services">Services</label>
+                            <textarea id="plc-services" name="services" rows="3" placeholder="Enter associated services (one per line)"></textarea>
+                            <small class="form-help">Optional: Associated services with the DID</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="plc-also-known-as">Also Known As</label>
+                            <textarea id="plc-also-known-as" name="alsoKnownAs" rows="2" placeholder="Enter alternative identifiers (one per line)"></textarea>
+                            <small class="form-help">Optional: Alternative identifiers or handles</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="plc-previous-rotation-key">Previous Rotation Key</label>
+                            <input type="text" id="plc-previous-rotation-key" name="previousRotationKey" placeholder="Previous rotation key (if applicable)">
+                            <small class="form-help">Optional: Previous rotation key for key rotation history</small>
+                        </div>
+                        
+                        <div class="form-button-group">
+                            <button type="submit" class="submit-btn" id="submit-plc-btn">
+                                Create DID:PLC Entry
+                            </button>
+                            <button type="button" class="clear-btn" id="clear-plc-btn">
+                                Clear Form
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div class="plc-result" id="plc-result" style="display: none;">
+                        <h3>📋 Generated DID:PLC Entry</h3>
+                        <div class="plc-result-content" id="plc-result-content"></div>
+                        <button class="copy-btn" id="copy-plc-result-btn">
+                            Copy DID:PLC Entry
+                        </button>
+                    </div>
+                    
+                    <div class="plc-debug" id="plc-debug" style="display: none;">
+                        <h3>🔍 Raw Audit Log (Debug)</h3>
+                        <div class="plc-debug-content" id="plc-debug-content"></div>
+                        <button class="copy-btn" id="copy-plc-debug-btn">
+                            Copy Raw Audit Log
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
         
         <div id="status"></div>
@@ -1095,6 +1477,510 @@
         document.getElementById('copyDidKeyBtn').addEventListener('click', copyDidKey);
         document.getElementById('restoreBtn').addEventListener('click', restoreFromMnemonic);
         document.getElementById('clearBtn').addEventListener('click', clearInput);
+
+        // Tab switching functionality
+        function switchTab(tabName) {
+            // Hide all tab panes
+            document.querySelectorAll('.tab-pane').forEach(pane => {
+                pane.classList.remove('active');
+            });
+            
+            // Remove active class from all tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Show selected tab pane
+            document.getElementById(tabName + '-pane').classList.add('active');
+            
+            // Add active class to selected tab button
+            document.getElementById(tabName + '-tab').classList.add('active');
+        }
+
+        // Add tab event listeners
+        document.getElementById('keygen-tab').addEventListener('click', () => switchTab('keygen'));
+        document.getElementById('didplc-tab').addEventListener('click', () => switchTab('didplc'));
+
+        // DID:PLC form handling
+        let currentPlcEntry = null;
+
+        function createDidPlcEntry(formData) {
+            const entry = {
+                "@context": ["https://www.w3.org/ns/did/v1"],
+                "id": formData.did,
+                "rotationKeys": getRotationKeys(),
+                "verificationMethods": formData.verificationMethods.split('\n').filter(method => method.trim()),
+                "alsoKnownAs": formData.alsoKnownAs ? formData.alsoKnownAs.split('\n').filter(aka => aka.trim()) : [],
+                "services": formData.services ? formData.services.split('\n').filter(service => service.trim()) : []
+            };
+
+            // Add previous rotation key if provided
+            if (formData.previousRotationKey && formData.previousRotationKey.trim()) {
+                entry.previousRotationKey = formData.previousRotationKey.trim();
+            }
+
+            return entry;
+        }
+
+        function displayPlcResult(entry) {
+            const resultDiv = document.getElementById('plc-result');
+            const resultContent = document.getElementById('plc-result-content');
+            
+            resultContent.textContent = JSON.stringify(entry, null, 2);
+            resultDiv.style.display = 'block';
+            
+            // Scroll to result
+            resultDiv.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        async function copyPlcResult() {
+            if (!currentPlcEntry) return;
+
+            try {
+                await navigator.clipboard.writeText(JSON.stringify(currentPlcEntry, null, 2));
+                const status = document.getElementById('status');
+                status.innerHTML = '<div class="status success">📋 DID:PLC entry copied to clipboard!</div>';
+                
+                // Clear status after 3 seconds
+                setTimeout(() => {
+                    status.innerHTML = '';
+                }, 3000);
+            } catch (error) {
+                console.error('Error copying DID:PLC entry to clipboard:', error);
+                const status = document.getElementById('status');
+                status.innerHTML = '<div class="status error">❌ Failed to copy DID:PLC entry to clipboard</div>';
+            }
+        }
+
+        function clearPlcForm() {
+            document.getElementById('didplc-form').reset();
+            document.getElementById('plc-result').style.display = 'none';
+            currentPlcEntry = null;
+            const status = document.getElementById('status');
+            status.innerHTML = '';
+            
+            // Reset rotation keys to single input
+            const container = document.getElementById('rotation-keys-container');
+            container.innerHTML = '';
+            
+            const group = document.createElement('div');
+            group.className = 'rotation-key-group';
+            
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'rotation-key-input';
+            input.placeholder = 'Enter rotation key';
+            input.required = true;
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'remove-rotation-key-btn';
+            removeBtn.textContent = 'Remove';
+            removeBtn.style.display = 'none';
+            removeBtn.addEventListener('click', function() {
+                removeRotationKey(this);
+            });
+            
+            group.appendChild(input);
+            group.appendChild(removeBtn);
+            container.appendChild(group);
+        }
+        
+        function addRotationKey() {
+            const container = document.getElementById('rotation-keys-container');
+            const newGroup = document.createElement('div');
+            newGroup.className = 'rotation-key-group';
+            
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'rotation-key-input';
+            input.placeholder = 'Enter rotation key';
+            input.required = true;
+            
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'remove-rotation-key-btn';
+            removeBtn.textContent = 'Remove';
+            removeBtn.addEventListener('click', function() {
+                removeRotationKey(this);
+            });
+            
+            newGroup.appendChild(input);
+            newGroup.appendChild(removeBtn);
+            container.appendChild(newGroup);
+            
+            // Show remove buttons if there are multiple inputs
+            updateRemoveButtons();
+        }
+        
+        function removeRotationKey(button) {
+            const group = button.parentElement;
+            const container = document.getElementById('rotation-keys-container');
+            
+            // Don't remove if it's the only input
+            if (container.children.length > 1) {
+                group.remove();
+                updateRemoveButtons();
+            }
+        }
+        
+        function updateRemoveButtons() {
+            const container = document.getElementById('rotation-keys-container');
+            const removeButtons = container.querySelectorAll('.remove-rotation-key-btn');
+            
+            removeButtons.forEach(button => {
+                button.style.display = container.children.length > 1 ? 'block' : 'none';
+            });
+        }
+        
+        function getRotationKeys() {
+            const inputs = document.querySelectorAll('.rotation-key-input');
+            return Array.from(inputs)
+                .map(input => input.value.trim())
+                .filter(value => value !== '');
+        }
+        
+        function setRotationKeys(keys) {
+            console.log('setRotationKeys called with:', keys);
+            const container = document.getElementById('rotation-keys-container');
+            console.log('Container found:', container);
+            
+            // Clear existing inputs
+            container.innerHTML = '';
+            
+            // Add inputs for each key
+            keys.forEach((key, index) => {
+                console.log(`Adding key ${index}:`, key);
+                const group = document.createElement('div');
+                group.className = 'rotation-key-group';
+                
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.className = 'rotation-key-input';
+                input.placeholder = 'Enter rotation key';
+                input.required = true;
+                input.value = key;
+                
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'remove-rotation-key-btn';
+                removeBtn.textContent = 'Remove';
+                removeBtn.addEventListener('click', function() {
+                    removeRotationKey(this);
+                });
+                
+                group.appendChild(input);
+                group.appendChild(removeBtn);
+                container.appendChild(group);
+            });
+            
+            // If no keys, add one empty input
+            if (keys.length === 0) {
+                console.log('No keys provided, adding empty input');
+                addRotationKey();
+            }
+            
+            updateRemoveButtons();
+            console.log('setRotationKeys completed');
+        }
+
+        // Add DID:PLC form event listeners
+        document.getElementById('didplc-form').addEventListener('submit', function(event) {
+            event.preventDefault();
+            
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData.entries());
+            
+            try {
+                currentPlcEntry = createDidPlcEntry(data);
+                displayPlcResult(currentPlcEntry);
+                
+                const status = document.getElementById('status');
+                status.innerHTML = '<div class="status success">✅ DID:PLC entry created successfully!</div>';
+            } catch (error) {
+                console.error('Error creating DID:PLC entry:', error);
+                const status = document.getElementById('status');
+                status.innerHTML = '<div class="status error">❌ Error creating DID:PLC entry. Please check your input.</div>';
+            }
+        });
+
+        document.getElementById('clear-plc-btn').addEventListener('click', clearPlcForm);
+        document.getElementById('copy-plc-result-btn').addEventListener('click', copyPlcResult);
+        document.getElementById('copy-plc-debug-btn').addEventListener('click', copyPlcDebug);
+
+        // DID:PLC fetching functionality
+        async function fetchDidPlcRecord(didPlc) {
+            const url = `https://plc.directory/${didPlc}/log/audit`;
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                const auditLog = await response.json();
+                
+                // Get the latest (current) record from the audit log
+                if (auditLog.length === 0) {
+                    throw new Error('No records found in audit log');
+                }
+                
+                const latestRecord = auditLog[auditLog.length - 1];
+                const operation = latestRecord.operation;
+                
+                // Extract the DID document data from the operation
+                console.log('Latest record operation:', operation);
+                console.log('Operation rotation keys:', operation.rotationKeys);
+                
+                const didDocument = {
+                    id: latestRecord.did,
+                    rotationKeys: operation.rotationKeys,
+                    verificationMethods: operation.verificationMethods,
+                    services: operation.services,
+                    alsoKnownAs: operation.alsoKnownAs,
+                    previousRotationKey: latestRecord.operation.prev
+                };
+                
+                console.log('Extracted DID document:', didDocument);
+                
+                return { didDocument, auditLog };
+            } catch (error) {
+                console.error('Failed to fetch DID document:', error);
+                throw error;
+            }
+        }
+
+        function populateFormFromDidDocument(didDocument) {
+            try {
+                console.log('Received DID document:', didDocument);
+                
+                // Populate DID identifier
+                if (didDocument.id) {
+                    document.getElementById('plc-did').value = didDocument.id;
+                    console.log('Set DID id:', didDocument.id);
+                }
+
+                // Populate rotation keys - check multiple possible field names
+                let rotationKeys = didDocument.rotationKeys || didDocument.rotationKey || didDocument.rotation_keys || didDocument.rotation_keys_uri;
+                let rotationKeyStrings = [];
+                
+                if (rotationKeys) {
+                    console.log('Found rotation keys:', rotationKeys);
+                    if (Array.isArray(rotationKeys)) {
+                        // Handle array of objects or strings
+                        rotationKeyStrings = rotationKeys.map(key => {
+                            if (typeof key === 'object' && key !== null) {
+                                // If it's an object, try to extract useful information
+                                if (key.id) return key.id;
+                                if (key.publicKeyMultibase) return key.publicKeyMultibase;
+                                if (key.publicKey) return key.publicKey;
+                                return JSON.stringify(key);
+                            }
+                            return key.toString();
+                        });
+                        console.log('Set rotation keys (array):', rotationKeyStrings);
+                    } else {
+                        rotationKeyStrings = [rotationKeys.toString()];
+                        console.log('Set rotation keys (single):', rotationKeys);
+                    }
+                } else {
+                    // Check if rotation keys are embedded in verification methods
+                    if (didDocument.verificationMethod && Array.isArray(didDocument.verificationMethod)) {
+                        const rotationKeyMethods = didDocument.verificationMethod.filter(method => 
+                            method.type === 'EcdsaSecp256k1RecoveryMethod2020' || 
+                            method.type === 'EcdsaSecp256k1VerificationKey2019' ||
+                            method.purpose && method.purpose.includes('rotation')
+                        );
+                        if (rotationKeyMethods.length > 0) {
+                            rotationKeyStrings = rotationKeyMethods.map(method => {
+                                if (method.publicKeyMultibase) return method.publicKeyMultibase;
+                                if (method.publicKey) return method.publicKey;
+                                return JSON.stringify(method);
+                            });
+                            console.log('Set rotation keys from verification methods:', rotationKeyStrings);
+                        }
+                    }
+                }
+                
+                // Set rotation keys using the new function
+                console.log('About to set rotation keys:', rotationKeyStrings);
+                setRotationKeys(rotationKeyStrings);
+
+                // Populate verification methods - check multiple possible field names
+                let verificationMethods = didDocument.verificationMethods || didDocument.verificationMethod || didDocument.verification_methods || didDocument.verification_method;
+                if (verificationMethods) {
+                    if (Array.isArray(verificationMethods)) {
+                        // Handle array of objects or strings
+                        const methodStrings = verificationMethods.map(method => {
+                            if (typeof method === 'object' && method !== null) {
+                                // If it's an object, try to extract useful information
+                                if (method.id) return method.id;
+                                if (method.type) return `${method.type}: ${method.publicKeyMultibase || method.publicKey || JSON.stringify(method)}`;
+                                return JSON.stringify(method);
+                            }
+                            return method.toString();
+                        });
+                        document.getElementById('plc-verification-methods').value = methodStrings.join('\n');
+                        console.log('Set verification methods (array):', methodStrings);
+                    } else {
+                        document.getElementById('plc-verification-methods').value = verificationMethods;
+                        console.log('Set verification methods (single):', verificationMethods);
+                    }
+                }
+
+                // Populate services
+                let services = didDocument.services || didDocument.service || didDocument.service_endpoints;
+                if (services) {
+                    if (Array.isArray(services)) {
+                        // Handle array of objects or strings
+                        const serviceStrings = services.map(service => {
+                            if (typeof service === 'object' && service !== null) {
+                                // If it's an object, try to extract useful information
+                                if (service.id) return service.id;
+                                if (service.type && service.serviceEndpoint) return `${service.type}: ${service.serviceEndpoint}`;
+                                return JSON.stringify(service);
+                            }
+                            return service.toString();
+                        });
+                        document.getElementById('plc-services').value = serviceStrings.join('\n');
+                        console.log('Set services:', serviceStrings);
+                    } else {
+                        document.getElementById('plc-services').value = services;
+                        console.log('Set services (single):', services);
+                    }
+                }
+
+                // Populate also known as
+                if (didDocument.alsoKnownAs && Array.isArray(didDocument.alsoKnownAs)) {
+                    document.getElementById('plc-also-known-as').value = didDocument.alsoKnownAs.join('\n');
+                    console.log('Set alsoKnownAs:', didDocument.alsoKnownAs);
+                } else if (didDocument.alsoKnownAs) {
+                    document.getElementById('plc-also-known-as').value = didDocument.alsoKnownAs;
+                    console.log('Set alsoKnownAs (single):', didDocument.alsoKnownAs);
+                }
+
+                // Populate previous rotation key
+                let previousRotationKey = didDocument.previousRotationKey || didDocument.previous_rotation_key;
+                if (previousRotationKey) {
+                    document.getElementById('plc-previous-rotation-key').value = previousRotationKey;
+                    console.log('Set previous rotation key:', previousRotationKey);
+                }
+
+                // Log all available fields for debugging
+                console.log('All available fields in DID document:', Object.keys(didDocument));
+                console.log('Raw DID document data:', didDocument);
+                console.log('Field values found:');
+                console.log('- id:', didDocument.id);
+                console.log('- rotationKeys:', didDocument.rotationKeys);
+                console.log('- rotationKey:', didDocument.rotationKey);
+                console.log('- rotation_keys:', didDocument.rotation_keys);
+                console.log('- rotation_keys_uri:', didDocument.rotation_keys_uri);
+                console.log('- verificationMethods:', didDocument.verificationMethods);
+                console.log('- verificationMethod:', didDocument.verificationMethod);
+                console.log('- verification_methods:', didDocument.verification_methods);
+                console.log('- verification_method:', didDocument.verification_method);
+                console.log('- services:', didDocument.services);
+                console.log('- service:', didDocument.service);
+                console.log('- service_endpoints:', didDocument.service_endpoints);
+                console.log('- alsoKnownAs:', didDocument.alsoKnownAs);
+                console.log('- previousRotationKey:', didDocument.previousRotationKey);
+                console.log('- previous_rotation_key:', didDocument.previous_rotation_key);
+                
+                // Log all available fields for debugging
+                console.log('All available fields in DID document:', Object.keys(didDocument));
+
+                return true;
+            } catch (error) {
+                console.error('Error populating form:', error);
+                return false;
+            }
+        }
+
+        async function handleFetchDidRecord() {
+            const didInput = document.getElementById('plc-did');
+            const fetchBtn = document.getElementById('fetch-did-btn');
+            const status = document.getElementById('status');
+            
+            const didPlc = didInput.value.trim();
+            
+            if (!didPlc) {
+                status.innerHTML = '<div class="status error">❌ Please enter a DID:PLC address first</div>';
+                return;
+            }
+
+            if (!didPlc.startsWith('did:plc:')) {
+                status.innerHTML = '<div class="status error">❌ Please enter a valid DID:PLC address (must start with "did:plc:")</div>';
+                return;
+            }
+
+            // Show loading state
+            fetchBtn.disabled = true;
+            fetchBtn.textContent = '🔄 Fetching...';
+            status.innerHTML = '<div class="status success">🔄 Fetching DID:PLC record from plc.directory...</div>';
+
+            try {
+                const { didDocument, auditLog } = await fetchDidPlcRecord(didPlc);
+                
+                // Show raw audit log for debugging
+                const debugDiv = document.getElementById('plc-debug');
+                const debugContent = document.getElementById('plc-debug-content');
+                debugContent.textContent = JSON.stringify(auditLog, null, 2);
+                debugDiv.style.display = 'block';
+                
+                if (populateFormFromDidDocument(didDocument)) {
+                    status.innerHTML = '<div class="status success">✅ DID:PLC record fetched and form populated successfully!</div>';
+                } else {
+                    status.innerHTML = '<div class="status error">⚠️ Record fetched but some fields could not be populated</div>';
+                }
+                
+                // Clear any existing result
+                document.getElementById('plc-result').style.display = 'none';
+                currentPlcEntry = null;
+                
+            } catch (error) {
+                console.error('Error fetching DID:PLC record:', error);
+                status.innerHTML = `<div class="status error">❌ Failed to fetch DID:PLC record: ${error.message}</div>`;
+                
+                // Hide debug section on error
+                document.getElementById('plc-debug').style.display = 'none';
+            } finally {
+                // Reset button state
+                fetchBtn.disabled = false;
+                fetchBtn.textContent = '🔍 Fetch Record';
+            }
+        }
+
+        async function copyPlcDebug() {
+            const debugContent = document.getElementById('plc-debug-content');
+            if (!debugContent.textContent) return;
+
+            try {
+                await navigator.clipboard.writeText(debugContent.textContent);
+                const status = document.getElementById('status');
+                status.innerHTML = '<div class="status success">📋 Raw DID document copied to clipboard!</div>';
+                
+                // Clear status after 3 seconds
+                setTimeout(() => {
+                    status.innerHTML = '';
+                }, 3000);
+            } catch (error) {
+                console.error('Error copying raw DID document to clipboard:', error);
+                const status = document.getElementById('status');
+                status.innerHTML = '<div class="status error">❌ Failed to copy raw DID document to clipboard</div>';
+            }
+        }
+
+        // Add event listener for fetch button
+        document.getElementById('fetch-did-btn').addEventListener('click', handleFetchDidRecord);
+        
+        // Add event listeners for rotation key buttons
+        document.getElementById('add-rotation-key-btn').addEventListener('click', addRotationKey);
+        
+        // Add event listener for the initial remove button
+        const initialRemoveBtn = document.querySelector('.remove-rotation-key-btn');
+        if (initialRemoveBtn) {
+            initialRemoveBtn.addEventListener('click', function() {
+                removeRotationKey(this);
+            });
+        }
 
         // Check if Web Crypto API is available
         if (!window.crypto || !window.crypto.getRandomValues) {
