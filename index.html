@@ -746,9 +746,9 @@
                         </div>
                         
                         <div class="form-group">
-                            <label for="plc-verification-methods">Verification Methods</label>
-                            <textarea id="plc-verification-methods" name="verificationMethods" rows="4" placeholder="Enter verification methods (one per line)" required></textarea>
-                            <small class="form-help">Methods for verifying signatures and authentication</small>
+                            <label for="plc-atproto-verification-method">ATProto Verification Method</label>
+                            <input type="text" id="plc-atproto-verification-method" name="atprotoVerificationMethod" placeholder="Enter ATProto verification method (did:key:...)" required>
+                            <small class="form-help">The verification method used for ATProto authentication</small>
                         </div>
                         
                         <div class="form-group">
@@ -1509,7 +1509,9 @@
                 "@context": ["https://www.w3.org/ns/did/v1"],
                 "id": formData.did,
                 "rotationKeys": getRotationKeys(),
-                "verificationMethods": formData.verificationMethods.split('\n').filter(method => method.trim()),
+                "verificationMethods": {
+                    "atproto": formData.atprotoVerificationMethod
+                },
                 "alsoKnownAs": formData.alsoKnownAs ? formData.alsoKnownAs.split('\n').filter(aka => aka.trim()) : [],
                 "services": formData.services ? formData.services.split('\n').filter(service => service.trim()) : []
             };
@@ -1804,25 +1806,38 @@
                 console.log('About to set rotation keys:', rotationKeyStrings);
                 setRotationKeys(rotationKeyStrings);
 
-                // Populate verification methods - check multiple possible field names
+                // Populate ATProto verification method
                 let verificationMethods = didDocument.verificationMethods || didDocument.verificationMethod || didDocument.verification_methods || didDocument.verification_method;
                 if (verificationMethods) {
-                    if (Array.isArray(verificationMethods)) {
-                        // Handle array of objects or strings
+                    console.log('Found verification methods:', verificationMethods);
+                    
+                    if (typeof verificationMethods === 'object' && verificationMethods !== null) {
+                        // Handle object format like {"atproto": "did:key:..."}
+                        if (verificationMethods.atproto) {
+                            document.getElementById('plc-atproto-verification-method').value = verificationMethods.atproto;
+                            console.log('Set ATProto verification method:', verificationMethods.atproto);
+                        } else {
+                            console.log('No atproto key found in verification methods object');
+                        }
+                    } else if (Array.isArray(verificationMethods)) {
+                        // Handle array format (fallback)
                         const methodStrings = verificationMethods.map(method => {
                             if (typeof method === 'object' && method !== null) {
-                                // If it's an object, try to extract useful information
                                 if (method.id) return method.id;
                                 if (method.type) return `${method.type}: ${method.publicKeyMultibase || method.publicKey || JSON.stringify(method)}`;
                                 return JSON.stringify(method);
                             }
                             return method.toString();
                         });
-                        document.getElementById('plc-verification-methods').value = methodStrings.join('\n');
-                        console.log('Set verification methods (array):', methodStrings);
+                        // For arrays, take the first method as ATProto verification method
+                        if (methodStrings.length > 0) {
+                            document.getElementById('plc-atproto-verification-method').value = methodStrings[0];
+                            console.log('Set ATProto verification method (from array):', methodStrings[0]);
+                        }
                     } else {
-                        document.getElementById('plc-verification-methods').value = verificationMethods;
-                        console.log('Set verification methods (single):', verificationMethods);
+                        // Handle string format (fallback)
+                        document.getElementById('plc-atproto-verification-method').value = verificationMethods.toString();
+                        console.log('Set ATProto verification method (string):', verificationMethods);
                     }
                 }
 
