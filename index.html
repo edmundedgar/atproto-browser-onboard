@@ -752,9 +752,9 @@
                         </div>
                         
                         <div class="form-group">
-                            <label for="plc-services">Services</label>
-                            <textarea id="plc-services" name="services" rows="3" placeholder="Enter associated services (one per line)"></textarea>
-                            <small class="form-help">Optional: Associated services with the DID</small>
+                            <label for="plc-pds-endpoint">PDS Endpoint</label>
+                            <input type="text" id="plc-pds-endpoint" name="pdsEndpoint" placeholder="Enter PDS endpoint URL (e.g., https://bsky.social)" required>
+                            <small class="form-help">The ATProto Personal Data Server endpoint URL</small>
                         </div>
                         
                         <div class="form-group">
@@ -1513,7 +1513,12 @@
                     "atproto": formData.atprotoVerificationMethod
                 },
                 "alsoKnownAs": formData.alsoKnownAs ? formData.alsoKnownAs.split('\n').filter(aka => aka.trim()) : [],
-                "services": formData.services ? formData.services.split('\n').filter(service => service.trim()) : []
+                "services": {
+                    "atproto_pds": {
+                        "type": "AtprotoPersonalDataServer",
+                        "endpoint": formData.pdsEndpoint
+                    }
+                }
             };
 
             // Add previous rotation key if provided
@@ -1841,25 +1846,38 @@
                     }
                 }
 
-                // Populate services
+                // Populate PDS endpoint
                 let services = didDocument.services || didDocument.service || didDocument.service_endpoints;
                 if (services) {
-                    if (Array.isArray(services)) {
-                        // Handle array of objects or strings
+                    console.log('Found services:', services);
+                    
+                    if (typeof services === 'object' && services !== null) {
+                        // Handle object format like {"atproto_pds": {"type": "AtprotoPersonalDataServer", "endpoint": "https://..."}}
+                        if (services.atproto_pds && services.atproto_pds.endpoint) {
+                            document.getElementById('plc-pds-endpoint').value = services.atproto_pds.endpoint;
+                            console.log('Set PDS endpoint:', services.atproto_pds.endpoint);
+                        } else {
+                            console.log('No atproto_pds.endpoint found in services object');
+                        }
+                    } else if (Array.isArray(services)) {
+                        // Handle array format (fallback)
                         const serviceStrings = services.map(service => {
                             if (typeof service === 'object' && service !== null) {
-                                // If it's an object, try to extract useful information
                                 if (service.id) return service.id;
                                 if (service.type && service.serviceEndpoint) return `${service.type}: ${service.serviceEndpoint}`;
                                 return JSON.stringify(service);
                             }
                             return service.toString();
                         });
-                        document.getElementById('plc-services').value = serviceStrings.join('\n');
-                        console.log('Set services:', serviceStrings);
+                        // For arrays, take the first service as PDS endpoint
+                        if (serviceStrings.length > 0) {
+                            document.getElementById('plc-pds-endpoint').value = serviceStrings[0];
+                            console.log('Set PDS endpoint (from array):', serviceStrings[0]);
+                        }
                     } else {
-                        document.getElementById('plc-services').value = services;
-                        console.log('Set services (single):', services);
+                        // Handle string format (fallback)
+                        document.getElementById('plc-pds-endpoint').value = services.toString();
+                        console.log('Set PDS endpoint (string):', services);
                     }
                 }
 
