@@ -1,0 +1,13 @@
+flows:
+
+ - create did with self-hosted rotation key, put rotation key in verificationMethod field as a placeholder
+ - special code to export the pubkey
+ - new update to set the correct pubkey
+ 
+
+ - create account on pds, add key with some ui it gives you
+ - create account, create newly on any pds, not sure if you can do this
+ - create account, create newly on our custom pds
+   - make endpoint to wrap create user function
+   - do other operations according to some template
+   - add parallel system to create a session with SIWE?
