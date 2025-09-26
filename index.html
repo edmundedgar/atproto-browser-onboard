@@ -759,7 +759,7 @@
             </p>
         </div>
         
-        <div id="status"></div>
+        <div class="status"></div>
             </div>
             
             <!-- DID:PLC Entry Tab -->
@@ -905,10 +905,10 @@
                         </button>
                     </div>
                 </div>
+                
+                <div class="status"></div>
             </div>
         </div>
-        
-        <div id="status"></div>
     </div>
 
     <script type="module">
@@ -1331,7 +1331,7 @@
             const copyPublicKeyBtn = document.getElementById('copyPublicKeyBtn');
             const copyDidKeyBtn = document.getElementById('copyDidKeyBtn');
             const generateBtn = document.getElementById('generateBtn');
-            const status = document.getElementById('status');
+            const status = getCurrentStatusElement();
 
             try {
                 // Show loading state
@@ -1382,11 +1382,15 @@
                 copyPublicKeyBtn.disabled = false;
                 copyDidKeyBtn.disabled = false;
 
-                status.innerHTML = '<div class="status success">✅ Key, mnemonic, public key, and DID key generated successfully!</div>';
+                if (status) {
+                    status.innerHTML = '<div class="status success">✅ Key, mnemonic, public key, and DID key generated successfully!</div>';
+                }
 
             } catch (error) {
                 console.error('Error generating key:', error);
-                status.innerHTML = '<div class="status error">❌ Error generating key. Please try again.</div>';
+                if (status) {
+                    status.innerHTML = '<div class="status error">❌ Error generating key. Please try again.</div>';
+                }
                 keyDisplay.textContent = 'Error generating key. Please try again.';
                 keyDisplay.classList.remove('has-key');
                 mnemonicDisplay.style.display = 'none';
@@ -1403,17 +1407,23 @@
 
             try {
                 await navigator.clipboard.writeText(currentKey);
-                const status = document.getElementById('status');
-                status.innerHTML = '<div class="status success">📋 Key copied to clipboard!</div>';
+                const status = getCurrentStatusElement();
+                if (status) {
+                    status.innerHTML = '<div class="status success">📋 Key copied to clipboard!</div>';
+                }
                 
                 // Clear status after 3 seconds
                 setTimeout(() => {
-                    status.innerHTML = '';
+                    if (status) {
+                        status.innerHTML = '';
+                    }
                 }, 3000);
             } catch (error) {
                 console.error('Error copying to clipboard:', error);
-                const status = document.getElementById('status');
-                status.innerHTML = '<div class="status error">❌ Failed to copy to clipboard</div>';
+                const status = getCurrentStatusElement();
+                if (status) {
+                    status.innerHTML = '<div class="status error">❌ Failed to copy to clipboard</div>';
+                }
             }
         }
 
@@ -1422,17 +1432,23 @@
 
             try {
                 await navigator.clipboard.writeText(currentMnemonic);
-                const status = document.getElementById('status');
-                status.innerHTML = '<div class="status success">📋 Mnemonic copied to clipboard!</div>';
+                const status = getCurrentStatusElement();
+                if (status) {
+                    status.innerHTML = '<div class="status success">📋 Mnemonic copied to clipboard!</div>';
+                }
                 
                 // Clear status after 3 seconds
                 setTimeout(() => {
-                    status.innerHTML = '';
+                    if (status) {
+                        status.innerHTML = '';
+                    }
                 }, 3000);
             } catch (error) {
                 console.error('Error copying mnemonic to clipboard:', error);
-                const status = document.getElementById('status');
-                status.innerHTML = '<div class="status error">❌ Failed to copy mnemonic to clipboard</div>';
+                const status = getCurrentStatusElement();
+                if (status) {
+                    status.innerHTML = '<div class="status error">❌ Failed to copy mnemonic to clipboard</div>';
+                }
             }
         }
 
@@ -1441,17 +1457,23 @@
 
             try {
                 await navigator.clipboard.writeText(currentPublicKey);
-                const status = document.getElementById('status');
-                status.innerHTML = '<div class="status success">📋 Public key copied to clipboard!</div>';
+                const status = getCurrentStatusElement();
+                if (status) {
+                    status.innerHTML = '<div class="status success">📋 Public key copied to clipboard!</div>';
+                }
                 
                 // Clear status after 3 seconds
                 setTimeout(() => {
-                    status.innerHTML = '';
+                    if (status) {
+                        status.innerHTML = '';
+                    }
                 }, 3000);
             } catch (error) {
                 console.error('Error copying public key to clipboard:', error);
-                const status = document.getElementById('status');
-                status.innerHTML = '<div class="status error">❌ Failed to copy public key to clipboard</div>';
+                const status = getCurrentStatusElement();
+                if (status) {
+                    status.innerHTML = '<div class="status error">❌ Failed to copy public key to clipboard</div>';
+                }
             }
         }
 
@@ -1460,17 +1482,23 @@
 
             try {
                 await navigator.clipboard.writeText(currentDidKey);
-                const status = document.getElementById('status');
-                status.innerHTML = '<div class="status success">📋 DID key copied to clipboard!</div>';
+                const status = getCurrentStatusElement();
+                if (status) {
+                    status.innerHTML = '<div class="status success">📋 DID key copied to clipboard!</div>';
+                }
                 
                 // Clear status after 3 seconds
                 setTimeout(() => {
-                    status.innerHTML = '';
+                    if (status) {
+                        status.innerHTML = '';
+                    }
                 }, 3000);
             } catch (error) {
                 console.error('Error copying DID key to clipboard:', error);
-                const status = document.getElementById('status');
-                status.innerHTML = '<div class="status error">❌ Failed to copy DID key to clipboard</div>';
+                const status = getCurrentStatusElement();
+                if (status) {
+                    status.innerHTML = '<div class="status error">❌ Failed to copy DID key to clipboard</div>';
+                }
             }
         }
 
@@ -1488,12 +1516,14 @@
             const copyPublicKeyBtn = document.getElementById('copyPublicKeyBtn');
             const copyDidKeyBtn = document.getElementById('copyDidKeyBtn');
             const restoreBtn = document.getElementById('restoreBtn');
-            const status = document.getElementById('status');
+            const status = getCurrentStatusElement();
 
             const inputMnemonic = mnemonicInput.value.trim();
 
             if (!inputMnemonic) {
-                status.innerHTML = '<div class="status error">❌ Please enter a mnemonic phrase</div>';
+                if (status) {
+                    status.innerHTML = '<div class="status error">❌ Please enter a mnemonic phrase</div>';
+                }
                 return;
             }
 
@@ -1564,10 +1594,28 @@
 
         function clearInput() {
             const mnemonicInput = document.getElementById('mnemonicInput');
-            const status = document.getElementById('status');
+            const status = getCurrentStatusElement();
             
             mnemonicInput.value = '';
             status.innerHTML = '';
+        }
+
+        // Helper function to get the status element for the current active tab
+        function getCurrentStatusElement() {
+            const activeTab = document.querySelector('.tab-pane.active');
+            if (activeTab) {
+                const statusElement = activeTab.querySelector('.status');
+                if (statusElement) {
+                    return statusElement;
+                }
+            }
+            // Fallback: try to find any status element if active tab detection fails
+            const fallbackStatus = document.querySelector('.status');
+            if (fallbackStatus) {
+                return fallbackStatus;
+            }
+            console.warn('No status element found');
+            return null;
         }
 
         // Make functions globally accessible for onclick handlers
@@ -1656,16 +1704,18 @@
 
             try {
                 await navigator.clipboard.writeText(JSON.stringify(currentPlcEntry, null, 2));
-                const status = document.getElementById('status');
+                const status = getCurrentStatusElement();
                 status.innerHTML = '<div class="status success">📋 DID:PLC entry copied to clipboard!</div>';
                 
                 // Clear status after 3 seconds
                 setTimeout(() => {
-                    status.innerHTML = '';
+                    if (status) {
+                        status.innerHTML = '';
+                    }
                 }, 3000);
             } catch (error) {
                 console.error('Error copying DID:PLC entry to clipboard:', error);
-                const status = document.getElementById('status');
+                const status = getCurrentStatusElement();
                 status.innerHTML = '<div class="status error">❌ Failed to copy DID:PLC entry to clipboard</div>';
             }
         }
@@ -1674,8 +1724,10 @@
             document.getElementById('didplc-form').reset();
             document.getElementById('plc-result').style.display = 'none';
             currentPlcEntry = null;
-            const status = document.getElementById('status');
-            status.innerHTML = '';
+            const status = getCurrentStatusElement();
+            if (status) {
+                status.innerHTML = '';
+            }
             
             // Reset rotation keys to single input
             const container = document.getElementById('rotation-keys-container');
@@ -1929,11 +1981,11 @@
                 currentPlcEntry = createDidPlcEntry(data);
                 displayPlcResult(currentPlcEntry);
                 
-                const status = document.getElementById('status');
+                const status = getCurrentStatusElement();
                 status.innerHTML = '<div class="status success">✅ DID:PLC entry created successfully!</div>';
             } catch (error) {
                 console.error('Error creating DID:PLC entry:', error);
-                const status = document.getElementById('status');
+                const status = getCurrentStatusElement();
                 status.innerHTML = '<div class="status error">❌ Error creating DID:PLC entry. Please check your input.</div>';
             }
         });
@@ -1946,6 +1998,16 @@
         document.getElementById('createaccount-form').addEventListener('submit', function(event) {
             event.preventDefault();
             
+            const status = getCurrentStatusElement();
+            
+            // Check if a private key has been generated or loaded
+            if (!currentKey) {
+                if (status) {
+                    status.innerHTML = '<div class="status error">⚠️ No private key available! Please generate a new key or restore one from a mnemonic in the "Generate Key" tab first.</div>';
+                }
+                return;
+            }
+            
             const formData = new FormData(this);
             const data = Object.fromEntries(formData.entries());
             
@@ -1953,20 +2015,24 @@
                 // TODO: Implement account creation logic
                 console.log('Create account form submitted:', data);
                 
-                const status = document.getElementById('status');
-                status.innerHTML = '<div class="status success">✅ Account creation form submitted! (Implementation pending)</div>';
+                if (status) {
+                    status.innerHTML = '<div class="status success">✅ Account creation form submitted! (Implementation pending)</div>';
+                }
             } catch (error) {
                 console.error('Error creating account:', error);
-                const status = document.getElementById('status');
-                status.innerHTML = '<div class="status error">❌ Error creating account. Please check your input.</div>';
+                if (status) {
+                    status.innerHTML = '<div class="status error">❌ Error creating account. Please check your input.</div>';
+                }
             }
         });
 
         document.getElementById('clear-createaccount-btn').addEventListener('click', function() {
             document.getElementById('createaccount-form').reset();
             document.getElementById('createaccount-result').style.display = 'none';
-            const status = document.getElementById('status');
-            status.innerHTML = '';
+            const status = getCurrentStatusElement();
+            if (status) {
+                status.innerHTML = '';
+            }
         });
 
         document.getElementById('copy-createaccount-result-btn').addEventListener('click', function() {
@@ -2190,7 +2256,7 @@
         async function handleFetchDidRecord() {
             const didInput = document.getElementById('plc-did');
             const fetchBtn = document.getElementById('fetch-did-btn');
-            const status = document.getElementById('status');
+            const status = getCurrentStatusElement();
             
             const didPlc = didInput.value.trim();
             
@@ -2247,16 +2313,18 @@
 
             try {
                 await navigator.clipboard.writeText(debugContent.textContent);
-                const status = document.getElementById('status');
+                const status = getCurrentStatusElement();
                 status.innerHTML = '<div class="status success">📋 Raw DID document copied to clipboard!</div>';
                 
                 // Clear status after 3 seconds
                 setTimeout(() => {
-                    status.innerHTML = '';
+                    if (status) {
+                        status.innerHTML = '';
+                    }
                 }, 3000);
             } catch (error) {
                 console.error('Error copying raw DID document to clipboard:', error);
-                const status = document.getElementById('status');
+                const status = getCurrentStatusElement();
                 status.innerHTML = '<div class="status error">❌ Failed to copy raw DID document to clipboard</div>';
             }
         }
