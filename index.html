@@ -1618,6 +1618,35 @@
             return null;
         }
 
+        // Generate a DID:PLC ID (simplified implementation)
+        function generateDidPlcId() {
+            // Generate 16 random bytes and encode as base32
+            const randomBytes = new Uint8Array(16);
+            crypto.getRandomValues(randomBytes);
+            
+            // Convert to base32 (simplified - using a basic implementation)
+            const base32Chars = 'abcdefghijklmnopqrstuvwxyz234567';
+            let result = '';
+            let bits = 0;
+            let value = 0;
+            
+            for (let i = 0; i < randomBytes.length; i++) {
+                value = (value << 8) | randomBytes[i];
+                bits += 8;
+                
+                while (bits >= 5) {
+                    result += base32Chars[(value >>> (bits - 5)) & 31];
+                    bits -= 5;
+                }
+            }
+            
+            if (bits > 0) {
+                result += base32Chars[(value << (5 - bits)) & 31];
+            }
+            
+            return `did:plc:${result}`;
+        }
+
         // Make functions globally accessible for onclick handlers
         window.generateKey = generateKey;
         window.copyKey = copyKey;
@@ -2012,11 +2041,39 @@
             const data = Object.fromEntries(formData.entries());
             
             try {
-                // TODO: Implement account creation logic
-                console.log('Create account form submitted:', data);
+                // Generate a DID:PLC ID (simplified - in real implementation this would be more complex)
+                const didPlcId = generateDidPlcId();
+                
+                // Create DID:PLC operation using current key data
+                const didPlcOperation = {
+                    "type": "plc_operation",
+                    "rotationKeys": [currentDidKey], // Use the current DID key as rotation key
+                    "verificationMethods": {
+                        "atproto": currentDidKey
+                    },
+                    "alsoKnownAs": [`at://${data.handle}`], // Use the handle as alsoKnownAs
+                    "services": {
+                        "atproto_pds": {
+                            "type": "AtprotoPersonalDataServer",
+                            "endpoint": data.pdsEndpoint
+                        }
+                    },
+                    "prev": null, // null for creation operations
+                    "sig": "placeholder_signature" // TODO: Add actual signature
+                };
+                
+                // Output to console
+                console.log('Generated DID:PLC Operation:', didPlcOperation);
+                console.log('DID:PLC ID:', didPlcId);
+                console.log('Private Key:', currentKey);
+                console.log('Public Key:', currentPublicKey);
+                console.log('DID Key:', currentDidKey);
+                
+                // Update the DID:PLC field in the form
+                document.getElementById('account-did').value = didPlcId;
                 
                 if (status) {
-                    status.innerHTML = '<div class="status success">✅ Account creation form submitted! (Implementation pending)</div>';
+                    status.innerHTML = '<div class="status success">✅ DID:PLC operation created! Check console for details. (Not submitted to directory yet)</div>';
                 }
             } catch (error) {
                 console.error('Error creating account:', error);
