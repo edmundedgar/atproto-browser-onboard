@@ -1618,13 +1618,57 @@
             return null;
         }
 
-        // Generate a DID:PLC ID (simplified implementation)
+        // Test case for DID:PLC ID generation
+        function testDidPlcIdGeneration() {
+            console.log('=== DID:PLC ID Generation Test ===');
+            
+            // Real example from plc.directory
+            const testOperation = {
+                "prev": null,
+                "type": "plc_operation",
+                "services": {
+                    "atproto_pds": {
+                        "type": "AtprotoPersonalDataServer",
+                        "endpoint": "https://bsky.social"
+                    }
+                },
+                "alsoKnownAs": [
+                    "at://edmundedgar.bsky.social"
+                ],
+                "rotationKeys": [
+                    "did:key:zQ3shhCGUqDKjStzuDxPkTxN6ujddP4RkEKJJouJGRRkaLGbg",
+                    "did:key:zQ3shpKnbdPx3g3CmPf5cRVTPe1HtSwVn5ish3wSnDPQCbLJK"
+                ],
+                "verificationMethods": {
+                    "atproto": "did:key:zQ3shXjHeiBuRCKmM36cuYnm7YEMzhGnCmCyW92sRJ9pribSF"
+                }
+            };
+            
+            const expectedDid = "did:plc:pyzlzqt6b2nyrha7smfry6rv";
+            const expectedCid = "bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq";
+            
+            console.log('Test operation:', testOperation);
+            console.log('Expected DID:', expectedDid);
+            console.log('Expected CID:', expectedCid);
+            
+            // TODO: Implement proper DAG-CBOR serialization and CID generation
+            console.log('Note: DAG-CBOR serialization and CID generation not yet implemented');
+            console.log('This test will verify the correct DID:PLC ID generation process');
+            
+            return {
+                operation: testOperation,
+                expectedDid: expectedDid,
+                expectedCid: expectedCid
+            };
+        }
+
+        // Generate a DID:PLC ID (placeholder - needs proper implementation)
         function generateDidPlcId() {
-            // Generate 16 random bytes and encode as base32
+            // For now, generate a random ID until we implement proper DAG-CBOR + CID generation
             const randomBytes = new Uint8Array(16);
             crypto.getRandomValues(randomBytes);
             
-            // Convert to base32 (simplified - using a basic implementation)
+            // Convert to base32 using correct alphabet (a-z, 2-7)
             const base32Chars = 'abcdefghijklmnopqrstuvwxyz234567';
             let result = '';
             let bits = 0;
@@ -1644,7 +1688,8 @@
                 result += base32Chars[(value << (5 - bits)) & 31];
             }
             
-            return `did:plc:${result}`;
+            // Take first 24 characters for DID:PLC ID
+            return `did:plc:${result.substring(0, 24)}`;
         }
 
         // Make functions globally accessible for onclick handlers
@@ -1655,6 +1700,7 @@
         window.copyDidKey = copyDidKey;
         window.restoreFromMnemonic = restoreFromMnemonic;
         window.clearInput = clearInput;
+        window.testDidPlcIdGeneration = testDidPlcIdGeneration;
 
         // Add event listeners
         document.getElementById('generateBtn').addEventListener('click', generateKey);
@@ -2416,6 +2462,9 @@
             document.getElementById('keyDisplay').textContent = 'Web Crypto API not supported in this browser';
             document.getElementById('generateBtn').disabled = true;
         }
+
+        // Run test case on page load
+        testDidPlcIdGeneration();
     </script>
 </body>
 </html>
