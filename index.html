@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -913,6 +913,10 @@
 
     <script type="module">
         import * as secp256k1 from 'https://cdn.jsdelivr.net/npm/@noble/secp256k1@1.7.1/+esm';
+        import { encode as dagCborEncode } from 'https://cdn.jsdelivr.net/npm/@ipld/dag-cbor@8.0.0/+esm';
+        import { CID } from 'https://cdn.jsdelivr.net/npm/multiformats@12.1.3/+esm';
+        import * as digest from 'https://cdn.jsdelivr.net/npm/multiformats@12.1.3/hashes/digest/+esm';
+        import { base32 } from 'https://cdn.jsdelivr.net/npm/multiformats@12.1.3/bases/base32/+esm';
         
         // Base58 alphabet
         const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -1618,78 +1622,285 @@
             return null;
         }
 
-        // Test case for DID:PLC ID generation
-        function testDidPlcIdGeneration() {
-            console.log('=== DID:PLC ID Generation Test ===');
-            
-            // Real example from plc.directory
-            const testOperation = {
-                "prev": null,
-                "type": "plc_operation",
-                "services": {
-                    "atproto_pds": {
-                        "type": "AtprotoPersonalDataServer",
-                        "endpoint": "https://bsky.social"
+        // Fetch actual operation from plc.directory
+        async function fetchActualOperation() {
+            try {
+                const response = await fetch('https://plc.directory/did:plc:pyzlzqt6b2nyrha7smfry6rv/log/audit');
+                const data = await response.json();
+                const operation = data[0].operation;
+                
+                // Remove sig field for CID generation
+                const operationForCid = { ...operation };
+                delete operationForCid.sig;
+                
+                console.log('Fetched operation from plc.directory:', operationForCid);
+                
+                // Debug: Compare with expected structure
+                console.log('=== Operation Structure Comparison ===');
+                console.log('Operation keys:', Object.keys(operationForCid));
+                console.log('Operation prev:', operationForCid.prev);
+                console.log('Operation type:', operationForCid.type);
+                console.log('Operation services:', operationForCid.services);
+                console.log('Operation alsoKnownAs:', operationForCid.alsoKnownAs);
+                console.log('Operation rotationKeys:', operationForCid.rotationKeys);
+                console.log('Operation verificationMethods:', operationForCid.verificationMethods);
+                
+                return operationForCid;
+            } catch (error) {
+                console.error('Error fetching operation:', error);
+                // Fallback to hardcoded operation
+                return {
+                    "prev": null,
+                    "type": "plc_operation",
+                    "services": {
+                        "atproto_pds": {
+                            "type": "AtprotoPersonalDataServer",
+                            "endpoint": "https://bsky.social"
+                        }
+                    },
+                    "alsoKnownAs": [
+                        "at://edmundedgar.bsky.social"
+                    ],
+                    "rotationKeys": [
+                        "did:key:zQ3shhCGUqDKjStzuDxPkTxN6ujddP4RkEKJJouJGRRkaLGbg",
+                        "did:key:zQ3shpKnbdPx3g3CmPf5cRVTPe1HtSwVn5ish3wSnDPQCbLJK"
+                    ],
+                    "verificationMethods": {
+                        "atproto": "did:key:zQ3shXjHeiBuRCKmM36cuYnm7YEMzhGnCmCyW92sRJ9pribSF"
                     }
-                },
-                "alsoKnownAs": [
-                    "at://edmundedgar.bsky.social"
-                ],
-                "rotationKeys": [
-                    "did:key:zQ3shhCGUqDKjStzuDxPkTxN6ujddP4RkEKJJouJGRRkaLGbg",
-                    "did:key:zQ3shpKnbdPx3g3CmPf5cRVTPe1HtSwVn5ish3wSnDPQCbLJK"
-                ],
-                "verificationMethods": {
-                    "atproto": "did:key:zQ3shXjHeiBuRCKmM36cuYnm7YEMzhGnCmCyW92sRJ9pribSF"
-                }
-            };
-            
-            const expectedDid = "did:plc:pyzlzqt6b2nyrha7smfry6rv";
-            const expectedCid = "bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq";
-            
-            console.log('Test operation:', testOperation);
-            console.log('Expected DID:', expectedDid);
-            console.log('Expected CID:', expectedCid);
-            
-            // TODO: Implement proper DAG-CBOR serialization and CID generation
-            console.log('Note: DAG-CBOR serialization and CID generation not yet implemented');
-            console.log('This test will verify the correct DID:PLC ID generation process');
-            
-            return {
-                operation: testOperation,
-                expectedDid: expectedDid,
-                expectedCid: expectedCid
-            };
+                };
+            }
         }
 
-        // Generate a DID:PLC ID (placeholder - needs proper implementation)
-        function generateDidPlcId() {
-            // For now, generate a random ID until we implement proper DAG-CBOR + CID generation
-            const randomBytes = new Uint8Array(16);
-            crypto.getRandomValues(randomBytes);
+        // Test case for DID:PLC ID generation
+        async function testDidPlcIdGeneration() {
+            console.log('=== DID:PLC ID Generation Test ===');
             
-            // Convert to base32 using correct alphabet (a-z, 2-7)
-            const base32Chars = 'abcdefghijklmnopqrstuvwxyz234567';
-            let result = '';
-            let bits = 0;
-            let value = 0;
+            // Fetch the actual operation with signature from plc.directory
+            const testDid = 'did:plc:pyzlzqt6b2nyrha7smfry6rv';
+            const expectedCid = 'bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq';
             
-            for (let i = 0; i < randomBytes.length; i++) {
-                value = (value << 8) | randomBytes[i];
-                bits += 8;
+            try {
+                const { didDocument, auditLog } = await fetchDidPlcRecord(testDid);
+                const testOperation = auditLog[0].operation; // This includes the signature
                 
-                while (bits >= 5) {
-                    result += base32Chars[(value >>> (bits - 5)) & 31];
-                    bits -= 5;
+                console.log('Fetched operation from plc.directory:', testOperation);
+                console.log('Operation includes signature:', !!testOperation.sig);
+                console.log('Signature value:', testOperation.sig);
+                
+                console.log('Expected DID:', testDid);
+                console.log('Expected CID:', expectedCid);
+                
+                // Test the DID:PLC ID generation with signed operation
+                const generatedDid = await generateDidPlcId(testOperation);
+                console.log('Generated DID:', generatedDid);
+                console.log('Match:', generatedDid === testDid ? '✅ PASS' : '❌ FAIL');
+                
+                if (generatedDid !== testDid) {
+                    console.log('❌ Test failed - generated DID does not match expected');
+                    console.log('This may be due to:');
+                    console.log('1. Different DAG-CBOR serialization order');
+                    console.log('2. Different CID generation method');
+                    console.log('3. Different base32 encoding');
+                    console.log('4. Missing or incorrect signature');
+                } else {
+                    console.log('✅ Test passed - DID:PLC ID generation is working correctly!');
                 }
+                
+                return {
+                    success: generatedDid === testDid,
+                    operation: testOperation,
+                    generatedDid: generatedDid,
+                    expectedDid: testDid,
+                    expectedCid: expectedCid
+                };
+            } catch (error) {
+                console.error('❌ Test failed with error:', error);
+                return {
+                    success: false,
+                    error: error.message
+                };
+            }
+        }
+
+        // SHA-256 hash function using Web Crypto API
+        async function sha256Hash(data) {
+            console.log('=== SHA-256 Hash Debug ===');
+            console.log('Input data type:', typeof data);
+            console.log('Input data constructor:', data.constructor.name);
+            console.log('Input data length:', data.length);
+            console.log('Input data (first 20 bytes hex):', Array.from(data.slice(0, 20)).map(b => b.toString(16).padStart(2, '0')).join(''));
+            console.log('Input data (last 20 bytes hex):', Array.from(data.slice(-20)).map(b => b.toString(16).padStart(2, '0')).join(''));
+            
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const result = new Uint8Array(hashBuffer);
+            
+            console.log('Hash result length:', result.length);
+            console.log('Hash result (hex):', Array.from(result).map(b => b.toString(16).padStart(2, '0')).join(''));
+            
+            return result;
+        }
+
+        // Generate a DID:PLC ID from operation
+        async function generateDidPlcId(operation) {
+            try {
+                // For testing with real data, include the signature
+                // In production, you'd sign the unsigned operation first
+                const operationForHash = { ...operation };
+                
+                console.log('Operation includes signature:', !!operationForHash.sig);
+                console.log('Operation for hashing:', operationForHash);
+                
+                // Serialize operation to DAG-CBOR
+                const dagCborBytes = dagCborEncode(operationForHash);
+                
+                // Debug: Output the DAG-CBOR bytes
+                console.log('DAG-CBOR bytes length:', dagCborBytes.length);
+                console.log('DAG-CBOR bytes (hex):', Array.from(dagCborBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+                
+                // Hash the DAG-CBOR bytes with SHA-256
+                const hashBytes = await sha256Hash(dagCborBytes);
+                
+                console.log('SHA-256 hash (hex):', Array.from(hashBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+                
+                // Convert hash to base32 and take first 24 characters
+                const hashBase32 = base32.encode(hashBytes);
+                console.log('Hash base32:', hashBase32);
+                
+                // Remove 'b' prefix and padding, then take first 24 characters
+                const base32Part = hashBase32.substring(1).replace(/=/g, '');
+                console.log('Base32 part (no prefix/padding):', base32Part);
+                console.log('Base32 part length:', base32Part.length);
+                
+                const didPlcId = base32Part.substring(0, 24);
+                console.log('Extracted DID:PLC ID (first 24 chars):', didPlcId);
+                console.log('Expected DID:PLC ID: pyzlzqt6b2nyrha7smfry6rv');
+                
+                return `did:plc:${didPlcId}`;
+                
+                // Debug: Check multihash digest structure
+                console.log('Multihash digest object:', multihashDigest);
+                console.log('Multihash digest has code property:', 'code' in multihashDigest);
+                console.log('Multihash digest has size property:', 'size' in multihashDigest);
+                console.log('Multihash digest has bytes property:', 'bytes' in multihashDigest);
+                console.log('Multihash digest has digest property:', 'digest' in multihashDigest);
+                
+                // Debug: Output multihash digest details
+                console.log('Multihash digest code:', multihashDigest.code);
+                console.log('Multihash digest size:', multihashDigest.size);
+                console.log('Multihash digest bytes (hex):', Array.from(multihashDigest.bytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+                console.log('Multihash digest bytes length:', multihashDigest.bytes.length);
+                
+                // Create CID from the digest
+                console.log('Creating CID with:');
+                console.log('- Version: 1');
+                console.log('- Codec: 0x71 (113)');
+                console.log('- Multihash digest:', multihashDigest);
+                console.log('- Multihash digest code:', multihashDigest.code);
+                console.log('- Multihash digest size:', multihashDigest.size);
+                console.log('- Multihash digest bytes length:', multihashDigest.bytes.length);
+                
+                cid = CID.create(1, 0x71, multihashDigest); // CIDv1 with DAG-CBOR codec (0x71)
+                
+                // Debug: Decode the generated CID to see its raw bytes (including header)
+                const generatedCidBase32 = cid.toString(base32);
+                console.log('Generated CID base32 string:', generatedCidBase32);
+                
+                // Use the CID's bytes property directly if available
+                if (cid.bytes) {
+                    const generatedCidHex = Array.from(cid.bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+                    console.log('Generated CID raw bytes (hex):', generatedCidHex);
+                    console.log('Generated CID length:', cid.bytes.length);
+                    
+                    if (cid.bytes.length >= 2) {
+                        const version = cid.bytes[0];
+                        const codec = cid.bytes[1];
+                        const multihash = cid.bytes.slice(2);
+                        console.log('Generated CID version:', version);
+                        console.log('Generated CID codec:', codec);
+                        console.log('Generated CID multihash (hex):', Array.from(multihash).map(b => b.toString(16).padStart(2, '0')).join(''));
+                        
+                        if (multihash.length >= 2) {
+                            const mhCode = multihash[0];
+                            const mhSize = multihash[1];
+                            const mhDigest = multihash.slice(2);
+                            console.log('Generated multihash code:', mhCode);
+                            console.log('Generated multihash size:', mhSize);
+                            console.log('Generated multihash digest (hex):', Array.from(mhDigest).map(b => b.toString(16).padStart(2, '0')).join(''));
+                        }
+                    }
+                } else {
+                    console.log('CID.bytes not available, trying base32 decode...');
+                    // Fallback to base32 decoding - decode the full base32 string including 'b' prefix
+                    const generatedCidStandardBase32 = generatedCidBase32.toUpperCase();
+                    const generatedCidPadded = generatedCidStandardBase32 + '='.repeat((8 - generatedCidStandardBase32.length % 8) % 8);
+                    
+                    try {
+                        // Decode base32 to get raw CID bytes (including header)
+                        const generatedCidBytes = new Uint8Array(
+                            atob(generatedCidPadded.replace(/-/g, '+').replace(/_/g, '/'))
+                                .split('')
+                                .map(c => c.charCodeAt(0))
+                        );
+                        
+                        // Convert to hex
+                        const generatedCidHex = Array.from(generatedCidBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+                        console.log('Generated CID raw bytes (hex):', generatedCidHex);
+                        console.log('Generated CID length:', generatedCidBytes.length);
+                        
+                        if (generatedCidBytes.length >= 2) {
+                            const version = generatedCidBytes[0];
+                            const codec = generatedCidBytes[1];
+                            const multihash = generatedCidBytes.slice(2);
+                            console.log('Generated CID version:', version);
+                            console.log('Generated CID codec:', codec);
+                            console.log('Generated CID multihash (hex):', Array.from(multihash).map(b => b.toString(16).padStart(2, '0')).join(''));
+                        }
+                    } catch (e) {
+                        console.log('Error decoding generated CID:', e);
+                    }
+                }
+                
+                // Debug: Output the CID before base32 encoding
+                console.log('Generated CID:', cid.toString());
+                console.log('Expected CID:', 'bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq');
+                console.log('CID match:', cid.toString() === 'bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq' ? '✅' : '❌');
+                
+                // Debug: Check if the issue is in CID generation or base32 encoding
+                console.log('CID version:', cid.version);   
+                console.log('CID codec:', cid.code);
+                console.log('CID multihash:', cid.multihash);
+                console.log('CID multihash code:', cid.multihash.code);
+                console.log('CID multihash size:', cid.multihash.size);
+                console.log('CID multihash digest (hex):', Array.from(cid.multihash.digest).map(b => b.toString(16).padStart(2, '0')).join(''));
+                
+            } catch (error) {
+                console.error('Error generating DID:PLC ID:', error);
+                throw new Error('Failed to generate DID:PLC ID: ' + error.message);
             }
             
-            if (bits > 0) {
-                result += base32Chars[(value << (5 - bits)) & 31];
-            }
+            // Get base32 representation of CID
+            const cidBase32 = cid.toString(base32);
+            
+            // Debug: Output base32 encoding details
+            console.log('CID base32:', cidBase32);
+            console.log('Expected base32 for CID bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq:');
+            
+            // Extract the base32 part (remove 'b' prefix and '=' padding)
+            const base32Part = cidBase32.substring(1).replace(/=/g, '');
+            
+            // Debug: Output base32 part
+            console.log('Base32 part (no prefix/padding):', base32Part);
+            console.log('Base32 part length:', base32Part.length);
             
             // Take first 24 characters for DID:PLC ID
-            return `did:plc:${result.substring(0, 24)}`;
+            const didPlcId = base32Part.substring(0, 24);
+            
+            // Debug: Output DID:PLC ID extraction
+            console.log('Extracted DID:PLC ID (first 24 chars):', didPlcId);
+            console.log('Expected DID:PLC ID: pyzlzqt6b2nyrha7smfry6rv');
+            
+            return `did:plc:${didPlcId}`;
         }
 
         // Make functions globally accessible for onclick handlers
@@ -2070,7 +2281,7 @@
         document.getElementById('copy-plc-debug-btn').addEventListener('click', copyPlcDebug);
 
         // Create Account form handling
-        document.getElementById('createaccount-form').addEventListener('submit', function(event) {
+        document.getElementById('createaccount-form').addEventListener('submit', async function(event) {
             event.preventDefault();
             
             const status = getCurrentStatusElement();
@@ -2087,9 +2298,6 @@
             const data = Object.fromEntries(formData.entries());
             
             try {
-                // Generate a DID:PLC ID (simplified - in real implementation this would be more complex)
-                const didPlcId = generateDidPlcId();
-                
                 // Create DID:PLC operation using current key data
                 const didPlcOperation = {
                     "type": "plc_operation",
@@ -2107,6 +2315,9 @@
                     "prev": null, // null for creation operations
                     "sig": "placeholder_signature" // TODO: Add actual signature
                 };
+                
+                // Generate DID:PLC ID from the operation
+                const didPlcId = await generateDidPlcId(didPlcOperation);
                 
                 // Output to console
                 console.log('Generated DID:PLC Operation:', didPlcOperation);
