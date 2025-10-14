@@ -1741,6 +1741,120 @@
             return result;
         }
 
+        // Sign a DID:PLC operation with the current key
+        async function signDidPlcOperation(operation, privateKeyHex) {
+            try {
+                console.log('=== Signing DID:PLC Operation ===');
+                console.log('Operation to sign:', operation);
+                console.log('Private key (hex):', privateKeyHex);
+                
+                // Create a copy without the signature for signing
+                const operationForSigning = { ...operation };
+                delete operationForSigning.sig;
+                
+                console.log('Operation for signing (without sig):', operationForSigning);
+                
+                // Serialize to DAG-CBOR
+                const dagCborBytes = dagCborEncode(operationForSigning);
+                console.log('DAG-CBOR bytes for signing:', Array.from(dagCborBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+                
+                // Convert hex private key to Uint8Array
+                const privateKeyBytes = new Uint8Array(32);
+                for (let i = 0; i < privateKeyHex.length; i += 2) {
+                    privateKeyBytes[i / 2] = parseInt(privateKeyHex.substr(i, 2), 16);
+                }
+                
+                // Sign the DAG-CBOR bytes using @noble/secp256k1
+                const signature = await secp256k1.sign(dagCborBytes, privateKeyBytes);
+                console.log('Signature object:', signature);
+                console.log('Signature object type:', typeof signature);
+                console.log('Signature object constructor:', signature.constructor.name);
+                console.log('Signature object methods:', Object.getOwnPropertyNames(signature));
+                console.log('Signature object prototype methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(signature)));
+                console.log('Signature object keys:', Object.keys(signature));
+                console.log('Signature object values:', Object.values(signature));
+                
+                // Check for common signature properties
+                console.log('Has toCompactRawBytes:', 'toCompactRawBytes' in signature);
+                console.log('Has toBytes:', 'toBytes' in signature);
+                console.log('Has toCompactHex:', 'toCompactHex' in signature);
+                console.log('Has r:', 'r' in signature);
+                console.log('Has s:', 's' in signature);
+                console.log('Has recovery:', 'recovery' in signature);
+                
+                // Convert signature to base64url
+                let signatureArray;
+                
+                if (signature instanceof Uint8Array) {
+                    // Signature is already a Uint8Array (DER format)
+                    console.log('Signature is Uint8Array, length:', signature.length);
+                    console.log('Signature bytes (hex):', Array.from(signature).map(b => b.toString(16).padStart(2, '0')).join(''));
+                    
+                    // Convert DER to compact format (64 bytes)
+                    if (signature.length >= 68 && signature[0] === 0x30) {
+                        // Parse DER structure dynamically
+                        let offset = 2; // Skip 0x30 [length]
+                        
+                        // Parse r value
+                        if (signature[offset] !== 0x02) {
+                            throw new Error('Invalid DER format: expected r value marker');
+                        }
+                        offset++; // Skip 0x02
+                        const rLength = signature[offset];
+                        offset++; // Skip r length
+                        const rBytes = signature.slice(offset, offset + rLength);
+                        offset += rLength;
+                        
+                        // Parse s value
+                        if (signature[offset] !== 0x02) {
+                            throw new Error('Invalid DER format: expected s value marker');
+                        }
+                        offset++; // Skip 0x02
+                        const sLength = signature[offset];
+                        offset++; // Skip s length
+                        const sBytes = signature.slice(offset, offset + sLength);
+                        
+                        // Remove leading zero byte from r if present
+                        const rCompact = rBytes[0] === 0 ? rBytes.slice(1) : rBytes;
+                        
+                        // Create compact signature (64 bytes)
+                        signatureArray = new Uint8Array(64);
+                        signatureArray.set(rCompact, 0);
+                        signatureArray.set(sBytes, 32);
+                        
+                        console.log('DER structure parsed:');
+                        console.log('- r length:', rLength, 'bytes');
+                        console.log('- s length:', sLength, 'bytes');
+                        console.log('- r compact length:', rCompact.length, 'bytes');
+                        console.log('- Converted to compact signature, length:', signatureArray.length);
+                        console.log('Compact signature (hex):', Array.from(signatureArray).map(b => b.toString(16).padStart(2, '0')).join(''));
+                    } else {
+                        throw new Error('Unexpected DER signature format');
+                    }
+                } else {
+                    throw new Error('Signature is not Uint8Array');
+                }
+                const signatureBase64 = btoa(String.fromCharCode(...signatureArray))
+                    .replace(/\+/g, '-')
+                    .replace(/\//g, '_')
+                    .replace(/=/g, '');
+                
+                console.log('Generated signature (base64url):', signatureBase64);
+                
+                // Add signature to operation
+                const signedOperation = { ...operation };
+                signedOperation.sig = signatureBase64;
+                
+                console.log('Signed operation:', signedOperation);
+                
+                return signedOperation;
+                
+            } catch (error) {
+                console.error('Error signing DID:PLC operation:', error);
+                throw error;
+            }
+        }
+
         // Generate a DID:PLC ID from operation
         async function generateDidPlcId(operation) {
             try {
@@ -1912,6 +2026,7 @@
         window.restoreFromMnemonic = restoreFromMnemonic;
         window.clearInput = clearInput;
         window.testDidPlcIdGeneration = testDidPlcIdGeneration;
+        window.signDidPlcOperation = signDidPlcOperation;
 
         // Add event listeners
         document.getElementById('generateBtn').addEventListener('click', generateKey);
@@ -2298,8 +2413,8 @@
             const data = Object.fromEntries(formData.entries());
             
             try {
-                // Create DID:PLC operation using current key data
-                const didPlcOperation = {
+                // Create unsigned DID:PLC operation using current key data
+                const unsignedOperation = {
                     "type": "plc_operation",
                     "rotationKeys": [currentDidKey], // Use the current DID key as rotation key
                     "verificationMethods": {
@@ -2312,15 +2427,19 @@
                             "endpoint": data.pdsEndpoint
                         }
                     },
-                    "prev": null, // null for creation operations
-                    "sig": "placeholder_signature" // TODO: Add actual signature
+                    "prev": null // null for creation operations
                 };
                 
-                // Generate DID:PLC ID from the operation
-                const didPlcId = await generateDidPlcId(didPlcOperation);
+                console.log('Created unsigned operation:', unsignedOperation);
+                
+                // Sign the operation
+                const signedOperation = await signDidPlcOperation(unsignedOperation, currentKey);
+                
+                // Generate DID:PLC ID from the signed operation
+                const didPlcId = await generateDidPlcId(signedOperation);
                 
                 // Output to console
-                console.log('Generated DID:PLC Operation:', didPlcOperation);
+                console.log('Generated DID:PLC Operation:', signedOperation);
                 console.log('DID:PLC ID:', didPlcId);
                 console.log('Private Key:', currentKey);
                 console.log('Public Key:', currentPublicKey);
