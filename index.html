@@ -1741,6 +1741,45 @@
             return result;
         }
 
+        // Submit a signed DID:PLC operation to plc.directory
+        async function submitDidPlcOperation(signedOperation, didPlcId) {
+            try {
+                console.log('=== Submitting DID:PLC Operation ===');
+                console.log('Operation to submit:', signedOperation);
+                console.log('DID:PLC ID:', didPlcId);
+                
+                // Use the DID:PLC ID in the endpoint URL
+                const endpoint = `https://plc.directory/${didPlcId}`;
+                console.log('Submitting to endpoint:', endpoint);
+                
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(signedOperation)
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Submission failed:', errorText);
+                    throw new Error(`Failed to submit operation: ${response.status} ${response.statusText}\n${errorText}`);
+                }
+                
+                const result = await response.json();
+                console.log('Submission successful:', result);
+                
+                return result;
+                
+            } catch (error) {
+                console.error('Error submitting DID:PLC operation:', error);
+                throw error;
+            }
+        }
+
         // Sign a DID:PLC operation with the current key
         async function signDidPlcOperation(operation, privateKeyHex) {
             try {
@@ -2027,6 +2066,7 @@
         window.clearInput = clearInput;
         window.testDidPlcIdGeneration = testDidPlcIdGeneration;
         window.signDidPlcOperation = signDidPlcOperation;
+        window.submitDidPlcOperation = submitDidPlcOperation;
 
         // Add event listeners
         document.getElementById('generateBtn').addEventListener('click', generateKey);
@@ -2438,9 +2478,14 @@
                 // Generate DID:PLC ID from the signed operation
                 const didPlcId = await generateDidPlcId(signedOperation);
                 
+                // Submit the operation to plc.directory
+                console.log('Submitting operation to plc.directory...');
+                const submissionResult = await submitDidPlcOperation(signedOperation, didPlcId);
+                
                 // Output to console
                 console.log('Generated DID:PLC Operation:', signedOperation);
                 console.log('DID:PLC ID:', didPlcId);
+                console.log('Submission Result:', submissionResult);
                 console.log('Private Key:', currentKey);
                 console.log('Public Key:', currentPublicKey);
                 console.log('DID Key:', currentDidKey);
@@ -2449,7 +2494,7 @@
                 document.getElementById('account-did').value = didPlcId;
                 
                 if (status) {
-                    status.innerHTML = '<div class="status success">✅ DID:PLC operation created! Check console for details. (Not submitted to directory yet)</div>';
+                    status.innerHTML = '<div class="status success">✅ DID:PLC operation created and submitted to plc.directory! Check console for details.</div>';
                 }
             } catch (error) {
                 console.error('Error creating account:', error);
