@@ -465,6 +465,65 @@
             transform: none;
             box-shadow: none;
         }
+
+        .verify-btn {
+            background: linear-gradient(135deg, #007bff, #0056b3);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+        }
+
+        .verify-btn:hover {
+            background: linear-gradient(135deg, #0056b3, #004085);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.4);
+        }
+
+        .verify-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .verification-results {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+
+        .verification-results h4 {
+            margin: 0 0 15px 0;
+            color: #495057;
+            font-size: 18px;
+        }
+
+        .verification-item {
+            background: white;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #e9ecef;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .verification-item code {
+            background: #f1f3f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #d63384;
+        }
         
         .rotation-key-group {
             display: flex;
@@ -775,6 +834,9 @@
                                 <input type="text" id="plc-did" name="did" placeholder="did:plc:example" required>
                                 <button type="button" class="fetch-btn" id="fetch-did-btn">
                                     🔍 Fetch Record
+                                </button>
+                                <button type="button" class="verify-btn" id="verify-did-btn">
+                                    ✅ Verify Creation
                                 </button>
                             </div>
                             <small class="form-help">The decentralized identifier (e.g., did:plc:abc123) - click "Fetch Record" to load existing data</small>
@@ -1741,6 +1803,138 @@
             return result;
         }
 
+        // Verify a signed DID:PLC operation and recover the public key
+        async function verifyDidPlcOperation(signedOperation) {
+            try {
+                console.log('=== Verifying DID:PLC Operation ===');
+                console.log('Signed operation:', signedOperation);
+                
+                // Extract the signature
+                const signatureBase64 = signedOperation.sig;
+                console.log('Signature (base64url):', signatureBase64);
+                
+                // Decode the signature from base64url
+                const signatureBase64Standard = signatureBase64
+                    .replace(/-/g, '+')
+                    .replace(/_/g, '/');
+                
+                // Add padding if needed
+                const padding = signatureBase64Standard.length % 4;
+                const paddedSignature = signatureBase64Standard + '='.repeat(padding ? 4 - padding : 0);
+                
+                const signatureBytes = new Uint8Array(atob(paddedSignature).split('').map(c => c.charCodeAt(0)));
+                console.log('Signature bytes (hex):', Array.from(signatureBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+                console.log('Signature length:', signatureBytes.length);
+                
+                // Create unsigned operation for verification
+                const unsignedOperation = { ...signedOperation };
+                delete unsignedOperation.sig;
+                console.log('Unsigned operation for verification:', unsignedOperation);
+                
+                // Serialize to DAG-CBOR
+                const dagCborBytes = dagCborEncode(unsignedOperation);
+                console.log('DAG-CBOR bytes for verification:', Array.from(dagCborBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+                
+                // Extract r and s from the 64-byte signature
+                const r = signatureBytes.slice(0, 32);
+                const s = signatureBytes.slice(32, 64);
+                console.log('r (hex):', Array.from(r).map(b => b.toString(16).padStart(2, '0')).join(''));
+                console.log('s (hex):', Array.from(s).map(b => b.toString(16).padStart(2, '0')).join(''));
+                
+                // Try to recover the public key using @noble/secp256k1
+                let recoveredPublicKey = null;
+                for (let recovery = 0; recovery < 4; recovery++) {
+                    try {
+                        // Create a 64-byte signature (r + s) as hex string
+                        const signatureHex = Array.from(r).map(b => b.toString(16).padStart(2, '0')).join('') + 
+                                           Array.from(s).map(b => b.toString(16).padStart(2, '0')).join('');
+                        
+                        console.log(`Trying recovery ${recovery} with signature hex:`, signatureHex);
+                        console.log(`Signature hex length:`, signatureHex.length, 'characters');
+                        
+                        // Try different API approaches
+                        let recovered = null;
+                        
+                        // Approach 1: recoverPublicKey(signature, message, recovery)
+                        try {
+                            recovered = secp256k1.recoverPublicKey(signatureHex, dagCborBytes, recovery);
+                        } catch (e1) {
+                            console.log(`Approach 1 failed:`, e1.message);
+                            
+                            // Approach 2: recoverPublicKey(message, signature, recovery)
+                            try {
+                                recovered = secp256k1.recoverPublicKey(dagCborBytes, signatureHex, recovery);
+                            } catch (e2) {
+                                console.log(`Approach 2 failed:`, e2.message);
+                                
+                                // Approach 3: Create signature object first
+                                try {
+                                    const signatureObj = secp256k1.Signature.fromCompact(signatureHex);
+                                    recovered = secp256k1.recoverPublicKey(dagCborBytes, signatureObj, recovery);
+                                } catch (e3) {
+                                    console.log(`Approach 3 failed:`, e3.message);
+                                }
+                            }
+                        }
+                        
+                        if (recovered) {
+                            recoveredPublicKey = recovered;
+                            console.log(`Recovered public key with recovery ${recovery}:`, Array.from(recovered).map(b => b.toString(16).padStart(2, '0')).join(''));
+                            break;
+                        }
+                    } catch (e) {
+                        console.log(`Recovery ${recovery} failed:`, e.message);
+                    }
+                }
+                
+                if (!recoveredPublicKey) {
+                    throw new Error('Could not recover public key from signature');
+                }
+                
+                // Generate DID:key from recovered public key
+                const recoveredPublicKeyHex = Array.from(recoveredPublicKey).map(b => b.toString(16).padStart(2, '0')).join('');
+                const recoveredDidKey = generateDidKey(recoveredPublicKeyHex);
+                console.log('Recovered DID:key:', recoveredDidKey);
+                
+                // Compare with the rotation key in the operation
+                const operationRotationKey = signedOperation.rotationKeys[0];
+                console.log('Operation rotation key:', operationRotationKey);
+                console.log('Keys match:', recoveredDidKey === operationRotationKey);
+                
+                // Also verify using the known public key (if available)
+                let knownDidKey = null;
+                let knownKeyMatches = false;
+                
+                if (currentPublicKey) {
+                    const knownPublicKeyHex = currentPublicKey;
+                    knownDidKey = generateDidKey(knownPublicKeyHex);
+                    console.log('Known DID:key:', knownDidKey);
+                    console.log('Known key matches recovered:', recoveredDidKey === knownDidKey);
+                    console.log('Known key matches operation:', knownDidKey === operationRotationKey);
+                    knownKeyMatches = knownDidKey === operationRotationKey;
+                } else {
+                    console.log('No current public key available for comparison');
+                }
+                
+                return {
+                    success: true,
+                    recoveredPublicKey: recoveredPublicKeyHex,
+                    recoveredDidKey: recoveredDidKey,
+                    operationRotationKey: operationRotationKey,
+                    knownDidKey: knownDidKey,
+                    keysMatch: recoveredDidKey === operationRotationKey,
+                    knownKeyMatches: knownKeyMatches
+                };
+                
+            } catch (error) {
+                console.error('Error verifying DID:PLC operation:', error);
+                return {
+                    success: false,
+                    error: error.message
+                };
+            }
+        }
+
         // Submit a signed DID:PLC operation to plc.directory
         async function submitDidPlcOperation(signedOperation, didPlcId) {
             try {
@@ -2067,6 +2261,7 @@
         window.testDidPlcIdGeneration = testDidPlcIdGeneration;
         window.signDidPlcOperation = signDidPlcOperation;
         window.submitDidPlcOperation = submitDidPlcOperation;
+        window.verifyDidPlcOperation = verifyDidPlcOperation;
 
         // Add event listeners
         document.getElementById('generateBtn').addEventListener('click', generateKey);
@@ -2478,14 +2673,14 @@
                 // Generate DID:PLC ID from the signed operation
                 const didPlcId = await generateDidPlcId(signedOperation);
                 
-                // Submit the operation to plc.directory
-                console.log('Submitting operation to plc.directory...');
-                const submissionResult = await submitDidPlcOperation(signedOperation, didPlcId);
+                // Verify the signed operation instead of submitting
+                console.log('Verifying signed operation...');
+                const verificationResult = await verifyDidPlcOperation(signedOperation);
                 
                 // Output to console
                 console.log('Generated DID:PLC Operation:', signedOperation);
                 console.log('DID:PLC ID:', didPlcId);
-                console.log('Submission Result:', submissionResult);
+                console.log('Verification Result:', verificationResult);
                 console.log('Private Key:', currentKey);
                 console.log('Public Key:', currentPublicKey);
                 console.log('DID Key:', currentDidKey);
@@ -2494,7 +2689,11 @@
                 document.getElementById('account-did').value = didPlcId;
                 
                 if (status) {
-                    status.innerHTML = '<div class="status success">✅ DID:PLC operation created and submitted to plc.directory! Check console for details.</div>';
+                    if (verificationResult.success && verificationResult.keysMatch) {
+                        status.innerHTML = '<div class="status success">✅ DID:PLC operation created and signature verified! Check console for details.</div>';
+                    } else {
+                        status.innerHTML = '<div class="status error">❌ DID:PLC operation created but signature verification failed. Check console for details.</div>';
+                    }
                 }
             } catch (error) {
                 console.error('Error creating account:', error);
@@ -2785,6 +2984,110 @@
             }
         }
 
+        async function handleVerifyDidCreation() {
+            const didInput = document.getElementById('plc-did');
+            const verifyBtn = document.getElementById('verify-did-btn');
+            const status = getCurrentStatusElement();
+            
+            const didPlc = didInput.value.trim();
+            
+            if (!didPlc) {
+                status.innerHTML = '<div class="status error">❌ Please enter a DID:PLC address first</div>';
+                return;
+            }
+
+            if (!didPlc.startsWith('did:plc:')) {
+                status.innerHTML = '<div class="status error">❌ Please enter a valid DID:PLC address (must start with "did:plc:")</div>';
+                return;
+            }
+
+            // Show loading state
+            verifyBtn.disabled = true;
+            verifyBtn.textContent = '🔄 Verifying...';
+            status.innerHTML = '<div class="status success">🔄 Verifying DID:PLC creation record...</div>';
+
+            try {
+                console.log('=== Verifying DID:PLC Creation ===');
+                console.log('DID:PLC:', didPlc);
+                
+                // Fetch the audit log to get the initial creation record
+                const { auditLog } = await fetchDidPlcRecord(didPlc);
+                
+                if (auditLog.length === 0) {
+                    throw new Error('No records found in audit log');
+                }
+                
+                // Get the first (creation) record
+                const creationRecord = auditLog[0];
+                console.log('Creation record:', creationRecord);
+                
+                const operation = creationRecord.operation;
+                console.log('Creation operation:', operation);
+                
+                // Verify the operation using our verification function
+                console.log('=== Verifying Operation ===');
+                const verificationResult = await verifyDidPlcOperation(operation);
+                
+                // Generate DID:PLC ID from the signed operation
+                console.log('=== Generating DID:PLC ID ===');
+                const generatedDidPlcId = await generateDidPlcId(operation);
+                console.log('Generated DID:PLC ID:', generatedDidPlcId);
+                
+                // Compare with the actual DID
+                const actualDid = creationRecord.did;
+                const didMatch = generatedDidPlcId === actualDid;
+                
+                console.log('=== Verification Results ===');
+                console.log('Actual DID:', actualDid);
+                console.log('Generated DID:', generatedDidPlcId);
+                console.log('DID Match:', didMatch ? '✅' : '❌');
+                console.log('Verification Result:', verificationResult);
+                
+                const signatureValid = verificationResult.success;
+                const keysMatch = verificationResult.keysMatch;
+                
+                console.log('Signature Valid:', signatureValid ? '✅' : '❌');
+                console.log('Keys Match:', keysMatch ? '✅' : '❌');
+                
+                // Display results
+                let resultHtml = '<div class="verification-results">';
+                resultHtml += '<h4>🔍 Verification Results</h4>';
+                resultHtml += '<div class="verification-item">';
+                resultHtml += `<strong>Actual DID:</strong> <code>${actualDid}</code><br>`;
+                resultHtml += `<strong>Generated DID:</strong> <code>${generatedDidPlcId}</code><br>`;
+                resultHtml += `<strong>DID Match:</strong> ${didMatch ? '✅ Yes' : '❌ No'}<br>`;
+                resultHtml += `<strong>Signature Valid:</strong> ${signatureValid ? '✅ Yes' : '❌ No'}<br>`;
+                resultHtml += `<strong>Keys Match:</strong> ${keysMatch ? '✅ Yes' : '❌ No'}`;
+                
+                if (verificationResult.recoveredDidKey) {
+                    resultHtml += `<br><strong>Recovered DID:key:</strong> <code>${verificationResult.recoveredDidKey}</code>`;
+                }
+                if (verificationResult.operationRotationKey) {
+                    resultHtml += `<br><strong>Operation DID:key:</strong> <code>${verificationResult.operationRotationKey}</code>`;
+                }
+                
+                resultHtml += '</div>';
+                
+                if (didMatch && signatureValid && keysMatch) {
+                    resultHtml += '<div class="status success">🎉 Verification successful! Both DID:PLC ID generation and signature verification are working correctly.</div>';
+                } else {
+                    resultHtml += '<div class="status error">⚠️ Verification failed. Check console for detailed debugging information.</div>';
+                }
+                
+                resultHtml += '</div>';
+                
+                status.innerHTML = resultHtml;
+                
+            } catch (error) {
+                console.error('Error verifying DID:PLC creation:', error);
+                status.innerHTML = `<div class="status error">❌ Failed to verify DID:PLC creation: ${error.message}</div>`;
+            } finally {
+                // Reset button state
+                verifyBtn.disabled = false;
+                verifyBtn.textContent = '✅ Verify Creation';
+            }
+        }
+
         async function copyPlcDebug() {
             const debugContent = document.getElementById('plc-debug-content');
             if (!debugContent.textContent) return;
@@ -2809,6 +3112,9 @@
 
         // Add event listener for fetch button
         document.getElementById('fetch-did-btn').addEventListener('click', handleFetchDidRecord);
+        
+        // Add event listener for verify button
+        document.getElementById('verify-did-btn').addEventListener('click', handleVerifyDidCreation);
         
         // Add event listeners for rotation key buttons
         document.getElementById('add-rotation-key-btn').addEventListener('click', addRotationKey);
