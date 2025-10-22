@@ -1841,9 +1841,14 @@
                 console.log('r (hex):', Array.from(r).map(b => b.toString(16).padStart(2, '0')).join(''));
                 console.log('s (hex):', Array.from(s).map(b => b.toString(16).padStart(2, '0')).join(''));
                 
+                // Hash the DAG-CBOR bytes for signature verification
+                const messageHash = await crypto.subtle.digest('SHA-256', dagCborBytes);
+                const messageHashHex = Array.from(new Uint8Array(messageHash)).map(b => b.toString(16).padStart(2, '0')).join('');
+                console.log('Message hash (SHA-256):', messageHashHex);
+                
                 // Try to recover the public key using @noble/secp256k1
                 let recoveredPublicKey = null;
-                for (let recovery = 0; recovery < 4; recovery++) {
+                for (let recovery = 0; recovery <= 2; recovery++) {
                     try {
                         // Create a 64-byte signature (r + s) as hex string
                         const signatureHex = Array.from(r).map(b => b.toString(16).padStart(2, '0')).join('') + 
@@ -1852,30 +1857,8 @@
                         console.log(`Trying recovery ${recovery} with signature hex:`, signatureHex);
                         console.log(`Signature hex length:`, signatureHex.length, 'characters');
                         
-                        // Try different API approaches
-                        let recovered = null;
-                        
-                        // Approach 1: recoverPublicKey(signature, message, recovery)
-                        try {
-                            recovered = secp256k1.recoverPublicKey(signatureHex, dagCborBytes, recovery);
-                        } catch (e1) {
-                            console.log(`Approach 1 failed:`, e1.message);
-                            
-                            // Approach 2: recoverPublicKey(message, signature, recovery)
-                            try {
-                                recovered = secp256k1.recoverPublicKey(dagCborBytes, signatureHex, recovery);
-                            } catch (e2) {
-                                console.log(`Approach 2 failed:`, e2.message);
-                                
-                                // Approach 3: Create signature object first
-                                try {
-                                    const signatureObj = secp256k1.Signature.fromCompact(signatureHex);
-                                    recovered = secp256k1.recoverPublicKey(dagCborBytes, signatureObj, recovery);
-                                } catch (e3) {
-                                    console.log(`Approach 3 failed:`, e3.message);
-                                }
-                            }
-                        }
+                        // Use correct API: recoverPublicKey(hash, signature, recovery)
+                        const recovered = secp256k1.recoverPublicKey(messageHashHex, signatureHex, recovery, true);
                         
                         if (recovered) {
                             recoveredPublicKey = recovered;
@@ -1897,7 +1880,8 @@
                 console.log('Recovered DID:key:', recoveredDidKey);
                 
                 // Compare with the rotation key in the operation
-                const operationRotationKey = signedOperation.rotationKeys[0];
+                const operationRotationKey = signedOperation.rotationKeys[1];
+                console.log('Operation rotation keys both:', signedOperation.rotationKeys);
                 console.log('Operation rotation key:', operationRotationKey);
                 console.log('Keys match:', recoveredDidKey === operationRotationKey);
                 
