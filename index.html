@@ -1846,8 +1846,15 @@
                 const messageHashHex = Array.from(new Uint8Array(messageHash)).map(b => b.toString(16).padStart(2, '0')).join('');
                 console.log('Message hash (SHA-256):', messageHashHex);
                 
+                // Get all rotation keys to verify against
+                const operationRotationKeys = signedOperation.rotationKeys;
+                console.log('Operation rotation keys:', operationRotationKeys);
+                
                 // Try to recover the public key using @noble/secp256k1
                 let recoveredPublicKey = null;
+                let correctRecovery = null;
+                let matchedRotationKey = null;
+                
                 for (let recovery = 0; recovery <= 2; recovery++) {
                     try {
                         // Create a 64-byte signature (r + s) as hex string
@@ -1861,9 +1868,34 @@
                         const recovered = secp256k1.recoverPublicKey(messageHashHex, signatureHex, recovery, true);
                         
                         if (recovered) {
-                            recoveredPublicKey = recovered;
                             console.log(`Recovered public key with recovery ${recovery}:`, Array.from(recovered).map(b => b.toString(16).padStart(2, '0')).join(''));
-                            break;
+                            
+                            // Generate DID:key from recovered public key
+                            const recoveredPublicKeyHex = Array.from(recovered).map(b => b.toString(16).padStart(2, '0')).join('');
+                            const recoveredDidKey = generateDidKey(recoveredPublicKeyHex);
+                            console.log(`Recovered DID:key with recovery ${recovery}:`, recoveredDidKey);
+                            
+                            // Check if this matches any of the rotation keys
+                            let foundMatch = false;
+                            for (let i = 0; i < operationRotationKeys.length; i++) {
+                                const rotationKey = operationRotationKeys[i];
+                                console.log(`Checking against rotation key ${i}:`, rotationKey);
+                                
+                                if (recoveredDidKey === rotationKey) {
+                                    console.log(`✅ Recovery ${recovery} matches rotation key ${i}!`);
+                                    recoveredPublicKey = recovered;
+                                    correctRecovery = recovery;
+                                    matchedRotationKey = rotationKey;
+                                    foundMatch = true;
+                                    break;
+                                } else {
+                                    console.log(`❌ Recovery ${recovery} does not match rotation key ${i}`);
+                                }
+                            }
+                            
+                            if (foundMatch) {
+                                break;
+                            }
                         }
                     } catch (e) {
                         console.log(`Recovery ${recovery} failed:`, e.message);
@@ -1871,19 +1903,17 @@
                 }
                 
                 if (!recoveredPublicKey) {
-                    throw new Error('Could not recover public key from signature');
+                    throw new Error('Could not recover public key from signature that matches the expected rotation key');
                 }
                 
-                // Generate DID:key from recovered public key
+                console.log(`✅ Successfully recovered correct public key with recovery ${correctRecovery}`);
+                console.log(`✅ Matched rotation key:`, matchedRotationKey);
+                
+                // Generate DID:key from recovered public key (for final comparison)
                 const recoveredPublicKeyHex = Array.from(recoveredPublicKey).map(b => b.toString(16).padStart(2, '0')).join('');
                 const recoveredDidKey = generateDidKey(recoveredPublicKeyHex);
-                console.log('Recovered DID:key:', recoveredDidKey);
-                
-                // Compare with the rotation key in the operation
-                const operationRotationKey = signedOperation.rotationKeys[1];
-                console.log('Operation rotation keys both:', signedOperation.rotationKeys);
-                console.log('Operation rotation key:', operationRotationKey);
-                console.log('Keys match:', recoveredDidKey === operationRotationKey);
+                console.log('Final recovered DID:key:', recoveredDidKey);
+                console.log('Keys match:', recoveredDidKey === matchedRotationKey);
                 
                 // Also verify using the known public key (if available)
                 let knownDidKey = null;
@@ -1894,8 +1924,8 @@
                     knownDidKey = generateDidKey(knownPublicKeyHex);
                     console.log('Known DID:key:', knownDidKey);
                     console.log('Known key matches recovered:', recoveredDidKey === knownDidKey);
-                    console.log('Known key matches operation:', knownDidKey === operationRotationKey);
-                    knownKeyMatches = knownDidKey === operationRotationKey;
+                    console.log('Known key matches operation:', knownDidKey === matchedRotationKey);
+                    knownKeyMatches = knownDidKey === matchedRotationKey;
                 } else {
                     console.log('No current public key available for comparison');
                 }
@@ -1904,9 +1934,9 @@
                     success: true,
                     recoveredPublicKey: recoveredPublicKeyHex,
                     recoveredDidKey: recoveredDidKey,
-                    operationRotationKey: operationRotationKey,
+                    operationRotationKey: matchedRotationKey,
                     knownDidKey: knownDidKey,
-                    keysMatch: recoveredDidKey === operationRotationKey,
+                    keysMatch: recoveredDidKey === matchedRotationKey,
                     knownKeyMatches: knownKeyMatches
                 };
                 
