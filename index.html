@@ -1855,7 +1855,7 @@
                 let correctRecovery = null;
                 let matchedRotationKey = null;
                 
-                for (let recovery = 0; recovery <= 2; recovery++) {
+                for (let recovery = 0; recovery <= 1; recovery++) {
                     try {
                         // Create a 64-byte signature (r + s) as hex string
                         const signatureHex = Array.from(r).map(b => b.toString(16).padStart(2, '0')).join('') + 
