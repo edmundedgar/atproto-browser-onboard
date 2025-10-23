@@ -1977,10 +1977,11 @@
                     throw new Error(`Failed to submit operation: ${response.status} ${response.statusText}\n${errorText}`);
                 }
                 
-                const result = await response.json();
-                console.log('Submission successful:', result);
+                // plc.directory returns plain text, not JSON
+                const resultText = await response.text();
+                console.log('Submission successful:', resultText);
                 
-                return result;
+                return { success: true, message: resultText };
                 
             } catch (error) {
                 console.error('Error submitting DID:PLC operation:', error);
@@ -2692,7 +2693,7 @@
                 // Generate DID:PLC ID from the signed operation
                 const didPlcId = await generateDidPlcId(signedOperation);
                 
-                // Verify the signed operation instead of submitting
+                // Verify the signed operation first
                 console.log('Verifying signed operation...');
                 const verificationResult = await verifyDidPlcOperation(signedOperation);
                 
@@ -2709,7 +2710,23 @@
                 
                 if (status) {
                     if (verificationResult.success && verificationResult.keysMatch) {
-                        status.innerHTML = '<div class="status success">✅ DID:PLC operation created and signature verified! Check console for details.</div>';
+                        status.innerHTML = '<div class="status success">✅ DID:PLC operation created and signature verified! Submitting to plc.directory...</div>';
+                        
+                        // Submit to plc.directory after successful verification
+                        try {
+                            console.log('Submitting to plc.directory...');
+                            const submitResult = await submitDidPlcOperation(signedOperation, didPlcId);
+                            console.log('Submission result:', submitResult);
+                            
+                            if (submitResult.success) {
+                                status.innerHTML = '<div class="status success">✅ DID:PLC operation created, verified, and submitted to plc.directory successfully!</div>';
+                            } else {
+                                status.innerHTML = '<div class="status error">❌ DID:PLC operation verified but submission to plc.directory failed. Check console for details.</div>';
+                            }
+                        } catch (submitError) {
+                            console.error('Error submitting to plc.directory:', submitError);
+                            status.innerHTML = '<div class="status error">❌ DID:PLC operation verified but submission to plc.directory failed. Check console for details.</div>';
+                        }
                     } else {
                         status.innerHTML = '<div class="status error">❌ DID:PLC operation created but signature verification failed. Check console for details.</div>';
                     }
