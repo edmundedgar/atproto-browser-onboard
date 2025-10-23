@@ -2005,14 +2005,19 @@
                 const dagCborBytes = dagCborEncode(operationForSigning);
                 console.log('DAG-CBOR bytes for signing:', Array.from(dagCborBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
                 
+                // Hash the DAG-CBOR bytes with SHA-256 before signing
+                const messageHash = await crypto.subtle.digest('SHA-256', dagCborBytes);
+                const messageHashHex = Array.from(new Uint8Array(messageHash)).map(b => b.toString(16).padStart(2, '0')).join('');
+                console.log('Message hash (SHA-256):', messageHashHex);
+                
                 // Convert hex private key to Uint8Array
                 const privateKeyBytes = new Uint8Array(32);
                 for (let i = 0; i < privateKeyHex.length; i += 2) {
                     privateKeyBytes[i / 2] = parseInt(privateKeyHex.substr(i, 2), 16);
                 }
                 
-                // Sign the DAG-CBOR bytes using @noble/secp256k1
-                const signature = await secp256k1.sign(dagCborBytes, privateKeyBytes);
+                // Sign the hashed message using @noble/secp256k1
+                const signature = await secp256k1.sign(messageHashHex, privateKeyBytes);
                 console.log('Signature object:', signature);
                 console.log('Signature object type:', typeof signature);
                 console.log('Signature object constructor:', signature.constructor.name);
