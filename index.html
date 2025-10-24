@@ -2646,22 +2646,50 @@
         }
 
         // Add DID:PLC form event listeners
-        document.getElementById('didplc-form').addEventListener('submit', function(event) {
+        document.getElementById('didplc-form').addEventListener('submit', async function(event) {
             event.preventDefault();
+            
+            const status = getCurrentStatusElement();
+            
+            // Check if a private key has been generated or loaded
+            if (!currentKey) {
+                if (status) {
+                    status.innerHTML = '<div class="status error">⚠️ No private key available! Please generate a new key or restore one from a mnemonic in the "Generate Key" tab first.</div>';
+                }
+                return;
+            }
             
             const formData = new FormData(this);
             const data = Object.fromEntries(formData.entries());
             
             try {
-                currentPlcEntry = createDidPlcEntry(data);
+                // Create unsigned operation
+                const unsignedOperation = createDidPlcEntry(data);
+                
+                // Sign the operation
+                const signedOperation = await signDidPlcOperation(unsignedOperation, currentKey);
+                
+                // Verify the signed operation
+                console.log('Verifying signed operation...');
+                const verificationResult = await verifyDidPlcOperation(signedOperation);
+                
+                console.log('Verification Result:', verificationResult);
+                
+                currentPlcEntry = signedOperation;
                 displayPlcResult(currentPlcEntry);
                 
-                const status = getCurrentStatusElement();
-                status.innerHTML = '<div class="status success">✅ DID:PLC entry created successfully!</div>';
+                if (status) {
+                    if (verificationResult.success && verificationResult.keysMatch) {
+                        status.innerHTML = '<div class="status success">✅ DID:PLC entry created, signed, and verified successfully!</div>';
+                    } else {
+                        status.innerHTML = '<div class="status error">❌ DID:PLC entry signed but verification failed. Check console for details.</div>';
+                    }
+                }
             } catch (error) {
                 console.error('Error creating DID:PLC entry:', error);
-                const status = getCurrentStatusElement();
-                status.innerHTML = '<div class="status error">❌ Error creating DID:PLC entry. Please check your input.</div>';
+                if (status) {
+                    status.innerHTML = '<div class="status error">❌ Error creating DID:PLC entry. Please check your input.</div>';
+                }
             }
         });
 
