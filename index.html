@@ -2325,9 +2325,8 @@
         let currentPlcEntry = null;
 
         function createDidPlcEntry(formData) {
-            const entry = {
-                "@context": ["https://www.w3.org/ns/did/v1"],
-                "id": formData.did,
+            const operation = {
+                "type": "plc_operation",
                 "rotationKeys": getRotationKeys(),
                 "verificationMethods": {
                     "atproto": formData.atprotoVerificationMethod
@@ -2343,10 +2342,10 @@
 
             // Add previous update if provided
             if (formData.previousUpdate && formData.previousUpdate.trim()) {
-                entry.previousUpdate = formData.previousUpdate.trim();
+                operation.prev = formData.previousUpdate.trim();
             }
 
-            return entry;
+            return operation;
         }
 
         function displayPlcResult(entry) {
