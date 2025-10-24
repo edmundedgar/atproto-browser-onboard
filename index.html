@@ -2045,6 +2045,58 @@
             }
         }
 
+        // Create an account on the PDS
+        async function createAccount(pdsEndpoint, handle, email, password, recoveryKey, inviteCode) {
+            try {
+                console.log('=== Creating Account ===');
+                console.log('PDS Endpoint:', pdsEndpoint);
+                console.log('Handle:', handle);
+                console.log('Email:', email);
+                console.log('Recovery Key:', recoveryKey);
+                
+                const endpoint = `${pdsEndpoint}/xrpc/com.atproto.server.createAccount`;
+                console.log('Creating account at endpoint:', endpoint);
+                
+                const requestBody = {
+                    handle: handle,
+                    email: email,
+                    password: password,
+                    recoveryKey: recoveryKey
+                };
+                
+                // Add invite code if provided
+                if (inviteCode && inviteCode.trim()) {
+                    requestBody.inviteCode = inviteCode.trim();
+                }
+                
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Account creation failed:', errorText);
+                    throw new Error(`Failed to create account: ${response.status} ${response.statusText}\n${errorText}`);
+                }
+                
+                const result = await response.json();
+                console.log('Account creation successful:', result);
+                
+                return { success: true, result: result };
+                
+            } catch (error) {
+                console.error('Error creating account:', error);
+                throw error;
+            }
+        }
+
         // Sign a DID:PLC operation with the current key
         async function signDidPlcOperation(operation, privateKeyHex) {
             try {
@@ -2798,89 +2850,35 @@
             const data = Object.fromEntries(formData.entries());
             
             try {
-                // Step 1: Create unsigned DID:PLC operation using current key data
+                // Call createAccount API with recoveryKey parameter
                 if (status) {
-                    status.innerHTML = '<div class="status success">🔄 Creating DID:PLC operation...</div>';
+                    status.innerHTML = '<div class="status success">🔄 Creating account on PDS...</div>';
                 }
                 
-                const unsignedOperation = {
-                    "type": "plc_operation",
-                    "rotationKeys": [currentDidKey], // Use the current DID key as rotation key
-                    "verificationMethods": {
-                        "atproto": currentDidKey
-                    },
-                    "alsoKnownAs": [`at://${data.handle}`], // Use the handle as alsoKnownAs
-                    "services": {
-                        "atproto_pds": {
-                            "type": "AtprotoPersonalDataServer",
-                            "endpoint": data.pdsEndpoint
-                        }
-                    },
-                    "prev": null // null for creation operations
-                };
+                console.log('Creating account with recovery key:', currentDidKey);
                 
-                console.log('Created unsigned operation:', unsignedOperation);
+                const accountResult = await createAccount(
+                    data.pdsEndpoint,
+                    data.handle,
+                    data.email,
+                    data.password,
+                    currentDidKey,
+                    data.inviteCode
+                );
                 
-                // Step 2: Sign the operation
-                if (status) {
-                    status.innerHTML = '<div class="status success">🔄 Signing DID:PLC operation...</div>';
-                }
+                console.log('Account creation result:', accountResult);
                 
-                const signedOperation = await signDidPlcOperation(unsignedOperation, currentKey);
-                
-                // Step 3: Generate DID:PLC ID from the signed operation
-                const didPlcId = await generateDidPlcId(signedOperation);
-                
-                // Step 4: Reserve the signing key on the PDS
-                if (status) {
-                    status.innerHTML = '<div class="status success">🔄 Reserving signing key on PDS...</div>';
-                }
-                
-                console.log('Reserving signing key...');
-                const reserveResult = await reserveSigningKey(data.pdsEndpoint, didPlcId);
-                console.log('Reservation result:', reserveResult);
-                
-                if (!reserveResult.success) {
-                    throw new Error('Failed to reserve signing key');
-                }
-                
-                // Step 5: Verify the signed operation
-                console.log('Verifying signed operation...');
-                const verificationResult = await verifyDidPlcOperation(signedOperation);
-                
-                // Output to console
-                console.log('Generated DID:PLC Operation:', signedOperation);
-                console.log('DID:PLC ID:', didPlcId);
-                console.log('Verification Result:', verificationResult);
-                console.log('Private Key:', currentKey);
-                console.log('Public Key:', currentPublicKey);
-                console.log('DID Key:', currentDidKey);
-                
-                // Update the DID:PLC field in the form
-                document.getElementById('account-did').value = didPlcId;
-                
-                if (status) {
-                    if (verificationResult.success && verificationResult.keysMatch) {
-                        status.innerHTML = '<div class="status success">✅ DID:PLC operation created and signature verified! Submitting to plc.directory...</div>';
-                        
-                        // Submit to plc.directory after successful verification
-                        try {
-                            console.log('Submitting to plc.directory...');
-                            const submitResult = await submitDidPlcOperation(signedOperation, didPlcId);
-                            console.log('Submission result:', submitResult);
-                            
-                            if (submitResult.success) {
-                                status.innerHTML = '<div class="status success">✅ DID:PLC operation created, verified, and submitted to plc.directory successfully!</div>';
-                            } else {
-                                status.innerHTML = '<div class="status error">❌ DID:PLC operation verified but submission to plc.directory failed. Check console for details.</div>';
-                            }
-                        } catch (submitError) {
-                            console.error('Error submitting to plc.directory:', submitError);
-                            status.innerHTML = '<div class="status error">❌ DID:PLC operation verified but submission to plc.directory failed. Check console for details.</div>';
-                        }
-                    } else {
-                        status.innerHTML = '<div class="status error">❌ DID:PLC operation created but signature verification failed. Check console for details.</div>';
+                if (accountResult.success) {
+                    // Update the DID:PLC field in the form with the returned DID
+                    if (accountResult.result && accountResult.result.did) {
+                        document.getElementById('account-did').value = accountResult.result.did;
                     }
+                    
+                    if (status) {
+                        status.innerHTML = '<div class="status success">✅ Account created successfully on PDS!</div>';
+                    }
+                } else {
+                    throw new Error('Account creation failed');
                 }
             } catch (error) {
                 console.error('Error creating account:', error);
