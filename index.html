@@ -1505,10 +1505,10 @@
                 // Show loading state
                 generateBtn.disabled = true;
                 generateBtn.textContent = 'Generating...';
-                keyDisplay.textContent = 'Generating secure random key, mnemonic, and public key...';
-                mnemonicDisplay.style.display = 'none';
-                publicKeyDisplay.style.display = 'none';
-                status.innerHTML = '';
+                if (keyDisplay) keyDisplay.textContent = 'Generating secure random key, mnemonic, and public key...';
+                if (mnemonicDisplay) mnemonicDisplay.style.display = 'none';
+                if (publicKeyDisplay) publicKeyDisplay.style.display = 'none';
+                if (status) status.innerHTML = '';
 
                 // Generate 256 bits (32 bytes) of random data
                 const randomBytes = new Uint8Array(32);
@@ -1529,20 +1529,20 @@
                 currentDidKey = generateDidKey(currentPublicKey);
 
                 // Display the key
-                keyDisplay.textContent = currentKey;
-                keyDisplay.classList.add('has-key');
+                if (keyDisplay) keyDisplay.textContent = currentKey;
+                if (keyDisplay) keyDisplay.classList.add('has-key');
                 
                 // Display the mnemonic
-                mnemonicText.textContent = currentMnemonic;
-                mnemonicDisplay.style.display = 'block';
+                if (mnemonicText) mnemonicText.textContent = currentMnemonic;
+                if (mnemonicDisplay) mnemonicDisplay.style.display = 'block';
                 
                 // Display the public key
-                publicKeyText.textContent = currentPublicKey;
-                publicKeyDisplay.style.display = 'block';
+                if (publicKeyText) publicKeyText.textContent = currentPublicKey;
+                if (publicKeyDisplay) publicKeyDisplay.style.display = 'block';
                 
                 // Display the DID key
-                didKeyText.textContent = currentDidKey;
-                didKeyDisplay.style.display = 'block';
+                if (didKeyText) didKeyText.textContent = currentDidKey;
+                if (didKeyDisplay) didKeyDisplay.style.display = 'block';
                 
                 // Enable copy buttons
                 copyBtn.disabled = false;
@@ -1565,14 +1565,14 @@
                 if (status) {
                     status.innerHTML = '<div class="status error">Error generating key. Please try again.</div>';
                 }
-                keyDisplay.textContent = 'Error generating key. Please try again.';
-                keyDisplay.classList.remove('has-key');
-                mnemonicDisplay.style.display = 'none';
-                publicKeyDisplay.style.display = 'none';
-                didKeyDisplay.style.display = 'none';
+                if (keyDisplay) keyDisplay.textContent = 'Error generating key. Please try again.';
+                if (keyDisplay) keyDisplay.classList.remove('has-key');
+                if (mnemonicDisplay) mnemonicDisplay.style.display = 'none';
+                if (publicKeyDisplay) publicKeyDisplay.style.display = 'none';
+                if (didKeyDisplay) didKeyDisplay.style.display = 'none';
             } finally {
-                generateBtn.disabled = false;
-                generateBtn.textContent = 'Generate New Key';
+                if (generateBtn) generateBtn.disabled = false;
+                if (generateBtn) generateBtn.textContent = 'Generate New Key';
             }
         }
 
@@ -1705,7 +1705,7 @@
                 // Show loading state
                 restoreBtn.disabled = true;
                 restoreBtn.textContent = 'Restoring...';
-                status.innerHTML = '';
+                if (status) status.innerHTML = '';
 
                 // Validate mnemonic
                 const validation = validateMnemonic(inputMnemonic);
@@ -1729,20 +1729,20 @@
                 currentDidKey = restoredDidKey;
 
                 // Display the restored key
-                keyDisplay.textContent = currentKey;
-                keyDisplay.classList.add('has-key');
-
+                if (keyDisplay) keyDisplay.textContent = currentKey;
+                if (keyDisplay) keyDisplay.classList.add('has-key');
+                
                 // Display the mnemonic
-                mnemonicText.textContent = currentMnemonic;
-                mnemonicDisplay.style.display = 'block';
-
+                if (mnemonicText) mnemonicText.textContent = currentMnemonic;
+                if (mnemonicDisplay) mnemonicDisplay.style.display = 'block';
+                
                 // Display the public key
-                publicKeyText.textContent = currentPublicKey;
-                publicKeyDisplay.style.display = 'block';
-
+                if (publicKeyText) publicKeyText.textContent = currentPublicKey;
+                if (publicKeyDisplay) publicKeyDisplay.style.display = 'block';
+                
                 // Display the DID key
-                didKeyText.textContent = currentDidKey;
-                didKeyDisplay.style.display = 'block';
+                if (didKeyText) didKeyText.textContent = currentDidKey;
+                if (didKeyDisplay) didKeyDisplay.style.display = 'block';
 
                 // Enable copy buttons
                 copyBtn.disabled = false;
@@ -1756,19 +1756,19 @@
                 // Update tab states to enable inactive tabs
                 updateTabStates();
 
-                status.innerHTML = '<div class="status success">Private key, mnemonic, public key, and DID key restored successfully!</div>';
+                if (status) status.innerHTML = '<div class="status success">Private key, mnemonic, public key, and DID key restored successfully!</div>';
 
             } catch (error) {
                 console.error('Error restoring from mnemonic:', error);
-                status.innerHTML = `<div class="status error">${error.message}</div>`;
-                keyDisplay.textContent = 'Error restoring key. Please check your mnemonic phrase.';
-                keyDisplay.classList.remove('has-key');
-                mnemonicDisplay.style.display = 'none';
-                publicKeyDisplay.style.display = 'none';
-                didKeyDisplay.style.display = 'none';
+                if (status) status.innerHTML = `<div class="status error">${error.message}</div>`;
+                if (keyDisplay) keyDisplay.textContent = 'Error restoring key. Please check your mnemonic phrase.';
+                if (keyDisplay) keyDisplay.classList.remove('has-key');
+                if (mnemonicDisplay) mnemonicDisplay.style.display = 'none';
+                if (publicKeyDisplay) publicKeyDisplay.style.display = 'none';
+                if (didKeyDisplay) didKeyDisplay.style.display = 'none';
             } finally {
-                restoreBtn.disabled = false;
-                restoreBtn.textContent = 'Restore Private Key';
+                if (restoreBtn) restoreBtn.disabled = false;
+                if (restoreBtn) restoreBtn.textContent = 'Restore Private Key';
             }
         }
 
@@ -1776,8 +1776,8 @@
             const mnemonicInput = document.getElementById('mnemonicInput');
             const status = getCurrentStatusElement();
             
-            mnemonicInput.value = '';
-            status.innerHTML = '';
+            if (mnemonicInput) mnemonicInput.value = '';
+            if (status) status.innerHTML = '';
         }
 
         // Helper function to get the status element for the current active tab
@@ -2555,11 +2555,11 @@
             const resultDiv = document.getElementById('plc-result');
             const resultContent = document.getElementById('plc-result-content');
             
-            resultContent.textContent = JSON.stringify(entry, null, 2);
-            resultDiv.style.display = 'block';
+            if (resultContent) resultContent.textContent = JSON.stringify(entry, null, 2);
+            if (resultDiv) resultDiv.style.display = 'block';
             
             // Scroll to result
-            resultDiv.scrollIntoView({ behavior: 'smooth' });
+            if (resultDiv) resultDiv.scrollIntoView({ behavior: 'smooth' });
         }
 
         async function copyPlcResult() {
@@ -2594,6 +2594,7 @@
             
             // Reset rotation keys to single input
             const container = document.getElementById('rotation-keys-container');
+            if (!container) return;
             container.innerHTML = '';
             
             const group = document.createElement('div');
@@ -2625,6 +2626,7 @@
             
             // Reset also known as to single input
             const alsoKnownAsContainer = document.getElementById('also-known-as-container');
+            if (!alsoKnownAsContainer) return;
             alsoKnownAsContainer.innerHTML = '';
             
             const alsoKnownAsGroup = document.createElement('div');
@@ -2714,6 +2716,7 @@
             console.log('Container found:', container);
             
             // Clear existing inputs
+            if (!container) return;
             container.innerHTML = '';
             
             // Add inputs for each key
@@ -2814,6 +2817,7 @@
             const container = document.getElementById('also-known-as-container');
             
             // Clear existing inputs
+            if (!container) return;
             container.innerHTML = '';
             
             // Add inputs for each entry
