@@ -862,21 +862,27 @@
                 Generate New Key
             </button>
             
+            <!--
             <button class="copy-btn" id="copyBtn" disabled>
                 Copy Key
             </button>
+            -->
             
             <button class="copy-btn" id="copyMnemonicBtn" disabled>
                 Copy Mnemonic
             </button>
             
+            <!--
             <button class="copy-btn" id="copyPublicKeyBtn" disabled>
                 Copy Public Key
             </button>
+            -->
             
+            <!--
             <button class="copy-btn" id="copyDidKeyBtn" disabled>
                 Copy DID Key
             </button>
+            -->
         </div>
         
         <div class="restore-section">
@@ -2476,13 +2482,21 @@
         window.verifyDidPlcOperation = verifyDidPlcOperation;
 
         // Add event listeners
-        document.getElementById('generateBtn').addEventListener('click', generateKey);
-        document.getElementById('copyBtn').addEventListener('click', copyKey);
-        document.getElementById('copyMnemonicBtn').addEventListener('click', copyMnemonic);
-        document.getElementById('copyPublicKeyBtn').addEventListener('click', copyPublicKey);
-        document.getElementById('copyDidKeyBtn').addEventListener('click', copyDidKey);
-        document.getElementById('restoreBtn').addEventListener('click', restoreFromMnemonic);
-        document.getElementById('clearBtn').addEventListener('click', clearInput);
+        const generateBtn = document.getElementById('generateBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const copyMnemonicBtn = document.getElementById('copyMnemonicBtn');
+        const copyPublicKeyBtn = document.getElementById('copyPublicKeyBtn');
+        const copyDidKeyBtn = document.getElementById('copyDidKeyBtn');
+        const restoreBtn = document.getElementById('restoreBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        
+        if (generateBtn) generateBtn.addEventListener('click', generateKey);
+        if (copyBtn) copyBtn.addEventListener('click', copyKey);
+        if (copyMnemonicBtn) copyMnemonicBtn.addEventListener('click', copyMnemonic);
+        if (copyPublicKeyBtn) copyPublicKeyBtn.addEventListener('click', copyPublicKey);
+        if (copyDidKeyBtn) copyDidKeyBtn.addEventListener('click', copyDidKey);
+        if (restoreBtn) restoreBtn.addEventListener('click', restoreFromMnemonic);
+        if (clearBtn) clearBtn.addEventListener('click', clearInput);
 
         // Tab switching functionality
         function switchTab(tabName) {
@@ -2511,9 +2525,13 @@
         }
 
         // Add tab event listeners
-        document.getElementById('keygen-tab').addEventListener('click', () => switchTab('keygen'));
-        document.getElementById('didplc-tab').addEventListener('click', () => switchTab('didplc'));
-        document.getElementById('createaccount-tab').addEventListener('click', () => switchTab('createaccount'));
+        const keygenTab = document.getElementById('keygen-tab');
+        const didplcTab = document.getElementById('didplc-tab');
+        const createaccountTab = document.getElementById('createaccount-tab');
+        
+        if (keygenTab) keygenTab.addEventListener('click', () => switchTab('keygen'));
+        if (didplcTab) didplcTab.addEventListener('click', () => switchTab('didplc'));
+        if (createaccountTab) createaccountTab.addEventListener('click', () => switchTab('createaccount'));
         
         // Initialize tab states on page load
         updateTabStates();
@@ -2859,7 +2877,9 @@
         }
 
         // Add DID:PLC form event listeners
-        document.getElementById('didplc-form').addEventListener('submit', async function(event) {
+        const didplcForm = document.getElementById('didplc-form');
+        if (didplcForm) {
+            didplcForm.addEventListener('submit', async function(event) {
             event.preventDefault();
             
             const status = getCurrentStatusElement();
@@ -2942,13 +2962,20 @@
                 }
             }
         });
+        }
 
-        document.getElementById('clear-plc-btn').addEventListener('click', clearPlcForm);
-        document.getElementById('copy-plc-result-btn').addEventListener('click', copyPlcResult);
-        document.getElementById('copy-plc-debug-btn').addEventListener('click', copyPlcDebug);
+        const clearPlcBtn = document.getElementById('clear-plc-btn');
+        const copyPlcResultBtn = document.getElementById('copy-plc-result-btn');
+        const copyPlcDebugBtn = document.getElementById('copy-plc-debug-btn');
+        
+        if (clearPlcBtn) clearPlcBtn.addEventListener('click', clearPlcForm);
+        if (copyPlcResultBtn) copyPlcResultBtn.addEventListener('click', copyPlcResult);
+        if (copyPlcDebugBtn) copyPlcDebugBtn.addEventListener('click', copyPlcDebug);
 
         // Create Account form handling
-        document.getElementById('createaccount-form').addEventListener('submit', async function(event) {
+        const createaccountForm = document.getElementById('createaccount-form');
+        if (createaccountForm) {
+            createaccountForm.addEventListener('submit', async function(event) {
             event.preventDefault();
             
             const status = getCurrentStatusElement();
@@ -3002,20 +3029,30 @@
                 }
             }
         });
+        }
 
-        document.getElementById('clear-createaccount-btn').addEventListener('click', function() {
-            document.getElementById('createaccount-form').reset();
-            document.getElementById('createaccount-result').style.display = 'none';
-            const status = getCurrentStatusElement();
-            if (status) {
-                status.innerHTML = '';
-            }
-        });
+        const clearCreateaccountBtn = document.getElementById('clear-createaccount-btn');
+        const copyCreateaccountResultBtn = document.getElementById('copy-createaccount-result-btn');
+        
+        if (clearCreateaccountBtn) {
+            clearCreateaccountBtn.addEventListener('click', function() {
+                const createaccountForm = document.getElementById('createaccount-form');
+                const createaccountResult = document.getElementById('createaccount-result');
+                if (createaccountForm) createaccountForm.reset();
+                if (createaccountResult) createaccountResult.style.display = 'none';
+                const status = getCurrentStatusElement();
+                if (status) {
+                    status.innerHTML = '';
+                }
+            });
+        }
 
-        document.getElementById('copy-createaccount-result-btn').addEventListener('click', function() {
-            // TODO: Implement copy functionality
-            console.log('Copy account details clicked');
-        });
+        if (copyCreateaccountResultBtn) {
+            copyCreateaccountResultBtn.addEventListener('click', function() {
+                // TODO: Implement copy functionality
+                console.log('Copy account details clicked');
+            });
+        }
 
         // DID:PLC fetching functionality
         async function fetchDidPlcRecord(didPlc) {
@@ -3537,16 +3574,20 @@
         }
 
         // Add event listener for fetch button
-        document.getElementById('fetch-did-btn').addEventListener('click', handleFetchDidRecord);
+        const fetchDidBtn = document.getElementById('fetch-did-btn');
+        if (fetchDidBtn) fetchDidBtn.addEventListener('click', handleFetchDidRecord);
         
         // Add event listener for verify button
-        document.getElementById('verify-did-btn').addEventListener('click', handleVerifyDidCreation);
+        const verifyDidBtn = document.getElementById('verify-did-btn');
+        if (verifyDidBtn) verifyDidBtn.addEventListener('click', handleVerifyDidCreation);
         
         // Add event listener for reserve key button
-        document.getElementById('reserve-key-btn').addEventListener('click', handleReserveKey);
+        const reserveKeyBtn = document.getElementById('reserve-key-btn');
+        if (reserveKeyBtn) reserveKeyBtn.addEventListener('click', handleReserveKey);
         
         // Add event listeners for rotation key buttons
-        document.getElementById('add-rotation-key-btn').addEventListener('click', addRotationKey);
+        const addRotationKeyBtn = document.getElementById('add-rotation-key-btn');
+        if (addRotationKeyBtn) addRotationKeyBtn.addEventListener('click', addRotationKey);
         
         // Add event listener for the initial remove button
         const initialRemoveBtn = document.querySelector('.remove-rotation-key-btn');
@@ -3557,7 +3598,8 @@
         }
         
         // Add event listeners for also known as buttons
-        document.getElementById('add-also-known-as-btn').addEventListener('click', addAlsoKnownAs);
+        const addAlsoKnownAsBtn = document.getElementById('add-also-known-as-btn');
+        if (addAlsoKnownAsBtn) addAlsoKnownAsBtn.addEventListener('click', addAlsoKnownAs);
         
         // Add event listener for the initial also known as remove button
         const initialAlsoKnownAsRemoveBtn = document.querySelector('.remove-also-known-as-btn');
