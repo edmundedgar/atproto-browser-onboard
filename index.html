@@ -747,11 +747,11 @@
             <button class="tab-btn active" id="keygen-tab" data-tab="keygen">
                 🔑 Key Generation
             </button>
-            <button class="tab-btn" id="didplc-tab" data-tab="didplc">
-                🆔 DID:PLC Entry
-            </button>
             <button class="tab-btn" id="createaccount-tab" data-tab="createaccount">
                 👤 Create Account
+            </button>
+            <button class="tab-btn" id="didplc-tab" data-tab="didplc">
+                🆔 DID:PLC Entry
             </button>
         </div>
         
@@ -838,6 +838,71 @@
         </div>
         
         <div class="status"></div>
+            </div>
+            
+            <!-- Create Account Tab -->
+            <div class="tab-pane" id="createaccount-pane">
+                <div class="plc-form-container">
+                    <h2>👤 Create New Account</h2>
+                    <p class="plc-subtitle">Create a new ATProto account using your browser-controlled DID:PLC identity</p>
+                    
+                    <form id="createaccount-form" class="plc-form">
+                        <div class="form-group">
+                            <label for="pds-endpoint">PDS Endpoint</label>
+                            <input type="url" id="pds-endpoint" name="pdsEndpoint" placeholder="https://your-pds.example.com" required>
+                            <small class="form-help">The URL of your Personal Data Server</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="account-handle">Handle</label>
+                            <input type="text" id="account-handle" name="handle" placeholder="username" required>
+                            <small class="form-help">Your desired handle (username) for the account</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="account-email">Email</label>
+                            <input type="email" id="account-email" name="email" placeholder="user@example.com" required>
+                            <small class="form-help">Email address for account verification</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="account-password">Password</label>
+                            <input type="password" id="account-password" name="password" placeholder="Secure password" required>
+                            <small class="form-help">Password for account authentication</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="account-invite-code">Invite Code (Optional)</label>
+                            <input type="text" id="account-invite-code" name="inviteCode" placeholder="Enter invite code if required">
+                            <small class="form-help">Optional: Some PDS servers require an invite code for account creation</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="account-did">DID:PLC Identifier</label>
+                            <input type="text" id="account-did" name="did" placeholder="did:plc:..." readonly>
+                            <small class="form-help">Your browser-controlled DID:PLC identifier (auto-generated from DID:PLC Entry tab)</small>
+                        </div>
+                        
+                        <div class="form-button-group">
+                            <button type="submit" class="submit-btn" id="submit-createaccount-btn">
+                                Create Account
+                            </button>
+                            <button type="button" class="clear-btn" id="clear-createaccount-btn">
+                                Clear Form
+                            </button>
+                        </div>
+                    </form>
+                    
+                    <div class="plc-result" id="createaccount-result" style="display: none;">
+                        <h3>✅ Account Created Successfully</h3>
+                        <div class="plc-result-content" id="createaccount-result-content"></div>
+                        <button class="copy-btn" id="copy-createaccount-result-btn">
+                            Copy Account Details
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="status"></div>
             </div>
             
             <!-- DID:PLC Entry Tab -->
@@ -934,71 +999,6 @@
                         </button>
                     </div>
                 </div>
-            </div>
-            
-            <!-- Create Account Tab -->
-            <div class="tab-pane" id="createaccount-pane">
-                <div class="plc-form-container">
-                    <h2>👤 Create New Account</h2>
-                    <p class="plc-subtitle">Create a new ATProto account using your browser-controlled DID:PLC identity</p>
-                    
-                    <form id="createaccount-form" class="plc-form">
-                        <div class="form-group">
-                            <label for="pds-endpoint">PDS Endpoint</label>
-                            <input type="url" id="pds-endpoint" name="pdsEndpoint" placeholder="https://your-pds.example.com" required>
-                            <small class="form-help">The URL of your Personal Data Server</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="account-handle">Handle</label>
-                            <input type="text" id="account-handle" name="handle" placeholder="username" required>
-                            <small class="form-help">Your desired handle (username) for the account</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="account-email">Email</label>
-                            <input type="email" id="account-email" name="email" placeholder="user@example.com" required>
-                            <small class="form-help">Email address for account verification</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="account-password">Password</label>
-                            <input type="password" id="account-password" name="password" placeholder="Secure password" required>
-                            <small class="form-help">Password for account authentication</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="account-invite-code">Invite Code (Optional)</label>
-                            <input type="text" id="account-invite-code" name="inviteCode" placeholder="Enter invite code if required">
-                            <small class="form-help">Optional: Some PDS servers require an invite code for account creation</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="account-did">DID:PLC Identifier</label>
-                            <input type="text" id="account-did" name="did" placeholder="did:plc:..." readonly>
-                            <small class="form-help">Your browser-controlled DID:PLC identifier (auto-generated from DID:PLC Entry tab)</small>
-                        </div>
-                        
-                        <div class="form-button-group">
-                            <button type="submit" class="submit-btn" id="submit-createaccount-btn">
-                                Create Account
-                            </button>
-                            <button type="button" class="clear-btn" id="clear-createaccount-btn">
-                                Clear Form
-                            </button>
-                        </div>
-                    </form>
-                    
-                    <div class="plc-result" id="createaccount-result" style="display: none;">
-                        <h3>✅ Account Created Successfully</h3>
-                        <div class="plc-result-content" id="createaccount-result-content"></div>
-                        <button class="copy-btn" id="copy-createaccount-result-btn">
-                            Copy Account Details
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="status"></div>
             </div>
         </div>
     </div>
