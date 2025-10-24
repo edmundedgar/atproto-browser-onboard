@@ -396,6 +396,20 @@
             box-shadow: 0 0 20px rgba(0, 255, 136, 0.6);
         }
 
+        .tab-btn.inactive {
+            color: #555;
+            border-color: #555;
+            cursor: not-allowed;
+            box-shadow: none;
+            opacity: 0.5;
+        }
+
+        .tab-btn.inactive:hover {
+            color: #555;
+            background: #0a0a0a;
+            box-shadow: none;
+        }
+
         .tab-content {
             position: relative;
         }
@@ -1538,6 +1552,9 @@
                 
                 // Update submit button state if we're on the DID:PLC Entry tab
                 updateSubmitButtonState();
+                
+                // Update tab states to enable inactive tabs
+                updateTabStates();
 
                 if (status) {
                     status.innerHTML = '<div class="status success">Key, mnemonic, public key, and DID key generated successfully!</div>';
@@ -1735,6 +1752,9 @@
                 
                 // Update submit button state if we're on the DID:PLC Entry tab
                 updateSubmitButtonState();
+                
+                // Update tab states to enable inactive tabs
+                updateTabStates();
 
                 status.innerHTML = '<div class="status success">Private key, mnemonic, public key, and DID key restored successfully!</div>';
 
@@ -2460,6 +2480,13 @@
 
         // Tab switching functionality
         function switchTab(tabName) {
+            // Check if tab is inactive and trying to switch to it
+            const tabButton = document.getElementById(tabName + '-tab');
+            if (tabButton && tabButton.classList.contains('inactive')) {
+                console.log('Tab is inactive. Please generate or load a key first.');
+                return;
+            }
+            
             // Hide all tab panes
             document.querySelectorAll('.tab-pane').forEach(pane => {
                 pane.classList.remove('active');
@@ -2481,6 +2508,26 @@
         document.getElementById('keygen-tab').addEventListener('click', () => switchTab('keygen'));
         document.getElementById('didplc-tab').addEventListener('click', () => switchTab('didplc'));
         document.getElementById('createaccount-tab').addEventListener('click', () => switchTab('createaccount'));
+        
+        // Initialize tab states on page load
+        updateTabStates();
+
+        // Function to update tab states based on whether a key is available
+        function updateTabStates() {
+            const hasKey = currentKey !== null;
+            const createAccountTab = document.getElementById('createaccount-tab');
+            const didplcTab = document.getElementById('didplc-tab');
+            
+            if (hasKey) {
+                // Remove inactive class if key is available
+                createAccountTab.classList.remove('inactive');
+                didplcTab.classList.remove('inactive');
+            } else {
+                // Add inactive class if no key is available
+                createAccountTab.classList.add('inactive');
+                didplcTab.classList.add('inactive');
+            }
+        }
 
         // DID:PLC form handling
         let currentPlcEntry = null;
