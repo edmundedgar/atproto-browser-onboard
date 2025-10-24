@@ -439,6 +439,12 @@
             flex: 1;
         }
 
+        .did-button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
         .fetch-btn {
             background: linear-gradient(135deg, #28a745, #20c997);
             color: white;
@@ -843,8 +849,9 @@
                     <form id="didplc-form" class="plc-form">
                         <div class="form-group">
                             <label for="plc-did">DID Identifier</label>
-                            <div class="did-input-group">
-                                <input type="text" id="plc-did" name="did" placeholder="did:plc:example" required>
+                            <input type="text" id="plc-did" name="did" placeholder="did:plc:example" required>
+                            <small class="form-help">The decentralized identifier (e.g., did:plc:abc123) - click "Fetch Record" to load existing data</small>
+                            <div class="did-button-group">
                                 <button type="button" class="fetch-btn" id="fetch-did-btn">
                                     🔍 Fetch Record
                                 </button>
@@ -852,7 +859,6 @@
                                     ✅ Verify Creation
                                 </button>
                             </div>
-                            <small class="form-help">The decentralized identifier (e.g., did:plc:abc123) - click "Fetch Record" to load existing data</small>
                         </div>
                         
                         <div class="form-group">
