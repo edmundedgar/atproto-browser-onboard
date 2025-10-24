@@ -797,19 +797,19 @@
 </head>
 <body>
     <div class="container">
-        <h1>🔐 Cryptographic Key Generator</h1>
+        <h1>Cryptographic Key Generator</h1>
         <p class="subtitle">Generate secure 256-bit private keys, BIP39 mnemonics, secp256k1 public keys, and DID keys in your browser</p>
         
         <!-- Tab Navigation -->
         <div class="tab-navigation">
             <button class="tab-btn active" id="keygen-tab" data-tab="keygen">
-                🔑 Key Generation
+                Key Generation
             </button>
             <button class="tab-btn" id="createaccount-tab" data-tab="createaccount">
-                👤 Create Account
+                Create Account
             </button>
             <button class="tab-btn" id="didplc-tab" data-tab="didplc">
-                🆔 DID:PLC Entry
+                DID:PLC Entry
             </button>
         </div>
         
@@ -823,17 +823,17 @@
         </div>
         
         <div class="mnemonic-display" id="mnemonicDisplay" style="display: none;">
-            <h3>🔤 BIP39 Mnemonic Phrase</h3>
+            <h3>BIP39 Mnemonic Phrase</h3>
             <div class="mnemonic-text" id="mnemonicText"></div>
         </div>
         
         <div class="public-key-display" id="publicKeyDisplay" style="display: none;">
-            <h3>🔑 secp256k1 Public Key</h3>
+            <h3>secp256k1 Public Key</h3>
             <div class="public-key-text" id="publicKeyText"></div>
         </div>
         
         <div class="did-key-display" id="didKeyDisplay" style="display: none;">
-            <h3>🆔 DID Key</h3>
+            <h3>DID Key</h3>
             <div class="did-key-text" id="didKeyText"></div>
         </div>
         
@@ -860,7 +860,7 @@
         </div>
         
         <div class="restore-section">
-            <h3>🔄 Restore from Mnemonic</h3>
+            <h3>Restore from Mnemonic</h3>
             <p class="restore-subtitle">Enter a 24-word BIP39 mnemonic phrase to restore the private key</p>
             
             <div class="mnemonic-input-container">
@@ -883,7 +883,7 @@
         </div>
         
         <div class="info">
-            <h3>ℹ️ About This Tool</h3>
+            <h3>About This Tool</h3>
             <p>
                 This tool generates cryptographically secure 256-bit private keys using the Web Crypto API. 
                 The key is generated entirely in your browser and never transmitted over the network. 
@@ -901,7 +901,7 @@
             <!-- Create Account Tab -->
             <div class="tab-pane" id="createaccount-pane">
                 <div class="plc-form-container">
-                    <h2>👤 Create New Account</h2>
+                    <h2>Create New Account</h2>
                     <p class="plc-subtitle">Create a new ATProto account using your browser-controlled DID:PLC identity</p>
                     
                     <form id="createaccount-form" class="plc-form">
@@ -952,7 +952,7 @@
                     </form>
                     
                     <div class="plc-result" id="createaccount-result" style="display: none;">
-                        <h3>✅ Account Created Successfully</h3>
+                        <h3>Account Created Successfully</h3>
                         <div class="plc-result-content" id="createaccount-result-content"></div>
                         <button class="copy-btn" id="copy-createaccount-result-btn">
                             Copy Account Details
@@ -966,7 +966,7 @@
             <!-- DID:PLC Entry Tab -->
             <div class="tab-pane" id="didplc-pane">
                 <div class="plc-form-container">
-                    <h2>🆔 DID:PLC Entry Form</h2>
+                    <h2>DID:PLC Entry Form</h2>
                     <p class="plc-subtitle">Create a DID:PLC entry with all required fields for decentralized identity</p>
                     
                     <form id="didplc-form" class="plc-form">
@@ -976,10 +976,10 @@
                             <small class="form-help">The decentralized identifier (e.g., did:plc:abc123) - click "Fetch Record" to load existing data</small>
                             <div class="did-button-group">
                                 <button type="button" class="fetch-btn" id="fetch-did-btn">
-                                    🔍 Fetch Record
+                                    Fetch Record
                                 </button>
                                 <button type="button" class="verify-btn" id="verify-did-btn">
-                                    ✅ Verify Creation
+                                    Verify Creation
                                 </button>
                             </div>
                         </div>
@@ -1001,7 +1001,7 @@
                             <div class="did-input-group">
                                 <input type="text" id="plc-atproto-verification-method" name="atprotoVerificationMethod" placeholder="Enter ATProto verification method (did:key:...)" required>
                                 <button type="button" class="fetch-btn" id="reserve-key-btn">
-                                    🔑 Reserve Key
+                                    Reserve Key
                                 </button>
                             </div>
                             <small class="form-help">The verification method used for ATProto authentication</small>
@@ -1042,7 +1042,7 @@
                     </form>
                     
                     <div class="plc-result" id="plc-result" style="display: none;">
-                        <h3>📋 Generated DID:PLC Entry</h3>
+                        <h3>Generated DID:PLC Entry</h3>
                         <div class="plc-result-content" id="plc-result-content"></div>
                         <button class="copy-btn" id="copy-plc-result-btn">
                             Copy DID:PLC Entry
@@ -1050,7 +1050,7 @@
                     </div>
                     
                     <div class="plc-debug" id="plc-debug" style="display: none;">
-                        <h3>🔍 Raw Audit Log (Debug)</h3>
+                        <h3>Raw Audit Log (Debug)</h3>
                         <div class="plc-debug-content" id="plc-debug-content"></div>
                         <button class="copy-btn" id="copy-plc-debug-btn">
                             Copy Raw Audit Log
@@ -1540,13 +1540,13 @@
                 updateSubmitButtonState();
 
                 if (status) {
-                    status.innerHTML = '<div class="status success">✅ Key, mnemonic, public key, and DID key generated successfully!</div>';
+                    status.innerHTML = '<div class="status success">Key, mnemonic, public key, and DID key generated successfully!</div>';
                 }
 
             } catch (error) {
                 console.error('Error generating key:', error);
                 if (status) {
-                    status.innerHTML = '<div class="status error">❌ Error generating key. Please try again.</div>';
+                    status.innerHTML = '<div class="status error">Error generating key. Please try again.</div>';
                 }
                 keyDisplay.textContent = 'Error generating key. Please try again.';
                 keyDisplay.classList.remove('has-key');
@@ -1566,7 +1566,7 @@
                 await navigator.clipboard.writeText(currentKey);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status success">📋 Key copied to clipboard!</div>';
+                    status.innerHTML = '<div class="status success">Key copied to clipboard!</div>';
                 }
                 
                 // Clear status after 3 seconds
@@ -1579,7 +1579,7 @@
                 console.error('Error copying to clipboard:', error);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status error">❌ Failed to copy to clipboard</div>';
+                    status.innerHTML = '<div class="status error">Failed to copy to clipboard</div>';
                 }
             }
         }
@@ -1591,7 +1591,7 @@
                 await navigator.clipboard.writeText(currentMnemonic);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status success">📋 Mnemonic copied to clipboard!</div>';
+                    status.innerHTML = '<div class="status success">Mnemonic copied to clipboard!</div>';
                 }
                 
                 // Clear status after 3 seconds
@@ -1604,7 +1604,7 @@
                 console.error('Error copying mnemonic to clipboard:', error);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status error">❌ Failed to copy mnemonic to clipboard</div>';
+                    status.innerHTML = '<div class="status error">Failed to copy mnemonic to clipboard</div>';
                 }
             }
         }
@@ -1616,7 +1616,7 @@
                 await navigator.clipboard.writeText(currentPublicKey);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status success">📋 Public key copied to clipboard!</div>';
+                    status.innerHTML = '<div class="status success">Public key copied to clipboard!</div>';
                 }
                 
                 // Clear status after 3 seconds
@@ -1629,7 +1629,7 @@
                 console.error('Error copying public key to clipboard:', error);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status error">❌ Failed to copy public key to clipboard</div>';
+                    status.innerHTML = '<div class="status error">Failed to copy public key to clipboard</div>';
                 }
             }
         }
@@ -1641,7 +1641,7 @@
                 await navigator.clipboard.writeText(currentDidKey);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status success">📋 DID key copied to clipboard!</div>';
+                    status.innerHTML = '<div class="status success">DID key copied to clipboard!</div>';
                 }
                 
                 // Clear status after 3 seconds
@@ -1654,7 +1654,7 @@
                 console.error('Error copying DID key to clipboard:', error);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status error">❌ Failed to copy DID key to clipboard</div>';
+                    status.innerHTML = '<div class="status error">Failed to copy DID key to clipboard</div>';
                 }
             }
         }
@@ -1679,7 +1679,7 @@
 
             if (!inputMnemonic) {
                 if (status) {
-                    status.innerHTML = '<div class="status error">❌ Please enter a mnemonic phrase</div>';
+                    status.innerHTML = '<div class="status error">Please enter a mnemonic phrase</div>';
                 }
                 return;
             }
@@ -1736,11 +1736,11 @@
                 // Update submit button state if we're on the DID:PLC Entry tab
                 updateSubmitButtonState();
 
-                status.innerHTML = '<div class="status success">✅ Private key, mnemonic, public key, and DID key restored successfully!</div>';
+                status.innerHTML = '<div class="status success">Private key, mnemonic, public key, and DID key restored successfully!</div>';
 
             } catch (error) {
                 console.error('Error restoring from mnemonic:', error);
-                status.innerHTML = `<div class="status error">❌ ${error.message}</div>`;
+                status.innerHTML = `<div class="status error">${error.message}</div>`;
                 keyDisplay.textContent = 'Error restoring key. Please check your mnemonic phrase.';
                 keyDisplay.classList.remove('has-key');
                 mnemonicDisplay.style.display = 'none';
@@ -1830,17 +1830,17 @@
                 // Test the DID:PLC ID generation with signed operation
                 const generatedDid = await generateDidPlcId(testOperation);
                 console.log('Generated DID:', generatedDid);
-                console.log('Match:', generatedDid === testDid ? '✅ PASS' : '❌ FAIL');
+                console.log('Match:', generatedDid === testDid ? 'PASS' : 'FAIL');
                 
                 if (generatedDid !== testDid) {
-                    console.log('❌ Test failed - generated DID does not match expected');
+                    console.log('Test failed - generated DID does not match expected');
                     console.log('This may be due to:');
                     console.log('1. Different DAG-CBOR serialization order');
                     console.log('2. Different CID generation method');
                     console.log('3. Different base32 encoding');
                     console.log('4. Missing or incorrect signature');
                 } else {
-                    console.log('✅ Test passed - DID:PLC ID generation is working correctly!');
+                    console.log('Test passed - DID:PLC ID generation is working correctly!');
                 }
                 
                 return {
@@ -1851,7 +1851,7 @@
                     expectedCid: expectedCid
                 };
             } catch (error) {
-                console.error('❌ Test failed with error:', error);
+                console.error('Test failed with error:', error);
                 return {
                     success: false,
                     error: error.message
@@ -1956,14 +1956,14 @@
                                 console.log(`Checking against rotation key ${i}:`, rotationKey);
                                 
                                 if (recoveredDidKey === rotationKey) {
-                                    console.log(`✅ Recovery ${recovery} matches rotation key ${i}!`);
+                                    console.log(`Recovery ${recovery} matches rotation key ${i}!`);
                                     recoveredPublicKey = recovered;
                                     correctRecovery = recovery;
                                     matchedRotationKey = rotationKey;
                                     foundMatch = true;
                                     break;
                                 } else {
-                                    console.log(`❌ Recovery ${recovery} does not match rotation key ${i}`);
+                                    console.log(`Recovery ${recovery} does not match rotation key ${i}`);
                                 }
                             }
                             
@@ -1980,8 +1980,8 @@
                     throw new Error('Could not recover public key from signature that matches the expected rotation key');
                 }
                 
-                console.log(`✅ Successfully recovered correct public key with recovery ${correctRecovery}`);
-                console.log(`✅ Matched rotation key:`, matchedRotationKey);
+                console.log(`Successfully recovered correct public key with recovery ${correctRecovery}`);
+                console.log(`Matched rotation key:`, matchedRotationKey);
                 
                 // Generate DID:key from recovered public key (for final comparison)
                 const recoveredPublicKeyHex = Array.from(recoveredPublicKey).map(b => b.toString(16).padStart(2, '0')).join('');
@@ -2397,7 +2397,7 @@
                 // Debug: Output the CID before base32 encoding
                 console.log('Generated CID:', cid.toString());
                 console.log('Expected CID:', 'bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq');
-                console.log('CID match:', cid.toString() === 'bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq' ? '✅' : '❌');
+                console.log('CID match:', cid.toString() === 'bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq' ? 'MATCH' : 'NO MATCH');
                 
                 // Debug: Check if the issue is in CID generation or base32 encoding
                 console.log('CID version:', cid.version);   
@@ -2521,7 +2521,7 @@
             try {
                 await navigator.clipboard.writeText(JSON.stringify(currentPlcEntry, null, 2));
                 const status = getCurrentStatusElement();
-                status.innerHTML = '<div class="status success">📋 DID:PLC entry copied to clipboard!</div>';
+                status.innerHTML = '<div class="status success">DID:PLC entry copied to clipboard!</div>';
                 
                 // Clear status after 3 seconds
                 setTimeout(() => {
@@ -2532,7 +2532,7 @@
             } catch (error) {
                 console.error('Error copying DID:PLC entry to clipboard:', error);
                 const status = getCurrentStatusElement();
-                status.innerHTML = '<div class="status error">❌ Failed to copy DID:PLC entry to clipboard</div>';
+                status.innerHTML = '<div class="status error">Failed to copy DID:PLC entry to clipboard</div>';
             }
         }
 
@@ -2810,7 +2810,7 @@
             // Check if a private key has been generated or loaded
             if (!currentKey) {
                 if (status) {
-                    status.innerHTML = '<div class="status error">⚠️ No private key available! Please generate a new key or restore one from a mnemonic in the "Generate Key" tab first.</div>';
+                    status.innerHTML = '<div class="status error">No private key available! Please generate a new key or restore one from a mnemonic in the "Generate Key" tab first.</div>';
                 }
                 return;
             }
@@ -2857,7 +2857,7 @@
                 
                 if (status) {
                     if (verificationResult.success && verificationResult.keysMatch) {
-                        status.innerHTML = '<div class="status success">✅ DID:PLC entry created, signed, and verified successfully! Submitting to plc.directory...</div>';
+                        status.innerHTML = '<div class="status success">DID:PLC entry created, signed, and verified successfully! Submitting to plc.directory...</div>';
                         
                         // Submit to plc.directory after successful verification
                         try {
@@ -2866,22 +2866,22 @@
                             console.log('Submission result:', submitResult);
                             
                             if (submitResult.success) {
-                                status.innerHTML = '<div class="status success">✅ DID:PLC entry created, verified, and submitted to plc.directory successfully!</div>';
+                                status.innerHTML = '<div class="status success">DID:PLC entry created, verified, and submitted to plc.directory successfully!</div>';
                             } else {
-                                status.innerHTML = '<div class="status error">❌ DID:PLC entry verified but submission to plc.directory failed. Check console for details.</div>';
+                                status.innerHTML = '<div class="status error">DID:PLC entry verified but submission to plc.directory failed. Check console for details.</div>';
                             }
                         } catch (submitError) {
                             console.error('Error submitting to plc.directory:', submitError);
-                            status.innerHTML = '<div class="status error">❌ DID:PLC entry verified but submission to plc.directory failed. Check console for details.</div>';
+                            status.innerHTML = '<div class="status error">DID:PLC entry verified but submission to plc.directory failed. Check console for details.</div>';
                         }
                     } else {
-                        status.innerHTML = '<div class="status error">❌ DID:PLC entry signed but verification failed. Check console for details.</div>';
+                        status.innerHTML = '<div class="status error">DID:PLC entry signed but verification failed. Check console for details.</div>';
                     }
                 }
             } catch (error) {
                 console.error('Error creating DID:PLC entry:', error);
                 if (status) {
-                    status.innerHTML = '<div class="status error">❌ Error creating DID:PLC entry. Please check your input.</div>';
+                    status.innerHTML = '<div class="status error">Error creating DID:PLC entry. Please check your input.</div>';
                 }
             }
         });
@@ -2899,7 +2899,7 @@
             // Check if a private key has been generated or loaded
             if (!currentKey) {
                 if (status) {
-                    status.innerHTML = '<div class="status error">⚠️ No private key available! Please generate a new key or restore one from a mnemonic in the "Generate Key" tab first.</div>';
+                    status.innerHTML = '<div class="status error">No private key available! Please generate a new key or restore one from a mnemonic in the "Generate Key" tab first.</div>';
                 }
                 return;
             }
@@ -2910,7 +2910,7 @@
             try {
                 // Call createAccount API with recoveryKey parameter
                 if (status) {
-                    status.innerHTML = '<div class="status success">🔄 Creating account on PDS...</div>';
+                    status.innerHTML = '<div class="status success">Creating account on PDS...</div>';
                 }
                 
                 console.log('Creating account with recovery key:', currentDidKey);
@@ -2933,7 +2933,7 @@
                     }
                     
                     if (status) {
-                        status.innerHTML = '<div class="status success">✅ Account created successfully on PDS!</div>';
+                        status.innerHTML = '<div class="status success">Account created successfully on PDS!</div>';
                     }
                 } else {
                     throw new Error('Account creation failed');
@@ -2941,7 +2941,7 @@
             } catch (error) {
                 console.error('Error creating account:', error);
                 if (status) {
-                    status.innerHTML = '<div class="status error">❌ Error creating account. Please check your input.</div>';
+                    status.innerHTML = '<div class="status error">Error creating account. Please check your input.</div>';
                 }
             }
         });
@@ -3216,19 +3216,19 @@
             const didPlc = didInput.value.trim();
             
             if (!didPlc) {
-                status.innerHTML = '<div class="status error">❌ Please enter a DID:PLC address first</div>';
+                status.innerHTML = '<div class="status error">Please enter a DID:PLC address first</div>';
                 return;
             }
 
             if (!didPlc.startsWith('did:plc:')) {
-                status.innerHTML = '<div class="status error">❌ Please enter a valid DID:PLC address (must start with "did:plc:")</div>';
+                status.innerHTML = '<div class="status error">Please enter a valid DID:PLC address (must start with "did:plc:")</div>';
                 return;
             }
 
             // Show loading state
             fetchBtn.disabled = true;
-            fetchBtn.textContent = '🔄 Fetching...';
-            status.innerHTML = '<div class="status success">🔄 Fetching DID:PLC record from plc.directory...</div>';
+            fetchBtn.textContent = 'Fetching...';
+            status.innerHTML = '<div class="status success">Fetching DID:PLC record from plc.directory...</div>';
 
             try {
                 const { didDocument, auditLog } = await fetchDidPlcRecord(didPlc);
@@ -3240,9 +3240,9 @@
                 debugDiv.style.display = 'block';
                 
                 if (populateFormFromDidDocument(didDocument)) {
-                    status.innerHTML = '<div class="status success">✅ DID:PLC record fetched and form populated successfully!</div>';
+                    status.innerHTML = '<div class="status success">DID:PLC record fetched and form populated successfully!</div>';
                 } else {
-                    status.innerHTML = '<div class="status error">⚠️ Record fetched but some fields could not be populated</div>';
+                    status.innerHTML = '<div class="status error">Record fetched but some fields could not be populated</div>';
                 }
                 
                 // Extract rotation keys from the fetched DID document
@@ -3272,11 +3272,11 @@
                 const keyMatches = checkKeyMatchesRotationKeys(rotationKeyStrings);
                 
                 if (!keyMatches) {
-                    status.innerHTML = '<div class="status error">⚠️ WARNING: The loaded private key does NOT match any rotation keys in this DID:PLC record. Updates cannot be signed with this key.</div>';
+                    status.innerHTML = '<div class="status error">WARNING: The loaded private key does NOT match any rotation keys in this DID:PLC record. Updates cannot be signed with this key.</div>';
                     submitBtn.disabled = true;
                     submitBtn.title = 'Load a matching rotation key to enable updates';
                 } else {
-                    status.innerHTML = '<div class="status success">✅ DID:PLC record fetched and form populated successfully! Key matches rotation keys.</div>';
+                    status.innerHTML = '<div class="status success">DID:PLC record fetched and form populated successfully! Key matches rotation keys.</div>';
                     submitBtn.disabled = false;
                     submitBtn.title = '';
                 }
@@ -3287,14 +3287,14 @@
                 
             } catch (error) {
                 console.error('Error fetching DID:PLC record:', error);
-                status.innerHTML = `<div class="status error">❌ Failed to fetch DID:PLC record: ${error.message}</div>`;
+                status.innerHTML = `<div class="status error">Failed to fetch DID:PLC record: ${error.message}</div>`;
                 
                 // Hide debug section on error
                 document.getElementById('plc-debug').style.display = 'none';
             } finally {
                 // Reset button state
                 fetchBtn.disabled = false;
-                fetchBtn.textContent = '🔍 Fetch Record';
+                fetchBtn.textContent = 'Fetch Record';
             }
         }
 
@@ -3306,19 +3306,19 @@
             const didPlc = didInput.value.trim();
             
             if (!didPlc) {
-                status.innerHTML = '<div class="status error">❌ Please enter a DID:PLC address first</div>';
+                status.innerHTML = '<div class="status error">Please enter a DID:PLC address first</div>';
                 return;
             }
 
             if (!didPlc.startsWith('did:plc:')) {
-                status.innerHTML = '<div class="status error">❌ Please enter a valid DID:PLC address (must start with "did:plc:")</div>';
+                status.innerHTML = '<div class="status error">Please enter a valid DID:PLC address (must start with "did:plc:")</div>';
                 return;
             }
 
             // Show loading state
             verifyBtn.disabled = true;
-            verifyBtn.textContent = '🔄 Verifying...';
-            status.innerHTML = '<div class="status success">🔄 Verifying DID:PLC creation record...</div>';
+            verifyBtn.textContent = 'Verifying...';
+            status.innerHTML = '<div class="status success">Verifying DID:PLC creation record...</div>';
 
             try {
                 console.log('=== Verifying DID:PLC Creation ===');
@@ -3354,24 +3354,24 @@
                 console.log('=== Verification Results ===');
                 console.log('Actual DID:', actualDid);
                 console.log('Generated DID:', generatedDidPlcId);
-                console.log('DID Match:', didMatch ? '✅' : '❌');
+                console.log('DID Match:', didMatch ? 'MATCH' : 'NO MATCH');
                 console.log('Verification Result:', verificationResult);
                 
                 const signatureValid = verificationResult.success;
                 const keysMatch = verificationResult.keysMatch;
                 
-                console.log('Signature Valid:', signatureValid ? '✅' : '❌');
-                console.log('Keys Match:', keysMatch ? '✅' : '❌');
+                console.log('Signature Valid:', signatureValid ? 'YES' : 'NO');
+                console.log('Keys Match:', keysMatch ? 'YES' : 'NO');
                 
                 // Display results
                 let resultHtml = '<div class="verification-results">';
-                resultHtml += '<h4>🔍 Verification Results</h4>';
+                resultHtml += '<h4>Verification Results</h4>';
                 resultHtml += '<div class="verification-item">';
                 resultHtml += `<strong>Actual DID:</strong> <code>${actualDid}</code><br>`;
                 resultHtml += `<strong>Generated DID:</strong> <code>${generatedDidPlcId}</code><br>`;
-                resultHtml += `<strong>DID Match:</strong> ${didMatch ? '✅ Yes' : '❌ No'}<br>`;
-                resultHtml += `<strong>Signature Valid:</strong> ${signatureValid ? '✅ Yes' : '❌ No'}<br>`;
-                resultHtml += `<strong>Keys Match:</strong> ${keysMatch ? '✅ Yes' : '❌ No'}`;
+                resultHtml += `<strong>DID Match:</strong> ${didMatch ? 'Yes' : 'No'}<br>`;
+                resultHtml += `<strong>Signature Valid:</strong> ${signatureValid ? 'Yes' : 'No'}<br>`;
+                resultHtml += `<strong>Keys Match:</strong> ${keysMatch ? 'Yes' : 'No'}`;
                 
                 if (verificationResult.recoveredDidKey) {
                     resultHtml += `<br><strong>Recovered DID:key:</strong> <code>${verificationResult.recoveredDidKey}</code>`;
@@ -3385,7 +3385,7 @@
                 if (didMatch && signatureValid && keysMatch) {
                     resultHtml += '<div class="status success">🎉 Verification successful! Both DID:PLC ID generation and signature verification are working correctly.</div>';
                 } else {
-                    resultHtml += '<div class="status error">⚠️ Verification failed. Check console for detailed debugging information.</div>';
+                    resultHtml += '<div class="status error">Verification failed. Check console for detailed debugging information.</div>';
                 }
                 
                 resultHtml += '</div>';
@@ -3394,11 +3394,11 @@
                 
             } catch (error) {
                 console.error('Error verifying DID:PLC creation:', error);
-                status.innerHTML = `<div class="status error">❌ Failed to verify DID:PLC creation: ${error.message}</div>`;
+                status.innerHTML = `<div class="status error">Failed to verify DID:PLC creation: ${error.message}</div>`;
             } finally {
                 // Reset button state
                 verifyBtn.disabled = false;
-                verifyBtn.textContent = '✅ Verify Creation';
+                verifyBtn.textContent = 'Verify Creation';
             }
         }
 
@@ -3412,24 +3412,24 @@
             const pdsEndpoint = pdsInput.value.trim();
             
             if (!didPlc) {
-                status.innerHTML = '<div class="status error">❌ Please enter a DID:PLC address first</div>';
+                status.innerHTML = '<div class="status error">Please enter a DID:PLC address first</div>';
                 return;
             }
 
             if (!didPlc.startsWith('did:plc:')) {
-                status.innerHTML = '<div class="status error">❌ Please enter a valid DID:PLC address (must start with "did:plc:")</div>';
+                status.innerHTML = '<div class="status error">Please enter a valid DID:PLC address (must start with "did:plc:")</div>';
                 return;
             }
 
             if (!pdsEndpoint) {
-                status.innerHTML = '<div class="status error">❌ Please enter a PDS endpoint</div>';
+                status.innerHTML = '<div class="status error">Please enter a PDS endpoint</div>';
                 return;
             }
 
             // Show loading state
             reserveBtn.disabled = true;
-            reserveBtn.textContent = '🔄 Reserving...';
-            status.innerHTML = '<div class="status success">🔄 Reserving signing key on PDS...</div>';
+            reserveBtn.textContent = 'Reserving...';
+            status.innerHTML = '<div class="status success">Reserving signing key on PDS...</div>';
 
             try {
                 console.log('=== Reserving Signing Key ===');
@@ -3442,18 +3442,18 @@
                 if (reserveResult.success && reserveResult.result && reserveResult.result.signingKey) {
                     // Update the ATProto verification method field with the returned key
                     document.getElementById('plc-atproto-verification-method').value = reserveResult.result.signingKey;
-                    status.innerHTML = '<div class="status success">✅ Signing key reserved successfully! Key updated in form.</div>';
+                    status.innerHTML = '<div class="status success">Signing key reserved successfully! Key updated in form.</div>';
                 } else {
-                    status.innerHTML = '<div class="status error">❌ Key reservation succeeded but no signing key returned</div>';
+                    status.innerHTML = '<div class="status error">Key reservation succeeded but no signing key returned</div>';
                 }
                 
             } catch (error) {
                 console.error('Error reserving signing key:', error);
-                status.innerHTML = `<div class="status error">❌ Failed to reserve signing key: ${error.message}</div>`;
+                status.innerHTML = `<div class="status error">Failed to reserve signing key: ${error.message}</div>`;
             } finally {
                 // Reset button state
                 reserveBtn.disabled = false;
-                reserveBtn.textContent = '🔑 Reserve Key';
+                reserveBtn.textContent = 'Reserve Key';
             }
         }
 
@@ -3464,7 +3464,7 @@
             try {
                 await navigator.clipboard.writeText(debugContent.textContent);
                 const status = getCurrentStatusElement();
-                status.innerHTML = '<div class="status success">📋 Raw DID document copied to clipboard!</div>';
+                status.innerHTML = '<div class="status success">Raw DID document copied to clipboard!</div>';
                 
                 // Clear status after 3 seconds
                 setTimeout(() => {
@@ -3475,7 +3475,7 @@
             } catch (error) {
                 console.error('Error copying raw DID document to clipboard:', error);
                 const status = getCurrentStatusElement();
-                status.innerHTML = '<div class="status error">❌ Failed to copy raw DID document to clipboard</div>';
+                status.innerHTML = '<div class="status error">Failed to copy raw DID document to clipboard</div>';
             }
         }
 
