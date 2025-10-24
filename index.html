@@ -832,25 +832,31 @@
             <!-- Key Generation Tab -->
             <div class="tab-pane active" id="keygen-pane">
         
-        <div class="key-display" id="keyDisplay">
-            Click "Generate Key" to create a new 256-bit private key
+ 
+        <div class="did-key-display" id="didKeyDisplay" style="display: none;">
+            <h3>DID Key</h3>
+            <div class="did-key-text" id="didKeyText"></div>
         </div>
+
+
+        <!--
+        <div class="key-display" id="keyDisplay">
+            Click "Generate Key" to create a new private key
+        </div>
+        -->
         
         <div class="mnemonic-display" id="mnemonicDisplay" style="display: none;">
             <h3>BIP39 Mnemonic Phrase</h3>
             <div class="mnemonic-text" id="mnemonicText"></div>
         </div>
         
+        <!--
         <div class="public-key-display" id="publicKeyDisplay" style="display: none;">
             <h3>secp256k1 Public Key</h3>
             <div class="public-key-text" id="publicKeyText"></div>
         </div>
-        
-        <div class="did-key-display" id="didKeyDisplay" style="display: none;">
-            <h3>DID Key</h3>
-            <div class="did-key-text" id="didKeyText"></div>
-        </div>
-        
+        -->
+               
         <div class="button-group">
             <button class="generate-btn" id="generateBtn">
                 Generate New Key
@@ -1503,8 +1509,8 @@
 
             try {
                 // Show loading state
-                generateBtn.disabled = true;
-                generateBtn.textContent = 'Generating...';
+                if (generateBtn) generateBtn.disabled = true;
+                if (generateBtn) generateBtn.textContent = 'Generating...';
                 if (keyDisplay) keyDisplay.textContent = 'Generating secure random key, mnemonic, and public key...';
                 if (mnemonicDisplay) mnemonicDisplay.style.display = 'none';
                 if (publicKeyDisplay) publicKeyDisplay.style.display = 'none';
@@ -1545,10 +1551,10 @@
                 if (didKeyDisplay) didKeyDisplay.style.display = 'block';
                 
                 // Enable copy buttons
-                copyBtn.disabled = false;
-                copyMnemonicBtn.disabled = false;
-                copyPublicKeyBtn.disabled = false;
-                copyDidKeyBtn.disabled = false;
+                if (copyBtn) copyBtn.disabled = false;
+                if (copyMnemonicBtn) copyMnemonicBtn.disabled = false;
+                if (copyPublicKeyBtn) copyPublicKeyBtn.disabled = false;
+                if (copyDidKeyBtn) copyDidKeyBtn.disabled = false;
                 
                 // Update submit button state if we're on the DID:PLC Entry tab
                 updateSubmitButtonState();
@@ -1703,8 +1709,8 @@
 
             try {
                 // Show loading state
-                restoreBtn.disabled = true;
-                restoreBtn.textContent = 'Restoring...';
+                if (restoreBtn) restoreBtn.disabled = true;
+                if (restoreBtn) restoreBtn.textContent = 'Restoring...';
                 if (status) status.innerHTML = '';
 
                 // Validate mnemonic
@@ -1745,10 +1751,10 @@
                 if (didKeyDisplay) didKeyDisplay.style.display = 'block';
 
                 // Enable copy buttons
-                copyBtn.disabled = false;
-                copyMnemonicBtn.disabled = false;
-                copyPublicKeyBtn.disabled = false;
-                copyDidKeyBtn.disabled = false;
+                if (copyBtn) copyBtn.disabled = false;
+                if (copyMnemonicBtn) copyMnemonicBtn.disabled = false;
+                if (copyPublicKeyBtn) copyPublicKeyBtn.disabled = false;
+                if (copyDidKeyBtn) copyDidKeyBtn.disabled = false;
                 
                 // Update submit button state if we're on the DID:PLC Entry tab
                 updateSubmitButtonState();
@@ -3248,11 +3254,11 @@
                 const keyMatches = checkKeyMatchesRotationKeys();
                 
                 if (!keyMatches) {
-                    submitBtn.disabled = true;
-                    submitBtn.title = 'Load a matching rotation key to enable updates';
+                    if (submitBtn) submitBtn.disabled = true;
+                    if (submitBtn) submitBtn.title = 'Load a matching rotation key to enable updates';
                 } else {
-                    submitBtn.disabled = false;
-                    submitBtn.title = '';
+                    if (submitBtn) submitBtn.disabled = false;
+                    if (submitBtn) submitBtn.title = '';
                 }
             } catch (error) {
                 console.error('Error updating submit button state:', error);
@@ -3277,9 +3283,9 @@
             }
 
             // Show loading state
-            fetchBtn.disabled = true;
-            fetchBtn.textContent = 'Fetching...';
-            status.innerHTML = '<div class="status success">Fetching DID:PLC record from plc.directory...</div>';
+            if (fetchBtn) fetchBtn.disabled = true;
+            if (fetchBtn) fetchBtn.textContent = 'Fetching...';
+            if (status) status.innerHTML = '<div class="status success">Fetching DID:PLC record from plc.directory...</div>';
 
             try {
                 const { didDocument, auditLog } = await fetchDidPlcRecord(didPlc);
@@ -3323,13 +3329,13 @@
                 const keyMatches = checkKeyMatchesRotationKeys(rotationKeyStrings);
                 
                 if (!keyMatches) {
-                    status.innerHTML = '<div class="status error">WARNING: The loaded private key does NOT match any rotation keys in this DID:PLC record. Updates cannot be signed with this key.</div>';
-                    submitBtn.disabled = true;
-                    submitBtn.title = 'Load a matching rotation key to enable updates';
+                    if (status) status.innerHTML = '<div class="status error">WARNING: The loaded private key does NOT match any rotation keys in this DID:PLC record. Updates cannot be signed with this key.</div>';
+                    if (submitBtn) submitBtn.disabled = true;
+                    if (submitBtn) submitBtn.title = 'Load a matching rotation key to enable updates';
                 } else {
-                    status.innerHTML = '<div class="status success">DID:PLC record fetched and form populated successfully! Key matches rotation keys.</div>';
-                    submitBtn.disabled = false;
-                    submitBtn.title = '';
+                    if (status) status.innerHTML = '<div class="status success">DID:PLC record fetched and form populated successfully! Key matches rotation keys.</div>';
+                    if (submitBtn) submitBtn.disabled = false;
+                    if (submitBtn) submitBtn.title = '';
                 }
                 
                 // Clear any existing result
@@ -3344,8 +3350,8 @@
                 document.getElementById('plc-debug').style.display = 'none';
             } finally {
                 // Reset button state
-                fetchBtn.disabled = false;
-                fetchBtn.textContent = 'Fetch Record';
+                if (fetchBtn) fetchBtn.disabled = false;
+                if (fetchBtn) fetchBtn.textContent = 'Fetch Record';
             }
         }
 
@@ -3367,9 +3373,9 @@
             }
 
             // Show loading state
-            verifyBtn.disabled = true;
-            verifyBtn.textContent = 'Verifying...';
-            status.innerHTML = '<div class="status success">Verifying DID:PLC creation record...</div>';
+            if (verifyBtn) verifyBtn.disabled = true;
+            if (verifyBtn) verifyBtn.textContent = 'Verifying...';
+            if (status) status.innerHTML = '<div class="status success">Verifying DID:PLC creation record...</div>';
 
             try {
                 console.log('=== Verifying DID:PLC Creation ===');
@@ -3448,8 +3454,8 @@
                 status.innerHTML = `<div class="status error">Failed to verify DID:PLC creation: ${error.message}</div>`;
             } finally {
                 // Reset button state
-                verifyBtn.disabled = false;
-                verifyBtn.textContent = 'Verify Creation';
+                if (verifyBtn) verifyBtn.disabled = false;
+                if (verifyBtn) verifyBtn.textContent = 'Verify Creation';
             }
         }
 
@@ -3478,9 +3484,9 @@
             }
 
             // Show loading state
-            reserveBtn.disabled = true;
-            reserveBtn.textContent = 'Reserving...';
-            status.innerHTML = '<div class="status success">Reserving signing key on PDS...</div>';
+            if (reserveBtn) reserveBtn.disabled = true;
+            if (reserveBtn) reserveBtn.textContent = 'Reserving...';
+            if (status) status.innerHTML = '<div class="status success">Reserving signing key on PDS...</div>';
 
             try {
                 console.log('=== Reserving Signing Key ===');
@@ -3503,8 +3509,8 @@
                 status.innerHTML = `<div class="status error">Failed to reserve signing key: ${error.message}</div>`;
             } finally {
                 // Reset button state
-                reserveBtn.disabled = false;
-                reserveBtn.textContent = 'Reserve Key';
+                if (reserveBtn) reserveBtn.disabled = false;
+                if (reserveBtn) reserveBtn.textContent = 'Reserve Key';
             }
         }
 
@@ -3563,8 +3569,10 @@
 
         // Check if Web Crypto API is available
         if (!window.crypto || !window.crypto.getRandomValues) {
-            document.getElementById('keyDisplay').textContent = 'Web Crypto API not supported in this browser';
-            document.getElementById('generateBtn').disabled = true;
+            const keyDisplay = document.getElementById('keyDisplay');
+            const generateBtn = document.getElementById('generateBtn');
+            if (keyDisplay) keyDisplay.textContent = 'Web Crypto API not supported in this browser';
+            if (generateBtn) generateBtn.disabled = true;
         }
 
         // Run test case on page load
