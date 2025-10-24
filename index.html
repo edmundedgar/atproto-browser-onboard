@@ -2340,11 +2340,6 @@
                 }
             };
 
-            // Add previous update if provided
-            if (formData.previousUpdate && formData.previousUpdate.trim()) {
-                operation.prev = formData.previousUpdate.trim();
-            }
-
             return operation;
         }
 
@@ -2663,8 +2658,29 @@
             const data = Object.fromEntries(formData.entries());
             
             try {
-                // Create unsigned operation
+                // Fetch the latest operation CID from the audit log
+                const didPlcId = data.did;
+                let prevCid = null;
+                
+                try {
+                    const { auditLog } = await fetchDidPlcRecord(didPlcId);
+                    if (auditLog && auditLog.length > 0) {
+                        // Get the last operation's CID from the audit log
+                        const lastRecord = auditLog[auditLog.length - 1];
+                        prevCid = lastRecord.cid;
+                        console.log('Previous CID:', prevCid);
+                    }
+                } catch (fetchError) {
+                    console.log('Could not fetch audit log, assuming this is a creation operation');
+                }
+                
+                // Create unsigned operation with prev field
                 const unsignedOperation = createDidPlcEntry(data);
+                if (prevCid) {
+                    unsignedOperation.prev = prevCid;
+                } else {
+                    unsignedOperation.prev = null;
+                }
                 
                 // Sign the operation
                 const signedOperation = await signDidPlcOperation(unsignedOperation, currentKey);
@@ -2680,7 +2696,23 @@
                 
                 if (status) {
                     if (verificationResult.success && verificationResult.keysMatch) {
-                        status.innerHTML = '<div class="status success">✅ DID:PLC entry created, signed, and verified successfully!</div>';
+                        status.innerHTML = '<div class="status success">✅ DID:PLC entry created, signed, and verified successfully! Submitting to plc.directory...</div>';
+                        
+                        // Submit to plc.directory after successful verification
+                        try {
+                            console.log('Submitting to plc.directory...');
+                            const submitResult = await submitDidPlcOperation(signedOperation, didPlcId);
+                            console.log('Submission result:', submitResult);
+                            
+                            if (submitResult.success) {
+                                status.innerHTML = '<div class="status success">✅ DID:PLC entry created, verified, and submitted to plc.directory successfully!</div>';
+                            } else {
+                                status.innerHTML = '<div class="status error">❌ DID:PLC entry verified but submission to plc.directory failed. Check console for details.</div>';
+                            }
+                        } catch (submitError) {
+                            console.error('Error submitting to plc.directory:', submitError);
+                            status.innerHTML = '<div class="status error">❌ DID:PLC entry verified but submission to plc.directory failed. Check console for details.</div>';
+                        }
                     } else {
                         status.innerHTML = '<div class="status error">❌ DID:PLC entry signed but verification failed. Check console for details.</div>';
                     }
