@@ -345,6 +345,16 @@
             transform: translateY(-1px);
         }
 
+        .key-generation-section {
+            display: block;
+        }
+
+        .clear-key-section {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
         .info {
             background: #e3f2fd;
             border-left: 4px solid #2196f3;
@@ -883,55 +893,63 @@
         </div>
         -->
                
-        <div class="button-group">
-            <button class="generate-btn" id="generateBtn">
-                GENERATE KEY
-            </button>
-            
-            <!--
-            <button class="copy-btn" id="copyBtn" disabled>
-                Copy Key
-            </button>
-            -->
-            
-            <button class="copy-btn" id="copyMnemonicBtn" disabled>
-                COPY SEED PHRASE
-            </button>
-            
-            <!--
-            <button class="copy-btn" id="copyPublicKeyBtn" disabled>
-                Copy Public Key
-            </button>
-            -->
-            
-            <!--
-            <button class="copy-btn" id="copyDidKeyBtn" disabled>
-                Copy DID Key
-            </button>
-            -->
-        </div>
-        
-        <div class="restore-section">
-            <h3>KEY RECOVERY PROTOCOL</h3>
-            <p class="restore-subtitle">Input 24-word seed phrase to reconstruct cryptographic key</p>
-            
-            <div class="mnemonic-input-container">
-                <textarea 
-                    id="mnemonicInput" 
-                    placeholder="Enter seed phrase..."
-                    rows="3"
-                ></textarea>
-            </div>
-            
-            <div class="restore-button-group">
-                <button class="restore-btn" id="restoreBtn">
-                    RECONSTRUCT KEY
+        <div class="key-generation-section" id="keyGenerationSection">
+            <div class="button-group">
+                <button class="generate-btn" id="generateBtn">
+                    GENERATE KEY
                 </button>
                 
-                <button class="clear-btn" id="clearBtn">
-                    CLEAR
+                <!--
+                <button class="copy-btn" id="copyBtn" disabled>
+                    Copy Key
                 </button>
+                -->
+                
+                <button class="copy-btn" id="copyMnemonicBtn" disabled>
+                    COPY SEED PHRASE
+                </button>
+                
+                <!--
+                <button class="copy-btn" id="copyPublicKeyBtn" disabled>
+                    Copy Public Key
+                </button>
+                -->
+                
+                <!--
+                <button class="copy-btn" id="copyDidKeyBtn" disabled>
+                    Copy DID Key
+                </button>
+                -->
             </div>
+            
+            <div class="restore-section">
+                <h3>KEY RECOVERY PROTOCOL</h3>
+                <p class="restore-subtitle">Input 24-word seed phrase to reconstruct cryptographic key</p>
+                
+                <div class="mnemonic-input-container">
+                    <textarea 
+                        id="mnemonicInput" 
+                        placeholder="Enter seed phrase..."
+                        rows="3"
+                    ></textarea>
+                </div>
+                
+                <div class="restore-button-group">
+                    <button class="restore-btn" id="restoreBtn">
+                        RECONSTRUCT KEY
+                    </button>
+                    
+                    <button class="clear-btn" id="clearBtn">
+                        CLEAR
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="clear-key-section" id="clearKeySection" style="display: none;">
+            <button class="clear-btn" id="clearKeyBtn">
+                CLEAR CURRENT KEY
+            </button>
         </div>
         
         <!--
@@ -1595,6 +1613,9 @@
                 
                 // Update tab states to enable inactive tabs
                 updateTabStates();
+                
+                // Toggle key generation sections visibility
+                toggleKeyGenerationSections();
 
                 if (status) {
                     status.innerHTML = '<div class="status success">Key, mnemonic, public key, and DID key generated successfully!</div>';
@@ -1795,6 +1816,9 @@
                 
                 // Update tab states to enable inactive tabs
                 updateTabStates();
+                
+                // Toggle key generation sections visibility
+                toggleKeyGenerationSections();
 
                 if (status) status.innerHTML = '<div class="status success">Private key, mnemonic, public key, and DID key restored successfully!</div>';
 
@@ -2525,6 +2549,10 @@
         if (copyDidKeyBtn) copyDidKeyBtn.addEventListener('click', copyDidKey);
         if (restoreBtn) restoreBtn.addEventListener('click', restoreFromMnemonic);
         if (clearBtn) clearBtn.addEventListener('click', clearInput);
+        
+        // Add event listener for clear key button
+        const clearKeyBtn = document.getElementById('clearKeyBtn');
+        if (clearKeyBtn) clearKeyBtn.addEventListener('click', clearCurrentKey);
 
         // Tab switching functionality
         function switchTab(tabName) {
@@ -2563,6 +2591,9 @@
         
         // Initialize tab states on page load
         updateTabStates();
+        
+        // Initialize key generation sections visibility
+        toggleKeyGenerationSections();
 
         // Function to update tab states based on whether a key is available
         function updateTabStates() {
@@ -2572,13 +2603,58 @@
             
             if (hasKey) {
                 // Remove inactive class if key is available
-                createAccountTab.classList.remove('inactive');
-                didplcTab.classList.remove('inactive');
+                if (createAccountTab) createAccountTab.classList.remove('inactive');
+                if (didplcTab) didplcTab.classList.remove('inactive');
             } else {
                 // Add inactive class if no key is available
-                createAccountTab.classList.add('inactive');
-                didplcTab.classList.add('inactive');
+                if (createAccountTab) createAccountTab.classList.add('inactive');
+                if (didplcTab) didplcTab.classList.add('inactive');
             }
+        }
+
+        // Function to toggle key generation sections visibility
+        function toggleKeyGenerationSections() {
+            const hasKey = currentKey !== null;
+            const keyGenerationSection = document.getElementById('keyGenerationSection');
+            const clearKeySection = document.getElementById('clearKeySection');
+            
+            if (hasKey) {
+                // Hide key generation section, show clear button
+                if (keyGenerationSection) keyGenerationSection.style.display = 'none';
+                if (clearKeySection) clearKeySection.style.display = 'flex';
+            } else {
+                // Show key generation section, hide clear button
+                if (keyGenerationSection) keyGenerationSection.style.display = 'block';
+                if (clearKeySection) clearKeySection.style.display = 'none';
+            }
+        }
+
+        // Function to clear current key
+        function clearCurrentKey() {
+            currentKey = null;
+            currentMnemonic = null;
+            currentPublicKey = null;
+            currentDidKey = null;
+            
+            // Hide displays
+            const didKeyDisplay = document.getElementById('didKeyDisplay');
+            const mnemonicDisplay = document.getElementById('mnemonicDisplay');
+            
+            if (didKeyDisplay) didKeyDisplay.style.display = 'none';
+            if (mnemonicDisplay) mnemonicDisplay.style.display = 'none';
+            
+            // Clear mnemonic input
+            const mnemonicInput = document.getElementById('mnemonicInput');
+            if (mnemonicInput) mnemonicInput.value = '';
+            
+            // Update UI
+            toggleKeyGenerationSections();
+            updateTabStates();
+            updateSubmitButtonState();
+            
+            // Clear status
+            const status = getCurrentStatusElement();
+            if (status) status.innerHTML = '';
         }
 
         // DID:PLC form handling
