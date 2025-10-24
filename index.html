@@ -659,6 +659,19 @@
             box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
         }
 
+        .submit-btn:disabled {
+            background: linear-gradient(135deg, #cccccc, #999999);
+            color: #666666;
+            cursor: not-allowed;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            opacity: 0.6;
+        }
+
+        .submit-btn:disabled:hover {
+            transform: none;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
         .plc-result {
             background: #e8f5e8;
             border: 2px solid #28a745;
@@ -1447,6 +1460,9 @@
                 copyMnemonicBtn.disabled = false;
                 copyPublicKeyBtn.disabled = false;
                 copyDidKeyBtn.disabled = false;
+                
+                // Update submit button state if we're on the DID:PLC Entry tab
+                updateSubmitButtonState();
 
                 if (status) {
                     status.innerHTML = '<div class="status success">✅ Key, mnemonic, public key, and DID key generated successfully!</div>';
@@ -1641,6 +1657,9 @@
                 copyMnemonicBtn.disabled = false;
                 copyPublicKeyBtn.disabled = false;
                 copyDidKeyBtn.disabled = false;
+                
+                // Update submit button state if we're on the DID:PLC Entry tab
+                updateSubmitButtonState();
 
                 status.innerHTML = '<div class="status success">✅ Private key, mnemonic, public key, and DID key restored successfully!</div>';
 
@@ -2378,6 +2397,11 @@
             input.placeholder = 'Enter rotation key';
             input.required = true;
             
+            // Add listener to update submit button state when rotation key changes
+            input.addEventListener('input', function() {
+                updateSubmitButtonState();
+            });
+            
             const removeBtn = document.createElement('button');
             removeBtn.type = 'button';
             removeBtn.className = 'remove-rotation-key-btn';
@@ -2427,6 +2451,11 @@
             input.className = 'rotation-key-input';
             input.placeholder = 'Enter rotation key';
             input.required = true;
+            
+            // Add listener to update submit button state when rotation key changes
+            input.addEventListener('input', function() {
+                updateSubmitButtonState();
+            });
             
             const removeBtn = document.createElement('button');
             removeBtn.type = 'button';
@@ -2491,6 +2520,11 @@
                 input.placeholder = 'Enter rotation key';
                 input.required = true;
                 input.value = key;
+                
+                // Add listener to update submit button state when rotation key changes
+                input.addEventListener('input', function() {
+                    updateSubmitButtonState();
+                });
                 
                 const removeBtn = document.createElement('button');
                 removeBtn.type = 'button';
@@ -2923,6 +2957,64 @@
             }
         }
 
+        // Check if the loaded key matches any of the rotation keys in the form
+        function checkKeyMatchesRotationKeys(rotationKeysArray) {
+            try {
+                // Get the current DID key
+                if (!currentDidKey) {
+                    console.log('No key loaded');
+                    return false;
+                }
+                
+                // If rotation keys array is provided, use that; otherwise get from form
+                let rotationKeys;
+                if (rotationKeysArray && Array.isArray(rotationKeysArray)) {
+                    rotationKeys = rotationKeysArray;
+                } else {
+                    // Fallback: get from form inputs
+                    const rotationKeyInputs = document.querySelectorAll('.rotation-key-input');
+                    rotationKeys = Array.from(rotationKeyInputs).map(input => input.value.trim()).filter(val => val);
+                }
+                
+                console.log('Checking if loaded key matches rotation keys...');
+                console.log('Loaded key:', currentDidKey);
+                console.log('Rotation keys:', rotationKeys);
+                
+                // Check if currentDidKey matches any rotation key
+                const matches = rotationKeys.includes(currentDidKey);
+                
+                console.log('Key matches:', matches);
+                
+                return matches;
+            } catch (error) {
+                console.error('Error checking key match:', error);
+                return false;
+            }
+        }
+
+        // Update the submit button state based on whether the loaded key matches
+        function updateSubmitButtonState() {
+            try {
+                const submitBtn = document.getElementById('submit-plc-btn');
+                if (!submitBtn) {
+                    // Not on the DID:PLC Entry tab
+                    return;
+                }
+                
+                const keyMatches = checkKeyMatchesRotationKeys();
+                
+                if (!keyMatches) {
+                    submitBtn.disabled = true;
+                    submitBtn.title = 'Load a matching rotation key to enable updates';
+                } else {
+                    submitBtn.disabled = false;
+                    submitBtn.title = '';
+                }
+            } catch (error) {
+                console.error('Error updating submit button state:', error);
+            }
+        }
+
         async function handleFetchDidRecord() {
             const didInput = document.getElementById('plc-did');
             const fetchBtn = document.getElementById('fetch-did-btn');
@@ -2958,6 +3050,42 @@
                     status.innerHTML = '<div class="status success">✅ DID:PLC record fetched and form populated successfully!</div>';
                 } else {
                     status.innerHTML = '<div class="status error">⚠️ Record fetched but some fields could not be populated</div>';
+                }
+                
+                // Extract rotation keys from the fetched DID document
+                let rotationKeys = didDocument.rotationKeys || didDocument.rotationKey || didDocument.rotation_keys || didDocument.rotation_keys_uri;
+                let rotationKeyStrings = [];
+                
+                if (rotationKeys) {
+                    if (Array.isArray(rotationKeys)) {
+                        rotationKeyStrings = rotationKeys.map(key => {
+                            if (typeof key === 'object' && key !== null) {
+                                if (key.id) return key.id;
+                                if (key.publicKeyMultibase) return key.publicKeyMultibase;
+                                if (key.publicKey) return key.publicKey;
+                                return JSON.stringify(key);
+                            }
+                            return key.toString();
+                        });
+                    } else {
+                        rotationKeyStrings = [rotationKeys.toString()];
+                    }
+                }
+                
+                console.log('Checking key against fetched DID document rotation keys:', rotationKeyStrings);
+                
+                // Check if the loaded key matches any rotation keys from the fetched record
+                const submitBtn = document.getElementById('submit-plc-btn');
+                const keyMatches = checkKeyMatchesRotationKeys(rotationKeyStrings);
+                
+                if (!keyMatches) {
+                    status.innerHTML = '<div class="status error">⚠️ WARNING: The loaded private key does NOT match any rotation keys in this DID:PLC record. Updates cannot be signed with this key.</div>';
+                    submitBtn.disabled = true;
+                    submitBtn.title = 'Load a matching rotation key to enable updates';
+                } else {
+                    status.innerHTML = '<div class="status success">✅ DID:PLC record fetched and form populated successfully! Key matches rotation keys.</div>';
+                    submitBtn.disabled = false;
+                    submitBtn.title = '';
                 }
                 
                 // Clear any existing result
