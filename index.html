@@ -875,7 +875,12 @@
                         
                         <div class="form-group">
                             <label for="plc-atproto-verification-method">ATProto Verification Method</label>
-                            <input type="text" id="plc-atproto-verification-method" name="atprotoVerificationMethod" placeholder="Enter ATProto verification method (did:key:...)" required>
+                            <div class="did-input-group">
+                                <input type="text" id="plc-atproto-verification-method" name="atprotoVerificationMethod" placeholder="Enter ATProto verification method (did:key:...)" required>
+                                <button type="button" class="fetch-btn" id="reserve-key-btn">
+                                    🔑 Reserve Key
+                                </button>
+                            </div>
                             <small class="form-help">The verification method used for ATProto authentication</small>
                         </div>
                         
@@ -1994,6 +1999,46 @@
             }
         }
 
+        // Reserve a signing key on the PDS
+        async function reserveSigningKey(pdsEndpoint, did) {
+            try {
+                console.log('=== Reserving Signing Key ===');
+                console.log('PDS Endpoint:', pdsEndpoint);
+                console.log('DID:', did);
+                
+                const endpoint = `${pdsEndpoint}/xrpc/com.atproto.server.reserveSigningKey`;
+                console.log('Reserving at endpoint:', endpoint);
+                
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        did: did
+                    })
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Reservation failed:', errorText);
+                    throw new Error(`Failed to reserve signing key: ${response.status} ${response.statusText}\n${errorText}`);
+                }
+                
+                const result = await response.json();
+                console.log('Reservation successful:', result);
+                
+                return { success: true, result: result };
+                
+            } catch (error) {
+                console.error('Error reserving signing key:', error);
+                throw error;
+            }
+        }
+
         // Sign a DID:PLC operation with the current key
         async function signDidPlcOperation(operation, privateKeyHex) {
             try {
@@ -2747,7 +2792,11 @@
             const data = Object.fromEntries(formData.entries());
             
             try {
-                // Create unsigned DID:PLC operation using current key data
+                // Step 1: Create unsigned DID:PLC operation using current key data
+                if (status) {
+                    status.innerHTML = '<div class="status success">🔄 Creating DID:PLC operation...</div>';
+                }
+                
                 const unsignedOperation = {
                     "type": "plc_operation",
                     "rotationKeys": [currentDidKey], // Use the current DID key as rotation key
@@ -2766,13 +2815,30 @@
                 
                 console.log('Created unsigned operation:', unsignedOperation);
                 
-                // Sign the operation
+                // Step 2: Sign the operation
+                if (status) {
+                    status.innerHTML = '<div class="status success">🔄 Signing DID:PLC operation...</div>';
+                }
+                
                 const signedOperation = await signDidPlcOperation(unsignedOperation, currentKey);
                 
-                // Generate DID:PLC ID from the signed operation
+                // Step 3: Generate DID:PLC ID from the signed operation
                 const didPlcId = await generateDidPlcId(signedOperation);
                 
-                // Verify the signed operation first
+                // Step 4: Reserve the signing key on the PDS
+                if (status) {
+                    status.innerHTML = '<div class="status success">🔄 Reserving signing key on PDS...</div>';
+                }
+                
+                console.log('Reserving signing key...');
+                const reserveResult = await reserveSigningKey(data.pdsEndpoint, didPlcId);
+                console.log('Reservation result:', reserveResult);
+                
+                if (!reserveResult.success) {
+                    throw new Error('Failed to reserve signing key');
+                }
+                
+                // Step 5: Verify the signed operation
                 console.log('Verifying signed operation...');
                 const verificationResult = await verifyDidPlcOperation(signedOperation);
                 
@@ -3274,6 +3340,61 @@
             }
         }
 
+        async function handleReserveKey() {
+            const didInput = document.getElementById('plc-did');
+            const pdsInput = document.getElementById('plc-pds-endpoint');
+            const reserveBtn = document.getElementById('reserve-key-btn');
+            const status = getCurrentStatusElement();
+            
+            const didPlc = didInput.value.trim();
+            const pdsEndpoint = pdsInput.value.trim();
+            
+            if (!didPlc) {
+                status.innerHTML = '<div class="status error">❌ Please enter a DID:PLC address first</div>';
+                return;
+            }
+
+            if (!didPlc.startsWith('did:plc:')) {
+                status.innerHTML = '<div class="status error">❌ Please enter a valid DID:PLC address (must start with "did:plc:")</div>';
+                return;
+            }
+
+            if (!pdsEndpoint) {
+                status.innerHTML = '<div class="status error">❌ Please enter a PDS endpoint</div>';
+                return;
+            }
+
+            // Show loading state
+            reserveBtn.disabled = true;
+            reserveBtn.textContent = '🔄 Reserving...';
+            status.innerHTML = '<div class="status success">🔄 Reserving signing key on PDS...</div>';
+
+            try {
+                console.log('=== Reserving Signing Key ===');
+                console.log('DID:PLC:', didPlc);
+                console.log('PDS Endpoint:', pdsEndpoint);
+                
+                const reserveResult = await reserveSigningKey(pdsEndpoint, didPlc);
+                console.log('Reservation result:', reserveResult);
+                
+                if (reserveResult.success && reserveResult.result && reserveResult.result.signingKey) {
+                    // Update the ATProto verification method field with the returned key
+                    document.getElementById('plc-atproto-verification-method').value = reserveResult.result.signingKey;
+                    status.innerHTML = '<div class="status success">✅ Signing key reserved successfully! Key updated in form.</div>';
+                } else {
+                    status.innerHTML = '<div class="status error">❌ Key reservation succeeded but no signing key returned</div>';
+                }
+                
+            } catch (error) {
+                console.error('Error reserving signing key:', error);
+                status.innerHTML = `<div class="status error">❌ Failed to reserve signing key: ${error.message}</div>`;
+            } finally {
+                // Reset button state
+                reserveBtn.disabled = false;
+                reserveBtn.textContent = '🔑 Reserve Key';
+            }
+        }
+
         async function copyPlcDebug() {
             const debugContent = document.getElementById('plc-debug-content');
             if (!debugContent.textContent) return;
@@ -3301,6 +3422,9 @@
         
         // Add event listener for verify button
         document.getElementById('verify-did-btn').addEventListener('click', handleVerifyDidCreation);
+        
+        // Add event listener for reserve key button
+        document.getElementById('reserve-key-btn').addEventListener('click', handleReserveKey);
         
         // Add event listeners for rotation key buttons
         document.getElementById('add-rotation-key-btn').addEventListener('click', addRotationKey);
