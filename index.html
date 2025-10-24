@@ -1710,27 +1710,7 @@
                 return operationForCid;
             } catch (error) {
                 console.error('Error fetching operation:', error);
-                // Fallback to hardcoded operation
-                return {
-                    "prev": null,
-                    "type": "plc_operation",
-                    "services": {
-                        "atproto_pds": {
-                            "type": "AtprotoPersonalDataServer",
-                            "endpoint": "https://bsky.social"
-                        }
-                    },
-                    "alsoKnownAs": [
-                        "at://edmundedgar.bsky.social"
-                    ],
-                    "rotationKeys": [
-                        "did:key:zQ3shhCGUqDKjStzuDxPkTxN6ujddP4RkEKJJouJGRRkaLGbg",
-                        "did:key:zQ3shpKnbdPx3g3CmPf5cRVTPe1HtSwVn5ish3wSnDPQCbLJK"
-                    ],
-                    "verificationMethods": {
-                        "atproto": "did:key:zQ3shXjHeiBuRCKmM36cuYnm7YEMzhGnCmCyW92sRJ9pribSF"
-                    }
-                };
+                return null;
             }
         }
 
@@ -2935,29 +2915,6 @@
                     document.getElementById('plc-previous-update').value = previousUpdate;
                     console.log('Set previous update:', previousUpdate);
                 }
-
-                // Log all available fields for debugging
-                console.log('All available fields in DID document:', Object.keys(didDocument));
-                console.log('Raw DID document data:', didDocument);
-                console.log('Field values found:');
-                console.log('- id:', didDocument.id);
-                console.log('- rotationKeys:', didDocument.rotationKeys);
-                console.log('- rotationKey:', didDocument.rotationKey);
-                console.log('- rotation_keys:', didDocument.rotation_keys);
-                console.log('- rotation_keys_uri:', didDocument.rotation_keys_uri);
-                console.log('- verificationMethods:', didDocument.verificationMethods);
-                console.log('- verificationMethod:', didDocument.verificationMethod);
-                console.log('- verification_methods:', didDocument.verification_methods);
-                console.log('- verification_method:', didDocument.verification_method);
-                console.log('- services:', didDocument.services);
-                console.log('- service:', didDocument.service);
-                console.log('- service_endpoints:', didDocument.service_endpoints);
-                console.log('- alsoKnownAs:', didDocument.alsoKnownAs);
-                console.log('- previousUpdate:', didDocument.previousUpdate);
-                console.log('- previous_rotation_key:', didDocument.previous_rotation_key);
-                
-                // Log all available fields for debugging
-                console.log('All available fields in DID document:', Object.keys(didDocument));
 
                 return true;
             } catch (error) {
