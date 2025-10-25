@@ -152,6 +152,12 @@
             letter-spacing: 2px;
         }
 
+        .mnemonic-text-container {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
         .mnemonic-text {
             font-family: 'Courier New', monospace;
             font-size: 16px;
@@ -160,6 +166,7 @@
             word-break: break-word;
             background: #0a0a0a;
             padding: 15px;
+            padding-right: 45px; /* Make room for the copy icon */
             border-radius: 4px;
             border: 1px solid #00ff88;
             
@@ -212,6 +219,12 @@
             letter-spacing: 2px;
         }
 
+        .did-key-text-container {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
         .did-key-text {
             font-family: 'Courier New', monospace;
             font-size: 14px;
@@ -220,9 +233,29 @@
             word-break: break-all;
             background: #0a0a0a;
             padding: 15px;
+            padding-right: 45px; /* Make room for the copy icon */
             border-radius: 4px;
             border: 1px solid #00ff88;
             
+        }
+
+        .copy-icon {
+            position: absolute;
+            top: 50%;
+            right: 10px;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #00ff88;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 3px;
+            transition: background-color 0.2s;
+        }
+
+        .copy-icon:hover {
+            background: rgba(0, 255, 136, 0.1);
         }
 
         .button-group {
@@ -868,7 +901,10 @@
  
         <div class="did-key-display" id="didKeyDisplay" style="display: none;">
             <h3>DECENTRALIZED IDENTIFIER</h3>
-            <div class="did-key-text" id="didKeyText"></div>
+            <div class="did-key-text-container">
+                <div class="did-key-text" id="didKeyText"></div>
+                <button class="copy-icon" id="copyDidKeyBtn" title="Copy DID:Key to clipboard">📋</button>
+            </div>
         </div>
 
 
@@ -880,7 +916,10 @@
         
         <div class="mnemonic-display" id="mnemonicDisplay" style="display: none;">
             <h3>MNEMONIC SEED PHRASE</h3>
-            <div class="mnemonic-text" id="mnemonicText"></div>
+            <div class="mnemonic-text-container">
+                <div class="mnemonic-text" id="mnemonicText"></div>
+                <button class="copy-icon" id="copyMnemonicBtn" title="Copy mnemonic to clipboard">📋</button>
+            </div>
         </div>
         
         <!--
