@@ -1137,34 +1137,7 @@
         import { base32 } from 'https://cdn.jsdelivr.net/npm/multiformats@12.1.3/bases/base32/+esm';
         import { generateMnemonic, validateMnemonic, mnemonicToEntropy, entropyToMnemonic } from 'https://cdn.jsdelivr.net/npm/web-bip39@0.0.3/+esm';
         import wordlist from 'https://cdn.jsdelivr.net/npm/web-bip39@0.0.3/wordlists/english/+esm';
-        
-        // Base58 alphabet
-        const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-        
-        // Simple base58 encoder
-        function base58Encode(bytes) {
-            if (bytes.length === 0) return '';
-            
-            // Convert bytes to big integer
-            let num = 0n;
-            for (let i = 0; i < bytes.length; i++) {
-                num = num * 256n + BigInt(bytes[i]);
-            }
-            
-            // Convert to base58
-            let result = '';
-            while (num > 0n) {
-                result = BASE58_ALPHABET[Number(num % 58n)] + result;
-                num = num / 58n;
-            }
-            
-            // Add leading '1's for leading zeros
-            for (let i = 0; i < bytes.length && bytes[i] === 0; i++) {
-                result = '1' + result;
-            }
-            
-            return result;
-        }
+        import { base58btc } from 'https://cdn.jsdelivr.net/npm/multiformats@12.1.3/bases/base58/+esm';
         
         let currentKey = null;
         let currentMnemonic = null;
@@ -1210,7 +1183,7 @@
                 const prefixedKey = new Uint8Array([...multicodecPrefix, ...publicKeyBytes]);
                 
                 // Encode using base58
-                const encoded = base58Encode(prefixedKey);
+                const encoded = base58btc.encode(prefixedKey);
                 
                 // Construct DID key with 'z' prefix for base58btc
                 const didKey = `did:key:z${encoded}`;
