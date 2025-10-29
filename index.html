@@ -1242,8 +1242,7 @@
                 // Encode using base58
                 const encoded = base58btc.encode(prefixedKey);
                 
-                // Construct DID key with 'z' prefix for base58btc
-                const didKey = `did:key:z${encoded}`;
+                const didKey = `did:key:${encoded}`;
                 
                 return didKey;
             } catch (error) {
