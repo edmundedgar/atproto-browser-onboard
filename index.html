@@ -2960,15 +2960,13 @@
                     status.innerHTML = '<div class="status success">Creating update operation with PDS verification method...</div>';
                 }
                 
+                // Start with a copy of the initial operation and only update the fields we need to change
                 const updateOperation = {
-                    type: 'plc_operation',
+                    ...initialOperation,
                     prev: await getLastOperationCid(didPlcId),
                     verificationMethods: {
                         atproto: pdsVerificationMethod
-                    },
-                    rotationKeys: [
-                        currentDidKey
-                    ]
+                    }
                 };
                 
                 // Sign the update
