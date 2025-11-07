@@ -1208,7 +1208,7 @@
                 // Convert hex string to Uint8Array
                 const privateKeyBytes = new Uint8Array(32);
                 for (let i = 0; i < privateKeyHex.length; i += 2) {
-                    privateKeyBytes[i / 2] = parseInt(privateKeyHex.substr(i, 2), 16);
+                    privateKeyBytes[i / 2] = parseInt(privateKeyHex.slice(i, i + 2), 16);
                 }
                 
                 // Generate public key using @noble/secp256k1
@@ -1232,7 +1232,7 @@
                 // Convert hex string to Uint8Array
                 const publicKeyBytes = new Uint8Array(33);
                 for (let i = 0; i < publicKeyHex.length; i += 2) {
-                    publicKeyBytes[i / 2] = parseInt(publicKeyHex.substr(i, 2), 16);
+                    publicKeyBytes[i / 2] = parseInt(publicKeyHex.slice(i, i + 2), 16);
                 }
                 
                 // Add multicodec prefix for secp256k1 compressed public key (0xe7)
@@ -1899,6 +1899,112 @@
             }
         }
 
+        // Create initial DID:PLC operation with rotation key
+        // We include all the fields that createDidPlcEntry uses (including alsoKnownAs)
+        function createDidPlcInitialOperation(data, rotationKey) {
+            const alsoKnownAs = [];
+            if (data.handle && data.handle.trim()) {
+                // Format handle as AT Protocol identifier
+                const handle = data.handle.trim();
+                // If handle already contains '@' or is already an at:// URL, use it as-is
+                // Otherwise, format it as at://handle
+                if (handle.startsWith('at://')) {
+                    alsoKnownAs.push(handle);
+                } else if (handle.includes('.')) {
+                    // Handle might be in format like handle.domain, format as at://handle.domain
+                    alsoKnownAs.push(`at://${handle}`);
+                } else {
+                    // Just handle name, format as at://handle
+                    alsoKnownAs.push(`at://${handle}`);
+                }
+            }
+            
+            return {
+                type: 'plc_operation',
+                prev: null,
+                rotationKeys: [rotationKey],
+                verificationMethods: {
+                    atproto: rotationKey
+                },
+                alsoKnownAs: alsoKnownAs,
+                services: {
+                    atproto_pds: {
+                        type: 'AtprotoPersonalDataServer',
+                        endpoint: data.pdsEndpoint
+                    }
+                }
+            };
+        }
+        
+        // Get the last operation CID for a DID:PLC ID
+        async function getLastOperationCid(didPlcId) {
+            try {
+                const { auditLog } = await fetchDidPlcRecord(didPlcId);
+                if (auditLog && auditLog.length > 0) {
+                    const lastRecord = auditLog[auditLog.length - 1];
+                    return lastRecord.cid;
+                }
+                return null;
+            } catch (error) {
+                console.error('Error fetching audit log:', error);
+                return null;
+            }
+        }
+        
+        // Create an account on the PDS with a signed DID:PLC update
+        async function createAccountWithSignedOperation(pdsEndpoint, handle, email, password, didPlcId, signedUpdate, inviteCode) {
+            try {
+                console.log('=== Creating Account with Signed Update ===');
+                console.log('PDS Endpoint:', pdsEndpoint);
+                console.log('Handle:', handle);
+                console.log('Email:', email);
+                console.log('DID:PLC ID:', didPlcId);
+                console.log('Signed Update:', signedUpdate);
+                
+                const endpoint = `${pdsEndpoint}/xrpc/com.atproto.server.createAccount`;
+                console.log('Creating account at endpoint:', endpoint);
+                
+                const requestBody = {
+                    handle: handle,
+                    email: email,
+                    password: password,
+                    did: didPlcId,
+                    plcOp: signedUpdate
+                };
+                
+                // Add invite code if provided
+                if (inviteCode && inviteCode.trim()) {
+                    requestBody.inviteCode = inviteCode.trim();
+                }
+                
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Account creation failed:', errorText);
+                    throw new Error(`Failed to create account: ${response.status} ${response.statusText}\n${errorText}`);
+                }
+                
+                const result = await response.json();
+                console.log('Account creation successful:', result);
+                
+                return { success: true, result: result };
+                
+            } catch (error) {
+                console.error('Error creating account:', error);
+                throw error;
+            }
+        }
+        
         // Create an account on the PDS
         async function createAccount(pdsEndpoint, handle, email, password, recoveryKey, inviteCode) {
             try {
@@ -1976,7 +2082,7 @@
                 // Convert hex private key to Uint8Array
                 const privateKeyBytes = new Uint8Array(32);
                 for (let i = 0; i < privateKeyHex.length; i += 2) {
-                    privateKeyBytes[i / 2] = parseInt(privateKeyHex.substr(i, 2), 16);
+                    privateKeyBytes[i / 2] = parseInt(privateKeyHex.slice(i, i + 2), 16);
                 }
                 
                 // Sign the hashed message using @noble/secp256k1
@@ -2729,7 +2835,7 @@
                 }
                 
                 // Create unsigned operation with prev field
-                const unsignedOperation = createDidPlcEntry(data);
+                const unsignedOperation =                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               idPlcEntry(data);
                 if (prevCid) {
                     unsignedOperation.prev = prevCid;
                 } else {
@@ -2808,32 +2914,108 @@
             const data = Object.fromEntries(formData.entries());
             
             try {
-                // Call createAccount API with recoveryKey parameter
+                // Step 1: Create initial DID:PLC record with our rotation key as verificationMethod
+                if (status) {
+                    status.innerHTML = '<div class="status success">Creating initial DID:PLC record...</div>';
+                }
+                
+                console.log('Creating initial DID:PLC record with rotation key:', currentDidKey);
+                
+                // Create initial DID:PLC operation
+                const initialOperation = createDidPlcInitialOperation(data, currentDidKey);
+                
+                // Sign the operation
+                const signedInitialOperation = await signDidPlcOperation(initialOperation, currentKey);
+                
+                // Generate DID:PLC ID from the signed operation
+                const didPlcId = await generateDidPlcId(signedInitialOperation);
+                
+                // Submit to plc.directory to register the DID:PLC ID
+                console.log('Submitting initial DID:PLC record to plc.directory...');
+                const submitResult = await submitDidPlcOperation(signedInitialOperation, didPlcId);
+                
+                if (!submitResult.success) {
+                    throw new Error('Failed to register DID:PLC record');
+                }
+                
+                console.log('DID:PLC ID registered:', didPlcId);
+                
+                // Step 2: Call reserveKey with the DID:PLC ID
+                if (status) {
+                    status.innerHTML = '<div class="status success">Reserving signing key on PDS...</div>';
+                }
+                
+                console.log('Reserving signing key for DID:', didPlcId);
+                const reserveResult = await reserveSigningKey(data.pdsEndpoint, didPlcId);
+                
+                if (!reserveResult.success || !reserveResult.result || !reserveResult.result.signingKey) {
+                    throw new Error('Failed to reserve signing key on PDS');
+                }
+                
+                const pdsVerificationMethod = reserveResult.result.signingKey;
+                console.log('PDS verification method:', pdsVerificationMethod);
+                
+                // Step 3: Create an update with the PDS verification method
+                if (status) {
+                    status.innerHTML = '<div class="status success">Creating update operation with PDS verification method...</div>';
+                }
+                
+                const updateOperation = {
+                    type: 'plc_operation',
+                    prev: await getLastOperationCid(didPlcId),
+                    verificationMethods: {
+                        atproto: pdsVerificationMethod
+                    },
+                    rotationKeys: [
+                        currentDidKey
+                    ]
+                };
+                
+                // Sign the update
+                const signedUpdate = await signDidPlcOperation(updateOperation, currentKey);
+                
+                // Verify the signed update
+                const verificationResult = await verifyDidPlcOperation(signedUpdate);
+                if (!verificationResult.success || !verificationResult.keysMatch) {
+                    throw new Error('Failed to verify signed update operation');
+                }
+                
+                // Submit the signed update to plc.directory
+                console.log('Submitting update to plc.directory...');
+                const updateSubmitResult = await submitDidPlcOperation(signedUpdate, didPlcId);
+                
+                if (!updateSubmitResult.success) {
+                    throw new Error('Failed to submit update to plc.directory');
+                }
+                
+                // Step 4: Call createAccount with the signed DID:PLC update
                 if (status) {
                     status.innerHTML = '<div class="status success">Creating account on PDS...</div>';
                 }
                 
-                console.log('Creating account with recovery key:', currentDidKey);
+                console.log('Creating account with signed DID:PLC update');
                 
-                const accountResult = await createAccount(
+                const accountResult = await createAccountWithSignedOperation(
                     data.pdsEndpoint,
                     data.handle,
                     data.email,
                     data.password,
-                    currentDidKey,
+                    didPlcId,
+                    signedUpdate,
                     data.inviteCode
                 );
                 
                 console.log('Account creation result:', accountResult);
                 
                 if (accountResult.success) {
-                    // Update the DID:PLC field in the form with the returned DID
-                    if (accountResult.result && accountResult.result.did) {
-                        document.getElementById('account-did').value = accountResult.result.did;
+                    // Update the DID:PLC field in the form
+                    const didField = document.getElementById('account-did');
+                    if (didField) {
+                        didField.value = didPlcId;
                     }
                     
                     if (status) {
-                        status.innerHTML = '<div class="status success">Account created successfully on PDS!</div>';
+                        status.innerHTML = '<div class="status success">Account created successfully!</div>';
                     }
                 } else {
                     throw new Error('Account creation failed');
@@ -2841,7 +3023,7 @@
             } catch (error) {
                 console.error('Error creating account:', error);
                 if (status) {
-                    status.innerHTML = '<div class="status error">Error creating account. Please check your input.</div>';
+                    status.innerHTML = `<div class="status error">Error creating account: ${error.message}</div>`;
                 }
             }
         });
