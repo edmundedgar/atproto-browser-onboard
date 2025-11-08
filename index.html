@@ -3084,15 +3084,32 @@
                 // Generate DID:PLC ID from the signed operation
                 const didPlcId = await generateDidPlcId(signedInitialOperation);
                 
-                // Submit to plc.directory to register the DID:PLC ID
-                console.log('Submitting initial DID:PLC record to plc.directory...');
-                const submitResult = await submitDidPlcOperation(signedInitialOperation, didPlcId);
-                
-                if (!submitResult.success) {
-                    throw new Error('Failed to register DID:PLC record');
+                // Check if DID already exists before submitting
+                let didExists = false;
+                try {
+                    const existingRecord = await fetchDidPlcRecord(didPlcId);
+                    if (existingRecord && existingRecord.auditLog && existingRecord.auditLog.length > 0) {
+                        console.log('DID:PLC record already exists, skipping submission');
+                        didExists = true;
+                    }
+                } catch (error) {
+                    // DID doesn't exist yet, which is expected for a new DID
+                    console.log('DID:PLC record does not exist yet, will create it');
                 }
                 
-                console.log('DID:PLC ID registered:', didPlcId);
+                if (!didExists) {
+                    // Submit to plc.directory to register the DID:PLC ID
+                    console.log('Submitting initial DID:PLC record to plc.directory...');
+                    const submitResult = await submitDidPlcOperation(signedInitialOperation, didPlcId);
+                    
+                    if (!submitResult.success) {
+                        throw new Error('Failed to register DID:PLC record');
+                    }
+                    
+                    console.log('DID:PLC ID registered:', didPlcId);
+                } else {
+                    console.log('DID:PLC ID already exists:', didPlcId);
+                }
                 
                 // Step 2: Call reserveKey with the DID:PLC ID
                 if (status) {
@@ -3132,12 +3149,41 @@
                     throw new Error('Failed to verify signed update operation');
                 }
                 
-                // Submit the signed update to plc.directory
-                console.log('Submitting update to plc.directory...');
-                const updateSubmitResult = await submitDidPlcOperation(signedUpdate, didPlcId);
+                // Check if update already exists before submitting
+                let updateExists = false;
+                try {
+                    const existingRecord = await fetchDidPlcRecord(didPlcId);
+                    if (existingRecord && existingRecord.auditLog && existingRecord.auditLog.length > 0) {
+                        const lastRecord = existingRecord.auditLog[existingRecord.auditLog.length - 1];
+                        const lastOperation = lastRecord.operation;
+                        
+                        // Compare the update operation (without signature) with the last operation
+                        const updateOperationForCompare = { ...updateOperation };
+                        const lastOperationForCompare = { ...lastOperation };
+                        delete lastOperationForCompare.sig;
+                        
+                        // Compare key fields to see if they match
+                        if (lastOperationForCompare.prev === updateOperationForCompare.prev &&
+                            JSON.stringify(lastOperationForCompare.verificationMethods) === JSON.stringify(updateOperationForCompare.verificationMethods) &&
+                            JSON.stringify(lastOperationForCompare.rotationKeys) === JSON.stringify(updateOperationForCompare.rotationKeys)) {
+                            console.log('Update operation already exists in audit log, skipping submission');
+                            updateExists = true;
+                        }
+                    }
+                } catch (error) {
+                    console.log('Error checking if update exists, will submit anyway:', error);
+                }
                 
-                if (!updateSubmitResult.success) {
-                    throw new Error('Failed to submit update to plc.directory');
+                if (!updateExists) {
+                    // Submit the signed update to plc.directory
+                    console.log('Submitting update to plc.directory...');
+                    const updateSubmitResult = await submitDidPlcOperation(signedUpdate, didPlcId);
+                    
+                    if (!updateSubmitResult.success) {
+                        throw new Error('Failed to submit update to plc.directory');
+                    }
+                } else {
+                    console.log('Update already exists in plc.directory');
                 }
                 
                 // Step 4: Call createAccount with the signed DID:PLC update
