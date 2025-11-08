@@ -1951,8 +1951,159 @@
             }
         }
         
+        // Base64URL encode (URL-safe base64, no padding)
+        function base64UrlEncode(str) {
+            // Convert string to bytes using TextEncoder
+            const bytes = new TextEncoder().encode(str);
+            // Convert bytes to base64
+            const base64 = btoa(String.fromCharCode(...bytes));
+            // Convert to base64url (URL-safe, no padding)
+            return base64
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+        }
+        
+        // Generate a unique JWT ID
+        function generateJti() {
+            const array = new Uint8Array(16);
+            crypto.getRandomValues(array);
+            return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+        }
+        
+        // Get PDS DID from endpoint (try to resolve, fallback to endpoint URL)
+        async function getPdsDid(pdsEndpoint) {
+            try {
+                // Try to resolve PDS DID from well-known endpoint
+                const wellKnownUrl = `${pdsEndpoint}/.well-known/did.json`;
+                const response = await fetch(wellKnownUrl);
+                if (response.ok) {
+                    const didDoc = await response.json();
+                    if (didDoc.id) {
+                        console.log('Resolved PDS DID:', didDoc.id);
+                        return didDoc.id;
+                    }
+                }
+            } catch (error) {
+                console.log('Could not resolve PDS DID from well-known, using endpoint URL:', error);
+            }
+            // Fallback to endpoint URL as audience
+            return pdsEndpoint;
+        }
+        
+        // Create a JWT service authentication token signed with the rotation key
+        async function createServiceAuthToken(didPlcId, pdsEndpoint, privateKeyHex) {
+            try {
+                console.log('=== Creating Service Auth Token ===');
+                console.log('DID:PLC ID:', didPlcId);
+                console.log('PDS Endpoint:', pdsEndpoint);
+                
+                // Get PDS DID for audience
+                const pdsDid = await getPdsDid(pdsEndpoint);
+                
+                // Create JWT header
+                const header = {
+                    alg: 'ES256K',
+                    typ: 'JWT'
+                };
+                
+                // Create JWT payload
+                const now = Math.floor(Date.now() / 1000);
+                const payload = {
+                    iss: didPlcId,  // Issuer: User's DID
+                    aud: pdsDid,    // Audience: PDS DID or endpoint URL
+                    exp: now + 60,  // Expiration: 60 seconds from now
+                    iat: now,       // Issued At: Current timestamp
+                    jti: generateJti(),  // JWT ID: Unique identifier
+                    lxm: 'com.atproto.server.createAccount'  // Lexicon Method
+                };
+                
+                console.log('JWT Header:', header);
+                console.log('JWT Payload:', payload);
+                
+                // Base64URL encode header and payload
+                const encodedHeader = base64UrlEncode(JSON.stringify(header));
+                const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+                const signingInput = `${encodedHeader}.${encodedPayload}`;
+                
+                console.log('Signing input:', signingInput);
+                
+                // Hash the signing input with SHA-256
+                const signingInputBytes = new TextEncoder().encode(signingInput);
+                const messageHash = await crypto.subtle.digest('SHA-256', signingInputBytes);
+                const messageHashHex = Array.from(new Uint8Array(messageHash))
+                    .map(b => b.toString(16).padStart(2, '0'))
+                    .join('');
+                
+                console.log('Message hash (SHA-256):', messageHashHex);
+                
+                // Convert hex private key to Uint8Array
+                const privateKeyBytes = new Uint8Array(32);
+                for (let i = 0; i < privateKeyHex.length; i += 2) {
+                    privateKeyBytes[i / 2] = parseInt(privateKeyHex.slice(i, i + 2), 16);
+                }
+                
+                // Sign the hashed message using @noble/secp256k1
+                const signature = await secp256k1.sign(messageHashHex, privateKeyBytes);
+                
+                // Convert signature to compact format (64 bytes)
+                let signatureArray;
+                if (signature instanceof Uint8Array) {
+                    if (signature.length >= 68 && signature[0] === 0x30) {
+                        // Parse DER structure
+                        let offset = 2;
+                        
+                        // Parse r value
+                        if (signature[offset] !== 0x02) {
+                            throw new Error('Invalid DER format: expected r value marker');
+                        }
+                        offset++;
+                        const rLength = signature[offset];
+                        offset++;
+                        const rBytes = signature.slice(offset, offset + rLength);
+                        offset += rLength;
+                        
+                        // Parse s value
+                        if (signature[offset] !== 0x02) {
+                            throw new Error('Invalid DER format: expected s value marker');
+                        }
+                        offset++;
+                        const sLength = signature[offset];
+                        offset++;
+                        const sBytes = signature.slice(offset, offset + sLength);
+                        
+                        // Remove leading zero byte from r if present
+                        const rCompact = rBytes[0] === 0 ? rBytes.slice(1) : rBytes;
+                        
+                        // Create compact signature (64 bytes)
+                        signatureArray = new Uint8Array(64);
+                        signatureArray.set(rCompact, 0);
+                        signatureArray.set(sBytes, 32);
+                    } else {
+                        throw new Error('Unexpected DER signature format');
+                    }
+                } else {
+                    throw new Error('Signature is not Uint8Array');
+                }
+                
+                // Base64URL encode the signature
+                const encodedSignature = base64UrlEncode(String.fromCharCode(...signatureArray));
+                
+                // Assemble the complete JWT
+                const jwt = `${signingInput}.${encodedSignature}`;
+                
+                console.log('Generated JWT:', jwt);
+                
+                return jwt;
+                
+            } catch (error) {
+                console.error('Error creating service auth token:', error);
+                throw error;
+            }
+        }
+        
         // Create an account on the PDS with a signed DID:PLC update
-        async function createAccountWithSignedOperation(pdsEndpoint, handle, email, password, didPlcId, signedUpdate, inviteCode) {
+        async function createAccountWithSignedOperation(pdsEndpoint, handle, email, password, didPlcId, signedUpdate, inviteCode, privateKeyHex) {
             try {
                 console.log('=== Creating Account with Signed Update ===');
                 console.log('PDS Endpoint:', pdsEndpoint);
@@ -1964,12 +2115,14 @@
                 const endpoint = `${pdsEndpoint}/xrpc/com.atproto.server.createAccount`;
                 console.log('Creating account at endpoint:', endpoint);
                 
+                // Create JWT service authentication token
+                const jwt = await createServiceAuthToken(didPlcId, pdsEndpoint, privateKeyHex);
+                
                 const requestBody = {
                     handle: handle,
                     email: email,
                     password: password,
-                    did: didPlcId,
-                    plcOp: signedUpdate
+                    did: didPlcId
                 };
                 
                 // Add invite code if provided
@@ -1981,6 +2134,7 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${jwt}`
                     },
                     body: JSON.stringify(requestBody)
                 });
@@ -3000,7 +3154,8 @@
                     data.password,
                     didPlcId,
                     signedUpdate,
-                    data.inviteCode
+                    data.inviteCode,
+                    currentKey
                 );
                 
                 console.log('Account creation result:', accountResult);
