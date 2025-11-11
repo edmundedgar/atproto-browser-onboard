@@ -1952,11 +1952,12 @@
         }
         
         // Base64URL encode (URL-safe base64, no padding)
+        // For binary data (like signatures), btoa treats the string as Latin-1 (ISO-8859-1)
+        // where each character is directly a byte (0-255), which is what we need
         function base64UrlEncode(str) {
-            // Convert string to bytes using TextEncoder
-            const bytes = new TextEncoder().encode(str);
-            // Convert bytes to base64
-            const base64 = btoa(String.fromCharCode(...bytes));
+            // Use btoa directly - it treats the string as Latin-1, not UTF-8
+            // This is correct for binary data where each character represents a byte
+            const base64 = btoa(str);
             // Convert to base64url (URL-safe, no padding)
             return base64
                 .replace(/\+/g, '-')
@@ -2077,8 +2078,17 @@
                         
                         // Create compact signature (64 bytes)
                         signatureArray = new Uint8Array(64);
-                        signatureArray.set(rCompact, 0);
-                        signatureArray.set(sBytes, 32);
+                        // Pad r and s to exactly 32 bytes each (pad with leading zeros if needed)
+                        const rPadded = new Uint8Array(32);
+                        rPadded.set(rCompact, 32 - rCompact.length);
+                        const sPadded = new Uint8Array(32);
+                        sPadded.set(sBytes, 32 - sBytes.length);
+                        signatureArray.set(rPadded, 0);
+                        signatureArray.set(sPadded, 32);
+                        
+                        console.log('rCompact length:', rCompact.length, 'rPadded length:', rPadded.length);
+                        console.log('sBytes length:', sBytes.length, 'sPadded length:', sPadded.length);
+                        console.log('signatureArray length:', signatureArray.length);
                     } else {
                         throw new Error('Unexpected DER signature format');
                     }
@@ -2086,8 +2096,19 @@
                     throw new Error('Signature is not Uint8Array');
                 }
                 
+                console.log('Signature array before encoding (hex):', Array.from(signatureArray).map(b => b.toString(16).padStart(2, '0')).join(''));
+                console.log('Signature array length:', signatureArray.length);
+                
                 // Base64URL encode the signature
-                const encodedSignature = base64UrlEncode(String.fromCharCode(...signatureArray));
+                // Build string from bytes using a loop to avoid spread operator issues
+                let signatureString = '';
+                for (let i = 0; i < signatureArray.length; i++) {
+                    signatureString += String.fromCharCode(signatureArray[i]);
+                }
+                console.log('Signature string length:', signatureString.length);
+                const encodedSignature = base64UrlEncode(signatureString);
+                console.log('Encoded signature:', encodedSignature);
+                console.log('Encoded signature length:', encodedSignature.length);
                 
                 // Assemble the complete JWT
                 const jwt = `${signingInput}.${encodedSignature}`;
@@ -2102,8 +2123,99 @@
             }
         }
         
+        // Verify a JWT service authentication token using a public key
+        async function verifyServiceAuthToken(jwt, publicKeyHex) {
+            try {
+                console.log('=== Verifying Service Auth Token ===');
+                console.log('JWT:', jwt);
+                console.log('Public Key (hex):', publicKeyHex);
+                
+                // Parse JWT
+                const parts = jwt.split('.');
+                if (parts.length !== 3) {
+                    throw new Error('Invalid JWT format: expected 3 parts');
+                }
+                
+                const [encodedHeader, encodedPayload, encodedSignature] = parts;
+                
+                // Decode header and payload
+                const headerJson = atob(encodedHeader.replace(/-/g, '+').replace(/_/g, '/'));
+                const payloadJson = atob(encodedPayload.replace(/-/g, '+').replace(/_/g, '/'));
+                const header = JSON.parse(headerJson);
+                const payload = JSON.parse(payloadJson);
+                
+                console.log('JWT Header:', header);
+                console.log('JWT Payload:', payload);
+                
+                // Check algorithm
+                if (header.alg !== 'ES256K') {
+                    throw new Error(`Unsupported algorithm: ${header.alg}`);
+                }
+                
+                // Recreate signing input
+                const signingInput = `${encodedHeader}.${encodedPayload}`;
+                console.log('Signing input:', signingInput);
+                
+                // Hash the signing input with SHA-256
+                const signingInputBytes = new TextEncoder().encode(signingInput);
+                const messageHash = await crypto.subtle.digest('SHA-256', signingInputBytes);
+                const messageHashHex = Array.from(new Uint8Array(messageHash))
+                    .map(b => b.toString(16).padStart(2, '0'))
+                    .join('');
+                
+                console.log('Message hash (SHA-256):', messageHashHex);
+                
+                // Decode signature from base64url
+                console.log('Encoded signature from JWT:', encodedSignature);
+                console.log('Encoded signature length:', encodedSignature.length);
+                const signatureBase64 = encodedSignature.replace(/-/g, '+').replace(/_/g, '/');
+                const padding = '='.repeat((4 - signatureBase64.length % 4) % 4);
+                console.log('Base64 signature (with padding):', signatureBase64 + padding);
+                const signatureBinaryString = atob(signatureBase64 + padding);
+                console.log('Decoded binary string length:', signatureBinaryString.length);
+                const signatureBytes = new Uint8Array(signatureBinaryString.length);
+                for (let i = 0; i < signatureBinaryString.length; i++) {
+                    signatureBytes[i] = signatureBinaryString.charCodeAt(i);
+                }
+                
+                console.log('Signature bytes length:', signatureBytes.length);
+                console.log('Signature bytes (hex):', Array.from(signatureBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+                
+                if (signatureBytes.length !== 64) {
+                    console.error(`Invalid signature length: expected 64 bytes, got ${signatureBytes.length}`);
+                    console.error('This suggests the JWT was created with incorrect encoding. Please regenerate the JWT.');
+                    throw new Error(`Invalid signature length: expected 64 bytes, got ${signatureBytes.length}`);
+                }
+                
+                // Convert public key hex to Uint8Array
+                const publicKeyBytes = new Uint8Array(33); // Compressed public key is 33 bytes
+                for (let i = 0; i < publicKeyHex.length; i += 2) {
+                    publicKeyBytes[i / 2] = parseInt(publicKeyHex.slice(i, i + 2), 16);
+                }
+                
+                // Verify signature using @noble/secp256k1
+                // Note: secp256k1.verify expects the signature in compact format (64 bytes: r + s)
+                // and the message hash as a hex string (same as secp256k1.sign)
+                const isValid = secp256k1.verify(signatureBytes, messageHashHex, publicKeyBytes);
+                
+                console.log('Signature verification result:', isValid);
+                
+                if (isValid) {
+                    console.log('✓ JWT signature is VALID');
+                } else {
+                    console.error('✗ JWT signature is INVALID');
+                }
+                
+                return isValid;
+                
+            } catch (error) {
+                console.error('Error verifying service auth token:', error);
+                throw error;
+            }
+        }
+        
         // Create an account on the PDS with a signed DID:PLC update
-        async function createAccountWithSignedOperation(pdsEndpoint, handle, email, password, didPlcId, signedUpdate, inviteCode, privateKeyHex) {
+        async function createAccountWithSignedOperation(pdsEndpoint, handle, email, password, didPlcId, signedUpdate, inviteCode, privateKeyHex) {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
             try {
                 console.log('=== Creating Account with Signed Update ===');
                 console.log('PDS Endpoint:', pdsEndpoint);
@@ -2119,6 +2231,15 @@
                 // This is signed with our rotation key, which is still the current verification method
                 // The PDS will verify the JWT using the current verification method, then apply the update
                 const jwt = await createServiceAuthToken(didPlcId, pdsEndpoint, privateKeyHex);
+                
+                // Self-verify the JWT to ensure signature is correct
+                const publicKeyHex = generatePublicKey(privateKeyHex);
+                const isValid = await verifyServiceAuthToken(jwt, publicKeyHex);
+                if (!isValid) {
+                    console.error('WARNING: JWT signature verification failed! The JWT we created is invalid.');
+                    throw new Error('JWT signature verification failed - the created JWT is invalid');
+                }
+                console.log('✓ JWT signature verified successfully before sending to PDS');
                 
                 const requestBody = {
                     handle: handle,
