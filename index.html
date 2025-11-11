@@ -2262,8 +2262,7 @@
                     handle: handle,
                     email: email,
                     password: password,
-                    did: didPlcId,
-                    plcOp: signedUpdate  // Send the signed update operation so PDS can apply it
+                    did: didPlcId
                 };
                 
                 // Add invite code if provided
@@ -2291,6 +2290,17 @@
                 
                 const result = await response.json();
                 console.log('Account creation successful:', result);
+                
+                // After successful account creation, submit the update to plc.directory
+                console.log('Submitting update to plc.directory after account creation...');
+                const updateSubmitResult = await submitDidPlcOperation(signedUpdate, didPlcId);
+                
+                if (!updateSubmitResult.success) {
+                    console.warn('Warning: Failed to submit update to plc.directory, but account was created successfully');
+                    console.warn('You may need to manually submit the update later');
+                } else {
+                    console.log('Update successfully submitted to plc.directory');
+                }
                 
                 return { success: true, result: result };
                 
