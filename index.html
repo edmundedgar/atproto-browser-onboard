@@ -1972,24 +1972,41 @@
             return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
         }
         
-        // Get PDS DID from endpoint (try to resolve, fallback to endpoint URL)
+        // Get PDS DID from endpoint (try multiple methods)
         async function getPdsDid(pdsEndpoint) {
+            // Try 1: ATProto server description endpoint
             try {
-                // Try to resolve PDS DID from well-known endpoint
+                const describeUrl = `${pdsEndpoint}/xrpc/com.atproto.server.describeServer`;
+                const response = await fetch(describeUrl);
+                if (response.ok) {
+                    const description = await response.json();
+                    if (description.did) {
+                        console.log('Resolved PDS DID from describeServer:', description.did);
+                        return description.did;
+                    }
+                }
+            } catch (error) {
+                console.log('Could not get PDS DID from describeServer:', error);
+            }
+            
+            // Try 2: Well-known DID endpoint
+            try {
                 const wellKnownUrl = `${pdsEndpoint}/.well-known/did.json`;
                 const response = await fetch(wellKnownUrl);
                 if (response.ok) {
                     const didDoc = await response.json();
                     if (didDoc.id) {
-                        console.log('Resolved PDS DID:', didDoc.id);
+                        console.log('Resolved PDS DID from well-known:', didDoc.id);
                         return didDoc.id;
                     }
                 }
             } catch (error) {
-                console.log('Could not resolve PDS DID from well-known, using endpoint URL:', error);
+                console.log('Could not resolve PDS DID from well-known:', error);
             }
-            // Fallback to endpoint URL as audience
-            return pdsEndpoint;
+            
+            // If we can't resolve the DID, throw an error instead of using the URL
+            // The PDS requires the DID as the audience, not the URL
+            throw new Error('Could not resolve PDS DID. Please ensure the PDS endpoint is correct and accessible.');
         }
         
         // Create a JWT service authentication token signed with the rotation key
