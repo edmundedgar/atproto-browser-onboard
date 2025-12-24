@@ -1050,6 +1050,12 @@
                             <small class="form-help">Your browser-controlled DID:PLC identifier (auto-generated from DID:PLC Entry tab)</small>
                         </div>
                         
+                        <div class="form-button-group" id="setup-eth-group" style="display: none;">
+                            <button type="button" class="submit-btn" id="setup-eth-btn">
+                                Set up .eth
+                            </button>
+                        </div>
+                        
                         <div class="form-button-group">
                             <button type="submit" class="submit-btn" id="submit-createaccount-btn">
                                 Create Account
@@ -3219,6 +3225,9 @@
             const domainSelect = document.getElementById('account-handle-domain');
             if (!domainSelect) return;
             
+            // Store current selection
+            const currentSelection = domainSelect.value;
+            
             // Clear existing options except the first placeholder
             domainSelect.innerHTML = '<option value="">Select domain...</option>';
             
@@ -3236,6 +3245,21 @@
                     option.textContent = 'No domains available';
                     option.disabled = true;
                     domainSelect.appendChild(option);
+                    // Still add .eth.link even if no other domains available
+                    const ethLinkOption = document.createElement('option');
+                    ethLinkOption.value = '.eth.link';
+                    ethLinkOption.textContent = '.eth.link';
+                    domainSelect.appendChild(ethLinkOption);
+                    
+                    // Restore selection if it was .eth.link
+                    if (currentSelection === '.eth.link') {
+                        domainSelect.value = '.eth.link';
+                    }
+                    
+                    // Trigger change event to update UI state (if function is defined)
+                    if (typeof handleDomainChange === 'function') {
+                        handleDomainChange();
+                    }
                     return;
                 }
                 
@@ -3247,6 +3271,22 @@
                     domainSelect.appendChild(option);
                 });
                 
+                // Always add .eth.link as an option (even if not in availableUserDomains)
+                const ethLinkOption = document.createElement('option');
+                ethLinkOption.value = '.eth.link';
+                ethLinkOption.textContent = '.eth.link';
+                domainSelect.appendChild(ethLinkOption);
+                
+                // Restore selection if it was .eth.link
+                if (currentSelection === '.eth.link') {
+                    domainSelect.value = '.eth.link';
+                }
+                
+                // Trigger change event to update UI state (if function is defined)
+                if (typeof handleDomainChange === 'function') {
+                    handleDomainChange();
+                }
+                
                 console.log('Updated domain select with domains:', availableDomains);
             } catch (error) {
                 console.error('Error fetching available domains:', error);
@@ -3255,6 +3295,22 @@
                 option.textContent = 'Error loading domains';
                 option.disabled = true;
                 domainSelect.appendChild(option);
+                
+                // Always add .eth.link even on error
+                const ethLinkOption = document.createElement('option');
+                ethLinkOption.value = '.eth.link';
+                ethLinkOption.textContent = '.eth.link';
+                domainSelect.appendChild(ethLinkOption);
+                
+                // Restore selection if it was .eth.link
+                if (currentSelection === '.eth.link') {
+                    domainSelect.value = '.eth.link';
+                }
+                
+                // Trigger change event to update UI state (if function is defined)
+                if (typeof handleDomainChange === 'function') {
+                    handleDomainChange();
+                }
             }
         }
         
@@ -3275,6 +3331,92 @@
                 clearTimeout(updateTimeout);
                 updateDomainSelect(this.value);
             });
+        }
+        
+        // Handle domain selection changes for .eth.link
+        const domainSelect = document.getElementById('account-handle-domain');
+        const setupEthGroup = document.getElementById('setup-eth-group');
+        const setupEthBtn = document.getElementById('setup-eth-btn');
+        const submitCreateAccountBtn = document.getElementById('submit-createaccount-btn');
+        
+        function handleDomainChange() {
+            const selectedDomain = domainSelect.value;
+            const isEthLink = selectedDomain === '.eth.link';
+            
+            if (isEthLink) {
+                // Show "Set up .eth" button and disable Create Account
+                if (setupEthGroup) setupEthGroup.style.display = 'block';
+                if (submitCreateAccountBtn) submitCreateAccountBtn.disabled = true;
+            } else {
+                // Hide "Set up .eth" button and enable Create Account
+                if (setupEthGroup) setupEthGroup.style.display = 'none';
+                if (submitCreateAccountBtn) submitCreateAccountBtn.disabled = false;
+            }
+        }
+        
+        if (domainSelect) {
+            domainSelect.addEventListener('change', handleDomainChange);
+        }
+        
+        // Function to calculate DID and open eth.html
+        async function setupEth() {
+            // Check if a private key has been generated or loaded
+            if (!currentKey) {
+                const status = getCurrentStatusElement();
+                if (status) {
+                    status.innerHTML = '<div class="status error">No private key available! Please generate a new key or restore one from a mnemonic in the "Generate Key" tab first.</div>';
+                }
+                return;
+            }
+            
+            const form = document.getElementById('createaccount-form');
+            if (!form) return;
+            
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            
+            // Combine subdomain and domain into full handle
+            const subdomain = data.handleSubdomain?.trim() || '';
+            const domain = data.handleDomain?.trim() || '';
+            if (!subdomain || !domain) {
+                const status = getCurrentStatusElement();
+                if (status) {
+                    status.innerHTML = '<div class="status error">Please enter both a subdomain and select a domain for the handle.</div>';
+                }
+                return;
+            }
+            
+            // Only add dot if domain doesn't already start with one
+            const handle = domain.startsWith('.') ? `${subdomain}${domain}` : `${subdomain}.${domain}`;
+            
+            try {
+                // Create initial DID:PLC operation
+                const initialOperation = createDidPlcInitialOperation({
+                    ...data,
+                    handle: handle
+                }, currentDidKey);
+                
+                // Sign the operation
+                const signedInitialOperation = await signDidPlcOperation(initialOperation, currentKey);
+                
+                // Generate DID:PLC ID from the signed operation
+                const didPlcId = await generateDidPlcId(signedInitialOperation);
+                
+                // Open eth.html in a new window with the DID as a parameter
+                const ethUrl = `eth.html?did=${encodeURIComponent(didPlcId)}`;
+                window.open(ethUrl, '_blank');
+                
+            } catch (error) {
+                console.error('Error calculating DID for .eth setup:', error);
+                const status = getCurrentStatusElement();
+                if (status) {
+                    status.innerHTML = `<div class="status error">Error calculating DID: ${error.message}</div>`;
+                }
+            }
+        }
+        
+        if (setupEthBtn) {
+            setupEthBtn.addEventListener('click', setupEth);
         }
         
         // Create Account form handling
@@ -3455,6 +3597,8 @@
                 const domainSelect = document.getElementById('account-handle-domain');
                 if (domainSelect) {
                     domainSelect.innerHTML = '<option value="">Select domain...</option>';
+                    // Trigger change event to reset UI state
+                    handleDomainChange();
                 }
                 if (createaccountResult) createaccountResult.style.display = 'none';
                 const status = getCurrentStatusElement();
