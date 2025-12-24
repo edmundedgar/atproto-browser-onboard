@@ -526,7 +526,8 @@
         }
 
         .form-group input,
-        .form-group textarea {
+        .form-group textarea,
+        .form-group select {
             width: 100%;
             padding: 12px 15px;
             border: 1px solid #ffffff;
@@ -541,7 +542,8 @@
         }
 
         .form-group input:focus,
-        .form-group textarea:focus {
+        .form-group textarea:focus,
+        .form-group select:focus {
             outline: none;
             border-color: #00a2ff;
             
@@ -1013,7 +1015,14 @@
                         
                         <div class="form-group">
                             <label for="account-handle">Handle</label>
-                            <input type="text" id="account-handle" name="handle" placeholder="username" required>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <input type="text" id="account-handle-subdomain" name="handleSubdomain" placeholder="username" required style="flex: 1;">
+                                <span style="font-size: 16px;">@</span>
+                                <select id="account-handle-domain" name="handleDomain" required style="flex: 1;">
+                                    <option value="">Select domain...</option>
+                                </select>
+                            </div>
+                            <input type="hidden" id="account-handle" name="handle">
                             <small class="form-help">Your desired handle (username) for the account</small>
                         </div>
                         
@@ -1972,8 +1981,8 @@
             return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
         }
         
-        // Get PDS DID from endpoint (try multiple methods)
-        async function getPdsDid(pdsEndpoint) {
+        // Get PDS server information including availableUserDomains
+        async function getPdsServerInfo(pdsEndpoint) {
             // Try 1: ATProto server description endpoint
             try {
                 const describeUrl = `${pdsEndpoint}/xrpc/com.atproto.server.describeServer`;
@@ -1981,15 +1990,15 @@
                 if (response.ok) {
                     const description = await response.json();
                     if (description.did) {
-                        console.log('Resolved PDS DID from describeServer:', description.did);
-                        return description.did;
+                        console.log('Resolved PDS server info from describeServer:', description);
+                        return description;
                     }
                 }
             } catch (error) {
-                console.log('Could not get PDS DID from describeServer:', error);
+                console.log('Could not get PDS server info from describeServer:', error);
             }
             
-            // Try 2: Well-known DID endpoint
+            // Try 2: Well-known DID endpoint (fallback for DID only)
             try {
                 const wellKnownUrl = `${pdsEndpoint}/.well-known/did.json`;
                 const response = await fetch(wellKnownUrl);
@@ -1997,7 +2006,7 @@
                     const didDoc = await response.json();
                     if (didDoc.id) {
                         console.log('Resolved PDS DID from well-known:', didDoc.id);
-                        return didDoc.id;
+                        return { did: didDoc.id, availableUserDomains: [] };
                     }
                 }
             } catch (error) {
@@ -2006,7 +2015,13 @@
             
             // If we can't resolve the DID, throw an error instead of using the URL
             // The PDS requires the DID as the audience, not the URL
-            throw new Error('Could not resolve PDS DID. Please ensure the PDS endpoint is correct and accessible.');
+            throw new Error('Could not resolve PDS server information. Please ensure the PDS endpoint is correct and accessible.');
+        }
+        
+        // Get PDS DID from endpoint (try multiple methods)
+        async function getPdsDid(pdsEndpoint) {
+            const serverInfo = await getPdsServerInfo(pdsEndpoint);
+            return serverInfo.did;
         }
         
         // Create a JWT service authentication token signed with the rotation key
@@ -3199,6 +3214,69 @@
         if (copyPlcResultBtn) copyPlcResultBtn.addEventListener('click', copyPlcResult);
         if (copyPlcDebugBtn) copyPlcDebugBtn.addEventListener('click', copyPlcDebug);
 
+        // Update domain select dropdown with availableUserDomains from PDS
+        async function updateDomainSelect(pdsEndpoint) {
+            const domainSelect = document.getElementById('account-handle-domain');
+            if (!domainSelect) return;
+            
+            // Clear existing options except the first placeholder
+            domainSelect.innerHTML = '<option value="">Select domain...</option>';
+            
+            if (!pdsEndpoint || !pdsEndpoint.trim()) {
+                return;
+            }
+            
+            try {
+                const serverInfo = await getPdsServerInfo(pdsEndpoint.trim());
+                const availableDomains = serverInfo.availableUserDomains || [];
+                
+                if (availableDomains.length === 0) {
+                    const option = document.createElement('option');
+                    option.value = '';
+                    option.textContent = 'No domains available';
+                    option.disabled = true;
+                    domainSelect.appendChild(option);
+                    return;
+                }
+                
+                // Add each available domain as an option
+                availableDomains.forEach(domain => {
+                    const option = document.createElement('option');
+                    option.value = domain;
+                    option.textContent = domain;
+                    domainSelect.appendChild(option);
+                });
+                
+                console.log('Updated domain select with domains:', availableDomains);
+            } catch (error) {
+                console.error('Error fetching available domains:', error);
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = 'Error loading domains';
+                option.disabled = true;
+                domainSelect.appendChild(option);
+            }
+        }
+        
+        // Add event listener to PDS endpoint input to update domain select
+        const pdsEndpointInput = document.getElementById('pds-endpoint');
+        if (pdsEndpointInput) {
+            let updateTimeout;
+            pdsEndpointInput.addEventListener('input', function() {
+                // Debounce the update to avoid too many requests
+                clearTimeout(updateTimeout);
+                updateTimeout = setTimeout(() => {
+                    updateDomainSelect(this.value);
+                }, 500);
+            });
+            
+            // Also update on blur (when user leaves the field)
+            pdsEndpointInput.addEventListener('blur', function() {
+                clearTimeout(updateTimeout);
+                updateDomainSelect(this.value);
+            });
+        }
+        
         // Create Account form handling
         const createaccountForm = document.getElementById('createaccount-form');
         if (createaccountForm) {
@@ -3217,6 +3295,24 @@
             
             const formData = new FormData(this);
             const data = Object.fromEntries(formData.entries());
+            
+            // Combine subdomain and domain into full handle
+            const subdomain = data.handleSubdomain?.trim() || '';
+            const domain = data.handleDomain?.trim() || '';
+            if (!subdomain || !domain) {
+                if (status) {
+                    status.innerHTML = '<div class="status error">Please enter both a subdomain and select a domain for the handle.</div>';
+                }
+                return;
+            }
+            // Only add dot if domain doesn't already start with one
+            data.handle = domain.startsWith('.') ? `${subdomain}${domain}` : `${subdomain}.${domain}`;
+            
+            // Update the hidden handle field
+            const handleField = document.getElementById('account-handle');
+            if (handleField) {
+                handleField.value = data.handle;
+            }
             
             try {
                 // Step 1: Create initial DID:PLC record with our rotation key as verificationMethod
@@ -3355,6 +3451,11 @@
                 const createaccountForm = document.getElementById('createaccount-form');
                 const createaccountResult = document.getElementById('createaccount-result');
                 if (createaccountForm) createaccountForm.reset();
+                // Reset domain select to placeholder
+                const domainSelect = document.getElementById('account-handle-domain');
+                if (domainSelect) {
+                    domainSelect.innerHTML = '<option value="">Select domain...</option>';
+                }
                 if (createaccountResult) createaccountResult.style.display = 'none';
                 const status = getCurrentStatusElement();
                 if (status) {
