@@ -3345,7 +3345,17 @@
             
             if (isEthLink) {
                 // Show "Set up .eth" button and disable Create Account
-                if (setupEthGroup) setupEthGroup.style.display = 'block';
+                if (setupEthGroup) {
+                    setupEthGroup.style.display = 'block';
+                    // Reset to button (in case it was changed to success message)
+                    if (!setupEthGroup.querySelector('button')) {
+                        setupEthGroup.innerHTML = '<button type="button" class="submit-btn" id="setup-eth-btn">Set up .eth</button>';
+                        const btn = document.getElementById('setup-eth-btn');
+                        if (btn) {
+                            btn.addEventListener('click', setupEth);
+                        }
+                    }
+                }
                 if (submitCreateAccountBtn) submitCreateAccountBtn.disabled = true;
             } else {
                 // Hide "Set up .eth" button and enable Create Account
@@ -3415,8 +3425,24 @@
             }
         }
         
+        // Add event listener for setup-eth-btn
         if (setupEthBtn) {
             setupEthBtn.addEventListener('click', setupEth);
+        }
+        
+        // Also listen for input changes on subdomain to restart polling
+        const handleSubdomainInput = document.getElementById('account-handle-subdomain');
+        if (handleSubdomainInput) {
+            let subdomainTimeout;
+            handleSubdomainInput.addEventListener('input', function() {
+                clearTimeout(subdomainTimeout);
+                subdomainTimeout = setTimeout(() => {
+                    const selectedDomain = domainSelect.value;
+                    if (selectedDomain === '.eth.link') {
+                        startEthLinkPolling();
+                    }
+                }, 500);
+            });
         }
         
         // Create Account form handling
@@ -3597,6 +3623,8 @@
                 const domainSelect = document.getElementById('account-handle-domain');
                 if (domainSelect) {
                     domainSelect.innerHTML = '<option value="">Select domain...</option>';
+                    // Stop polling
+                    stopEthLinkPolling();
                     // Trigger change event to reset UI state
                     handleDomainChange();
                 }
