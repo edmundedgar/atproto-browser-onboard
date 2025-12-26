@@ -3388,8 +3388,10 @@
         // Function to poll .well-known/atproto-did/ for .eth.link domain via proxy server
         async function pollEthLinkDid(domain, expectedDid) {
             try {
+                // Strip .link suffix if present (server expects .eth, not .eth.link)
+                const domainForServer = domain.endsWith('.link') ? domain.slice(0, -5) : domain;
                 // Use the proxy server instead of direct gateway access
-                const url = `https://ens.goat.navy/atproto-did/${domain}`;
+                const url = `https://ens.goat.navy/atproto-did/${domainForServer}`;
                 const response = await fetch(url);
                 
                 if (response.ok) {
