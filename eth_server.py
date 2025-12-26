@@ -44,7 +44,7 @@ async def query_eth_link_gateway(domain: str) -> Dict[str, Any]:
         Dict with 'success', 'did', 'error', and 'errorType' keys
     """
     # Construct the gateway URL
-    gateway_url = f"https://{domain}.eth.link/.well-known/atproto-did/"
+    gateway_url = f"https://{domain}.link/.well-known/atproto-did/"
     
     try:
         # Make request with 10-second timeout
