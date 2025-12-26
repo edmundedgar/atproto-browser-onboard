@@ -3368,6 +3368,132 @@
             domainSelect.addEventListener('change', handleDomainChange);
         }
         
+        // Variables for .eth.link polling
+        let ethLinkPollInterval = null;
+        let expectedEthLinkDid = null;
+        
+        // Function to stop polling
+        function stopEthLinkPolling() {
+            if (ethLinkPollInterval) {
+                clearInterval(ethLinkPollInterval);
+                ethLinkPollInterval = null;
+            }
+            expectedEthLinkDid = null;
+        }
+        
+        // Function to poll .well-known/atproto-did/ for .eth.link domain via proxy server
+        async function pollEthLinkDid(domain, expectedDid) {
+            try {
+                // Use the proxy server instead of direct gateway access
+                const url = `https://ens.goat.navy/atproto-did/${domain}`;
+                const response = await fetch(url);
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    
+                    // Check if the server found the DID and it matches
+                    if (result.success && result.did === expectedDid) {
+                        // Found the expected DID - stop polling and update UI
+                        stopEthLinkPolling();
+                        
+                        // Replace button with success message
+                        if (setupEthGroup) {
+                            setupEthGroup.innerHTML = '<div style="color: #28a745; font-weight: bold; padding: 12px;">.eth.link address ready</div>';
+                        }
+                        
+                        // Enable Create Account button
+                        if (submitCreateAccountBtn) {
+                            submitCreateAccountBtn.disabled = false;
+                        }
+                        
+                        console.log('Found expected DID at .eth.link domain:', result.did);
+                        return true;
+                    } else if (result.success && result.did !== expectedDid) {
+                        // DID found but doesn't match - log for debugging
+                        console.log('DID found but does not match expected:', result.did, 'expected:', expectedDid);
+                    } else if (!result.success) {
+                        // Server returned an error - log it but continue polling
+                        console.log('Server error while polling:', result.error, 'errorType:', result.errorType);
+                    }
+                }
+            } catch (error) {
+                // Silently fail - will retry on next poll
+                console.log('Polling .eth.link DID (not found yet):', error.message);
+            }
+            return false;
+        }
+        
+        // Function to start polling for .eth.link DID
+        function startEthLinkPolling() {
+            // Stop any existing polling
+            stopEthLinkPolling();
+            
+            // Calculate expected DID from form data
+            const form = document.getElementById('createaccount-form');
+            if (!form) return;
+            
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            
+            const subdomain = data.handleSubdomain?.trim() || '';
+            const domain = data.handleDomain?.trim() || '';
+            
+            if (!subdomain || !domain || domain !== '.eth.link') {
+                return;
+            }
+            
+            // Only proceed if we have a private key
+            if (!currentKey) {
+                return;
+            }
+            
+            // Combine subdomain and domain into full handle
+            const handle = `${subdomain}${domain}`; // domain already starts with .
+            const fullDomain = handle; // e.g., "bot.reality.eth.link"
+            
+            // Calculate expected DID
+            (async () => {
+                try {
+                    const initialOperation = createDidPlcInitialOperation({
+                        ...data,
+                        handle: handle
+                    }, currentDidKey);
+                    
+                    const signedInitialOperation = await signDidPlcOperation(initialOperation, currentKey);
+                    const didPlcId = await generateDidPlcId(signedInitialOperation);
+                    
+                    expectedEthLinkDid = didPlcId;
+                    
+                    // Start polling every 15 seconds
+                    ethLinkPollInterval = setInterval(async () => {
+                        await pollEthLinkDid(fullDomain, expectedEthLinkDid);
+                    }, 15000);
+                    
+                    // Poll immediately
+                    await pollEthLinkDid(fullDomain, expectedEthLinkDid);
+                    
+                } catch (error) {
+                    console.error('Error calculating DID for polling:', error);
+                }
+            })();
+        }
+        
+        // Update handleDomainChange to start polling
+        const originalHandleDomainChange = handleDomainChange;
+        handleDomainChange = function() {
+            originalHandleDomainChange();
+            const selectedDomain = domainSelect.value;
+            const isEthLink = selectedDomain === '.eth.link';
+            
+            if (isEthLink) {
+                // Start polling for .eth.link DID
+                startEthLinkPolling();
+            } else {
+                // Stop polling
+                stopEthLinkPolling();
+            }
+        };
+        
         // Function to calculate DID and open eth.html
         async function setupEth() {
             // Check if a private key has been generated or loaded
