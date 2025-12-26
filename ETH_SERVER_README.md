@@ -283,30 +283,19 @@ This ensures the DID follows the basic format: `did:method:identifier`
 The server uses Filebase (S3-compatible API) to pin files to IPFS. To use the POST endpoint:
 
 1. Create a Filebase account at https://filebase.com
-2. Create an S3-compatible bucket
+2. **Create an S3-compatible bucket** in the Filebase dashboard (e.g., `atproto-did`)
+   - The bucket must be created manually before using the server
+   - The server will not create the bucket automatically
 3. Get your access key and secret key from Filebase dashboard
 4. Add them to your `.env` file:
    ```
    FILEBASE_ACCESS_KEY=your_access_key
    FILEBASE_SECRET_KEY=your_secret_key
-   FILEBASE_BUCKET=your_bucket_name
+   FILEBASE_BUCKET=atproto-did
    FILEBASE_ENDPOINT=https://s3.filebase.com
    ```
-
-## Filebase Configuration
-
-The server uses Filebase (S3-compatible API) to pin files to IPFS. To use the POST endpoint:
-
-1. Create a Filebase account at https://filebase.com
-2. Create an S3-compatible bucket
-3. Get your access key and secret key from Filebase dashboard
-4. Add them to your `.env` file:
-   ```
-   FILEBASE_ACCESS_KEY=your_access_key
-   FILEBASE_SECRET_KEY=your_secret_key
-   FILEBASE_BUCKET=your_bucket_name
-   FILEBASE_ENDPOINT=https://s3.filebase.com
-   ```
+   
+   **Note:** Make sure the `FILEBASE_BUCKET` value matches the bucket name you created in Filebase.
 
 ## Future Enhancements
 
