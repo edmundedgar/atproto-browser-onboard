@@ -13,6 +13,16 @@ This server provides a proxy service to check if ENS (Ethereum Name Service) dom
 pip install -r requirements.txt
 ```
 
+2. Create a `.env` file in the project root with your Filebase credentials:
+```bash
+FILEBASE_ACCESS_KEY=your_access_key_here
+FILEBASE_SECRET_KEY=your_secret_key_here
+FILEBASE_BUCKET=atproto-did
+FILEBASE_ENDPOINT=https://s3.filebase.com
+```
+
+   The `.env` file should be added to `.gitignore` to keep your credentials secure.
+
 ## Running the Server
 
 ### Development Mode
@@ -143,6 +153,97 @@ Gateway failure:
 }
 ```
 
+### POST `/atproto-did/{domain}`
+
+Create and pin a `.well-known/atproto-did` file for an ENS domain.
+
+**Parameters:**
+- `domain` (path): The ENS domain, e.g., `example.eth` or `bot.reality.eth`
+
+**Request Body:**
+```json
+{
+  "domain": "example.eth",
+  "did": "did:plc:u4d5v5zsl5jb2y33vtfhyjo5"
+}
+```
+
+**Response Format:**
+```json
+{
+  "success": true,
+  "ipfs_hash": "Qm...",
+  "error": null,
+  "errorType": null
+}
+```
+
+**Success Response (200):**
+- `success`: `true`
+- `ipfs_hash`: The IPFS hash/CID of the pinned file
+- `error`: `null`
+- `errorType`: `null`
+
+**Error Responses:**
+
+File already exists with same DID (200):
+```json
+{
+  "success": false,
+  "ipfs_hash": null,
+  "error": "File already exists with the same DID: did:plc:...",
+  "errorType": "already_exists"
+}
+```
+
+File already exists with different DID (200):
+```json
+{
+  "success": false,
+  "ipfs_hash": null,
+  "error": "File already exists with different DID: did:plc:...",
+  "errorType": "conflict"
+}
+```
+
+Invalid DID format (400):
+```json
+{
+  "success": false,
+  "ipfs_hash": null,
+  "error": "Invalid DID format: invalid-did",
+  "errorType": "invalid_did"
+}
+```
+
+Pin failure (500):
+```json
+{
+  "success": false,
+  "ipfs_hash": null,
+  "error": "Failed to pin to Filebase: ...",
+  "errorType": "pin_failure"
+}
+```
+
+**Example Request:**
+```bash
+curl -X POST http://127.0.0.1:8000/atproto-did/example.eth \
+  -H "Content-Type: application/json" \
+  -d '{
+    "domain": "example.eth",
+    "did": "did:plc:u4d5v5zsl5jb2y33vtfhyjo5"
+  }'
+```
+
+**Behavior:**
+1. Checks if a `.well-known/atproto-did` file already exists for the domain
+2. If it exists with the same DID, returns an error
+3. If it exists with a different DID, returns a conflict error
+4. If it doesn't exist, creates the file with the provided DID
+5. Pins the file to IPFS via Filebase
+6. Returns the IPFS hash/CID
+
 ### GET `/health`
 
 Health check endpoint.
@@ -177,10 +278,41 @@ The server validates DID syntax using a regex pattern: `^did:[a-z0-9]+:[a-zA-Z0-
 
 This ensures the DID follows the basic format: `did:method:identifier`
 
+## Filebase Configuration
+
+The server uses Filebase (S3-compatible API) to pin files to IPFS. To use the POST endpoint:
+
+1. Create a Filebase account at https://filebase.com
+2. Create an S3-compatible bucket
+3. Get your access key and secret key from Filebase dashboard
+4. Add them to your `.env` file:
+   ```
+   FILEBASE_ACCESS_KEY=your_access_key
+   FILEBASE_SECRET_KEY=your_secret_key
+   FILEBASE_BUCKET=your_bucket_name
+   FILEBASE_ENDPOINT=https://s3.filebase.com
+   ```
+
+## Filebase Configuration
+
+The server uses Filebase (S3-compatible API) to pin files to IPFS. To use the POST endpoint:
+
+1. Create a Filebase account at https://filebase.com
+2. Create an S3-compatible bucket
+3. Get your access key and secret key from Filebase dashboard
+4. Add them to your `.env` file:
+   ```
+   FILEBASE_ACCESS_KEY=your_access_key
+   FILEBASE_SECRET_KEY=your_secret_key
+   FILEBASE_BUCKET=your_bucket_name
+   FILEBASE_ENDPOINT=https://s3.filebase.com
+   ```
+
 ## Future Enhancements
 
-- POST endpoint to create `.well-known/atproto-did` files (planned)
 - Support for `.eth.limo` gateway as fallback
 - Caching of successful lookups
 - Retry logic with exponential backoff
+- Better IPFS hash retrieval from Filebase
+- Better IPFS hash retrieval from Filebase
 
