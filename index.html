@@ -3335,6 +3335,11 @@
                 updateDomainSelect(this.value);
                 updateDidDisplay();
             });
+            
+            // Check if PDS endpoint already has a value on page load
+            if (pdsEndpointInput.value && pdsEndpointInput.value.trim()) {
+                updateDomainSelect(pdsEndpointInput.value.trim());
+            }
         }
         
         // Handle domain selection changes for .eth.link
