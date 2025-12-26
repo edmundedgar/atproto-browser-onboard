@@ -1045,8 +1045,11 @@
                         </div>
                         
                         <div class="form-group">
-                            <label for="account-did">DID:PLC Identifier</label>
-                            <input type="text" id="account-did" name="did" placeholder="did:plc:..." readonly>
+                            <label>DID:PLC Identifier</label>
+                            <div id="account-did" style="font-size: 14px; font-family: 'Courier New', monospace; color: #ffffff; padding: 8px 0;">
+                                <span style="color: #888;">did:plc:...</span>
+                            </div>
+                            <input type="hidden" id="account-did-value" name="did">
                             <small class="form-help">Your browser-controlled DID:PLC identifier (auto-generated from DID:PLC Entry tab)</small>
                         </div>
                         
@@ -2264,8 +2267,7 @@
                 
                 const endpoint = `${pdsEndpoint}/xrpc/com.atproto.server.createAccount`;
                 console.log('Creating account at endpoint:', endpoint);
-                
-                // Create JWT service authentication token
+                            // Create JWT service authentication token
                 // This is signed with our rotation key, which is still the current verification method
                 // The PDS will verify the JWT using the current verification method, then apply the update
                 const jwt = await createServiceAuthToken(didPlcId, pdsEndpoint, privateKeyHex);
@@ -3314,7 +3316,7 @@
             }
         }
         
-        // Add event listener to PDS endpoint input to update domain select
+        // Add event listener to PDS endpoint input to update domain select and DID
         const pdsEndpointInput = document.getElementById('pds-endpoint');
         if (pdsEndpointInput) {
             let updateTimeout;
@@ -3323,6 +3325,7 @@
                 clearTimeout(updateTimeout);
                 updateTimeout = setTimeout(() => {
                     updateDomainSelect(this.value);
+                    updateDidDisplay();
                 }, 500);
             });
             
@@ -3330,6 +3333,7 @@
             pdsEndpointInput.addEventListener('blur', function() {
                 clearTimeout(updateTimeout);
                 updateDomainSelect(this.value);
+                updateDidDisplay();
             });
         }
         
@@ -3556,7 +3560,76 @@
             setupEthBtn.addEventListener('click', setupEth);
         }
         
-        // Also listen for input changes on subdomain to restart polling
+        // Function to calculate and update DID display
+        async function updateDidDisplay() {
+            // Only update if we have a private key
+            if (!currentKey || !currentDidKey) {
+                return;
+            }
+            
+            const form = document.getElementById('createaccount-form');
+            if (!form) return;
+            
+            const formData = new FormData(form);
+            const data = Object.fromEntries(formData.entries());
+            
+            const subdomain = data.handleSubdomain?.trim() || '';
+            const domain = data.handleDomain?.trim() || '';
+            const pdsEndpoint = data.pdsEndpoint?.trim() || '';
+            
+            // Need at least subdomain, domain, and PDS endpoint to calculate DID
+            if (!subdomain || !domain || !pdsEndpoint) {
+                const didField = document.getElementById('account-did');
+                const didValueField = document.getElementById('account-did-value');
+                if (didField) {
+                    didField.innerHTML = '<span style="color: #888;">did:plc:...</span>';
+                }
+                if (didValueField) {
+                    didValueField.value = '';
+                }
+                return;
+            }
+            
+            try {
+                // Combine subdomain and domain into full handle
+                const handle = domain.startsWith('.') ? `${subdomain}${domain}` : `${subdomain}.${domain}`;
+                
+                // Create initial DID:PLC operation
+                const initialOperation = createDidPlcInitialOperation({
+                    ...data,
+                    handle: handle,
+                    pdsEndpoint: pdsEndpoint
+                }, currentDidKey);
+                
+                // Sign the operation
+                const signedInitialOperation = await signDidPlcOperation(initialOperation, currentKey);
+                
+                // Generate DID:PLC ID from the signed operation
+                const didPlcId = await generateDidPlcId(signedInitialOperation);
+                
+                // Update the display
+                const didField = document.getElementById('account-did');
+                const didValueField = document.getElementById('account-did-value');
+                if (didField) {
+                    didField.innerHTML = `<span style="color: #ffffff;">${didPlcId}</span>`;
+                }
+                if (didValueField) {
+                    didValueField.value = didPlcId;
+                }
+            } catch (error) {
+                console.error('Error calculating DID for display:', error);
+                const didField = document.getElementById('account-did');
+                const didValueField = document.getElementById('account-did-value');
+                if (didField) {
+                    didField.innerHTML = '<span style="color: #ff6b6b;">Error calculating DID</span>';
+                }
+                if (didValueField) {
+                    didValueField.value = '';
+                }
+            }
+        }
+        
+        // Also listen for input changes on subdomain to restart polling and update DID
         const handleSubdomainInput = document.getElementById('account-handle-subdomain');
         if (handleSubdomainInput) {
             let subdomainTimeout;
@@ -3567,7 +3640,15 @@
                     if (selectedDomain === '.eth.link') {
                         startEthLinkPolling();
                     }
+                    updateDidDisplay();
                 }, 500);
+            });
+        }
+        
+        // Listen for changes to domain select
+        if (domainSelect) {
+            domainSelect.addEventListener('change', function() {
+                updateDidDisplay();
             });
         }
         
@@ -3718,8 +3799,12 @@
                 if (accountResult.success) {
                     // Update the DID:PLC field in the form
                     const didField = document.getElementById('account-did');
+                    const didValueField = document.getElementById('account-did-value');
                     if (didField) {
-                        didField.value = didPlcId;
+                        didField.innerHTML = `<span style="color: #ffffff;">${didPlcId}</span>`;
+                    }
+                    if (didValueField) {
+                        didValueField.value = didPlcId;
                     }
                     
                     if (status) {
