@@ -223,7 +223,9 @@ async def check_existing_did(domain: str, expected_did: str) -> Dict[str, Any]:
 
 async def pin_to_filebase(domain: str, did: str) -> Dict[str, Any]:
     """
-    Create and pin a .well-known/atproto-did file to Filebase/IPFS.
+    Create and pin a .well-known/atproto-did file to local IPFS and Filebase.
+    Pins locally first to get the hash, then also pins to Filebase for redundancy.
+    Only errors if both local and Filebase pinning fail.
     
     Args:
         domain: The ENS domain
@@ -232,31 +234,190 @@ async def pin_to_filebase(domain: str, did: str) -> Dict[str, Any]:
     Returns:
         Dict with 'success', 'ipfs_hash', and 'error' keys
     """
-    if not s3_client:
-        return {
-            "success": False,
-            "ipfs_hash": None,
-            "error": "Filebase not configured. Please set FILEBASE_ACCESS_KEY and FILEBASE_SECRET_KEY in .env"
-        }
-    
-    # Create the file path (e.g., "example.eth/.well-known/atproto-did")
-    file_path = f"{domain}/.well-known/atproto-did"
-    
     # Create file content (just the DID string)
     file_content = did.encode('utf-8')
     
+    # Step 1: Pin to local IPFS first and get the directory hash
+    directory_hash = None
+    local_ipfs_error = None
+    filebase_error = None
+    
     try:
-        # Upload to Filebase (this automatically pins to IPFS)
-        put_response = s3_client.put_object(
-            Bucket=FILEBASE_BUCKET,
-            Key=file_path,
-            Body=file_content,
-            ContentType='text/plain'
-        )
+        # Create a temporary directory structure
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create the domain directory
+            domain_dir = os.path.join(temp_dir, domain)
+            os.makedirs(domain_dir, exist_ok=True)
+            
+            # Create the .well-known directory
+            well_known_dir = os.path.join(domain_dir, '.well-known')
+            os.makedirs(well_known_dir, exist_ok=True)
+            
+            # Write the DID file
+            did_file = os.path.join(well_known_dir, 'atproto-did')
+            with open(did_file, 'wb') as f:
+                f.write(file_content)
+            
+            # Pin to local IPFS and get the directory hash
+            try:
+                import ipfshttpclient
+                client = ipfshttpclient.Client()
+                # Add the directory (this pins it) and get the hash
+                result = client.add(domain_dir, recursive=True)
+                if result:
+                    # The last result is the root directory hash
+                    directory_hash = result[-1]['Hash']
+            except ImportError:
+                # Fallback to subprocess ipfs command
+                try:
+                    import subprocess
+                    result = subprocess.run(
+                        ['ipfs', 'add', '-r', '-Q', domain_dir],
+                        capture_output=True,
+                        text=True,
+                        timeout=10
+                    )
+                    if result.returncode == 0:
+                        directory_hash = result.stdout.strip()
+                    else:
+                        local_ipfs_error = f"ipfs command failed: {result.stderr}"
+                except FileNotFoundError:
+                    local_ipfs_error = "ipfs command not found. Please install IPFS (https://ipfs.io) or ensure ipfshttpclient is installed."
+                except Exception as e:
+                    local_ipfs_error = f"Subprocess IPFS error: {str(e)}"
+            except Exception as e:
+                local_ipfs_error = f"ipfshttpclient error: {str(e)}"
+    
+    except Exception as e:
+        local_ipfs_error = f"Local IPFS pinning error: {str(e)}"
+    
+    # Step 2: Also pin to Filebase (but don't fail if this fails)
+    if s3_client:
+        try:
+            # Create the file path (e.g., "example.eth/.well-known/atproto-did")
+            file_path = f"{domain}/.well-known/atproto-did"
+            
+            # Upload to Filebase (this automatically pins to IPFS)
+            s3_client.put_object(
+                Bucket=FILEBASE_BUCKET,
+                Key=file_path,
+                Body=file_content,
+                ContentType='text/plain'
+            )
+        except Exception as e:
+            filebase_error = f"Filebase pinning error: {str(e)}"
+    else:
+        filebase_error = "Filebase not configured. Please set FILEBASE_ACCESS_KEY and FILEBASE_SECRET_KEY in .env"
+    
+    # Step 3: Return result - only error if both failed
+    if directory_hash:
+        # Success - we got the hash from local IPFS
+        return {
+            "success": True,
+            "ipfs_hash": directory_hash,
+            "error": None if not filebase_error else f"Local IPFS pinning succeeded, but Filebase pinning failed: {filebase_error}"
+        }
+    else:
+        # Both failed
+        errors = []
+        if local_ipfs_error:
+            errors.append(f"Local IPFS: {local_ipfs_error}")
+        if filebase_error:
+            errors.append(f"Filebase: {filebase_error}")
         
-        # Get the IPFS hash/CID from the response
-        # Filebase returns the CID in the ETag or we need to query it
-        # Try to get from response metadata first
+        return {
+            "success": False,
+            "ipfs_hash": None,
+            "error": f"Both pinning methods failed. {'; '.join(errors)}"
+        }
+
+
+@app.post("/atproto-did/{domain}")
+async def create_atproto_did(domain: str, request: CreateDidRequest) -> JSONResponse:
+    """
+    Create and pin a .well-known/atproto-did file for an ENS domain.
+    
+    Args:
+        domain: The ENS domain (e.g., "example.eth" or "bot.reality.eth")
+        request: Request body with 'did' field
+    
+    Returns:
+        JSON response with success status, IPFS hash, and error information
+    """
+    # Validate domain format (should end with .eth)
+    if not domain.endswith('.eth'):
+        raise HTTPException(
+            status_code=400,
+            detail="Domain must end with .eth"
+        )
+    
+    # Validate request domain matches path parameter
+    if request.domain != domain:
+        raise HTTPException(
+            status_code=400,
+            detail="Domain in request body must match path parameter"
+        )
+    
+    # Validate DID format
+    if not is_valid_did(request.did):
+        return JSONResponse(
+            content={
+                "success": False,
+                "ipfs_hash": None,
+                "error": f"Invalid DID format: {request.did}",
+                "errorType": "invalid_did"
+            },
+            status_code=400
+        )
+    
+    # Check if file already exists
+    existing_check = await check_existing_did(domain, request.did)
+    
+    if existing_check["exists"]:
+        if existing_check["matches"]:
+            return JSONResponse(
+                content={
+                    "success": False,
+                    "ipfs_hash": None,
+                    "error": f"File already exists with the same DID: {existing_check['current_did']}",
+                    "errorType": "already_exists"
+                },
+                status_code=200
+            )
+        else:
+            return JSONResponse(
+                content={
+                    "success": False,
+                    "ipfs_hash": None,
+                    "error": f"File already exists with different DID: {existing_check['current_did']}",
+                    "errorType": "conflict"
+                },
+                status_code=200
+            )
+    
+    # Pin to local IPFS and Filebase
+    pin_result = await pin_to_filebase(domain, request.did)
+    
+    if pin_result["success"]:
+        return JSONResponse(
+            content={
+                "success": True,
+                "ipfs_hash": pin_result["ipfs_hash"],
+                "error": None,
+                "errorType": None
+            },
+            status_code=200
+        )
+    else:
+        return JSONResponse(
+            content={
+                "success": False,
+                "ipfs_hash": None,
+                "error": pin_result["error"],
+                "errorType": "pin_failure"
+            },
+            status_code=500
+        )
         file_cid = None
         directory_cid = None
         
