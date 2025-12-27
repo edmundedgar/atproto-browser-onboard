@@ -308,26 +308,7 @@ async def pin_to_filebase(domain: str, did: str) -> Dict[str, Any]:
                 headers = {}
             
             async with httpx.AsyncClient(timeout=10.0) as client:
-                # Method 1: Try IPFS gateway to get directory listing
-                # Filebase exposes buckets at: https://{bucket}.ipfs.filebase.io
-                try:
-                    gateway_url = f"https://{FILEBASE_BUCKET}.ipfs.filebase.io/{directory_path}"
-                    gateway_response = await client.get(gateway_url, follow_redirects=True, timeout=10.0)
-                    
-                    # Check if we can extract CID from the final URL
-                    final_url = str(gateway_response.url)
-                    if '/ipfs/' in final_url:
-                        parts = final_url.split('/ipfs/')
-                        if len(parts) > 1:
-                            # Get the CID part (before any path)
-                            cid_part = parts[1].split('/')[0]
-                            # Verify it's a valid CID format (starts with Qm for v0 or base58 for v1)
-                            if cid_part and (cid_part.startswith('Qm') or len(cid_part) > 10):
-                                directory_hash = cid_part
-                except Exception as e1:
-                    error_messages.append(f"Gateway method: {str(e1)}")
-                
-                # Method 2: Use IPFS RPC API files/stat
+                # Method 1: Use IPFS RPC API files/stat
                 if not directory_hash:
                     try:
                         rpc_url = f"{FILEBASE_IPFS_RPC}/api/v0/files/stat"
@@ -347,7 +328,7 @@ async def pin_to_filebase(domain: str, did: str) -> Dict[str, Any]:
                     except Exception as e2:
                         error_messages.append(f"files/stat method: {str(e2)}")
                 
-                # Method 3: Use IPFS RPC API ls
+                # Method 2: Use IPFS RPC API ls
                 if not directory_hash:
                     try:
                         rpc_url = f"{FILEBASE_IPFS_RPC}/api/v0/ls"
@@ -366,6 +347,25 @@ async def pin_to_filebase(domain: str, did: str) -> Dict[str, Any]:
                                 continue
                     except Exception as e3:
                         error_messages.append(f"ls method: {str(e3)}")
+                
+                # Method 3: Use IPFS RPC API object/stat (for IPFS objects, not MFS)
+                if not directory_hash:
+                    try:
+                        rpc_url = f"{FILEBASE_IPFS_RPC}/api/v0/object/stat"
+                        for path_format in [f"/{directory_path}", directory_path, f"{FILEBASE_BUCKET}/{directory_path}"]:
+                            try:
+                                params = {'arg': path_format}
+                                rpc_response = await client.post(rpc_url, headers=headers, params=params, timeout=10.0)
+                                
+                                if rpc_response.is_success:
+                                    rpc_data = rpc_response.json()
+                                    directory_hash = rpc_data.get('Hash')
+                                    if directory_hash:
+                                        break
+                            except Exception:
+                                continue
+                    except Exception as e4:
+                        error_messages.append(f"object/stat method: {str(e4)}")
                                 
         except Exception as e:
             error_messages.append(f"General error: {str(e)}")
