@@ -255,20 +255,26 @@ async def pin_to_filebase(domain: str, did: str) -> Dict[str, Any]:
         # Get the IPFS hash/CID from the response
         # Filebase returns the CID in the ETag or we need to query it
         # Try to get from response metadata first
-        ipfs_hash = None
+        file_cid = None
+        directory_cid = None
         
-        # Check response metadata
+        # Check response metadata for file CID
         if 'ResponseMetadata' in put_response:
             headers = put_response['ResponseMetadata'].get('HTTPHeaders', {})
             # Filebase may return CID in various headers
-            ipfs_hash = (
+            file_cid = (
                 headers.get('x-amz-meta-cid') or
                 headers.get('x-ipfs-cid') or
                 headers.get('etag', '').strip('"')
             )
+            # Also check for directory CID (if Filebase provides it)
+            directory_cid = (
+                headers.get('x-amz-meta-dir-cid') or
+                headers.get('x-ipfs-dir-cid')
+            )
         
         # If not in headers, try to get from object metadata after upload
-        if not ipfs_hash:
+        if not file_cid or not directory_cid:
             try:
                 head_response = s3_client.head_object(
                     Bucket=FILEBASE_BUCKET,
@@ -276,15 +282,24 @@ async def pin_to_filebase(domain: str, did: str) -> Dict[str, Any]:
                 )
                 # Check metadata
                 metadata = head_response.get('Metadata', {})
-                ipfs_hash = metadata.get('cid') or metadata.get('ipfs-hash')
+                if not file_cid:
+                    file_cid = metadata.get('cid') or metadata.get('ipfs-hash')
+                if not directory_cid:
+                    directory_cid = metadata.get('dir-cid') or metadata.get('ipfs-dir-hash')
                 
                 # Also check response headers
-                if not ipfs_hash and 'ResponseMetadata' in head_response:
+                if 'ResponseMetadata' in head_response:
                     headers = head_response['ResponseMetadata'].get('HTTPHeaders', {})
-                    ipfs_hash = (
-                        headers.get('x-amz-meta-cid') or
-                        headers.get('x-ipfs-cid')
-                    )
+                    if not file_cid:
+                        file_cid = (
+                            headers.get('x-amz-meta-cid') or
+                            headers.get('x-ipfs-cid')
+                        )
+                    if not directory_cid:
+                        directory_cid = (
+                            headers.get('x-amz-meta-dir-cid') or
+                            headers.get('x-ipfs-dir-cid')
+                        )
             except Exception:
                 pass
         
@@ -293,22 +308,104 @@ async def pin_to_filebase(domain: str, did: str) -> Dict[str, Any]:
         # The directory path is just the domain (e.g., "example.eth/")
         directory_path = f"{domain}/"
         
+        # If we already got the directory CID from S3 response, use it
+        directory_hash = directory_cid
+        
         # Wait a moment for the file to propagate in IPFS
         import asyncio
         await asyncio.sleep(2)
         
-        # Try to get the directory hash using IPFS RPC API
-        directory_hash = None
+        # Try to get the directory hash using IPFS RPC API if we don't have it yet
         error_messages = []
         
-        try:
-            if FILEBASE_IPFS_RPC_KEY:
-                headers = {'Authorization': f'Bearer {FILEBASE_IPFS_RPC_KEY}'}
-            else:
-                headers = {}
-            
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                # Method 1: Use IPFS RPC API files/stat
+        if not directory_hash:
+            try:
+                if FILEBASE_IPFS_RPC_KEY:
+                    headers = {'Authorization': f'Bearer {FILEBASE_IPFS_RPC_KEY}'}
+                else:
+                    headers = {}
+                
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    # Method 1: Use IPFS RPC API files/stat with path
+                    try:
+                        rpc_url = f"{FILEBASE_IPFS_RPC}/api/v0/files/stat"
+                        # Try different path formats
+                        for path_format in [f"/{directory_path}", directory_path, f"{FILEBASE_BUCKET}/{directory_path}"]:
+                            try:
+                                params = {'arg': path_format}
+                                rpc_response = await client.post(rpc_url, headers=headers, params=params, timeout=10.0)
+                                
+                                if rpc_response.is_success:
+                                    rpc_data = rpc_response.json()
+                                    directory_hash = rpc_data.get('Hash')
+                                    if directory_hash:
+                                        break
+                            except Exception:
+                                continue
+                    except Exception as e2:
+                        error_messages.append(f"files/stat method: {str(e2)}")
+                    
+                    # Method 2: Use IPFS RPC API ls
+                    if not directory_hash:
+                        try:
+                            rpc_url = f"{FILEBASE_IPFS_RPC}/api/v0/ls"
+                            for path_format in [f"/{directory_path}", directory_path, f"{FILEBASE_BUCKET}/{directory_path}"]:
+                                try:
+                                    params = {'arg': path_format}
+                                    rpc_response = await client.post(rpc_url, headers=headers, params=params, timeout=10.0)
+                                    
+                                    if rpc_response.is_success:
+                                        rpc_data = rpc_response.json()
+                                        if 'Objects' in rpc_data and len(rpc_data['Objects']) > 0:
+                                            directory_hash = rpc_data['Objects'][0].get('Hash')
+                                            if directory_hash:
+                                                break
+                                except Exception:
+                                    continue
+                        except Exception as e3:
+                            error_messages.append(f"ls method: {str(e3)}")
+                    
+                    # Method 3: Use IPFS RPC API object/stat (for IPFS objects, not MFS)
+                    if not directory_hash:
+                        try:
+                            rpc_url = f"{FILEBASE_IPFS_RPC}/api/v0/object/stat"
+                            for path_format in [f"/{directory_path}", directory_path, f"{FILEBASE_BUCKET}/{directory_path}"]:
+                                try:
+                                    params = {'arg': path_format}
+                                    rpc_response = await client.post(rpc_url, headers=headers, params=params, timeout=10.0)
+                                    
+                                    if rpc_response.is_success:
+                                        rpc_data = rpc_response.json()
+                                        directory_hash = rpc_data.get('Hash')
+                                        if directory_hash:
+                                            break
+                                except Exception:
+                                    continue
+                        except Exception as e4:
+                            error_messages.append(f"object/stat method: {str(e4)}")
+                    
+                    # Method 4: Try using S3 list_objects to see if we can get directory info
+                    if not directory_hash:
+                        try:
+                            # List objects in the directory to see if Filebase provides directory metadata
+                            list_response = s3_client.list_objects_v2(
+                                Bucket=FILEBASE_BUCKET,
+                                Prefix=directory_path,
+                                Delimiter='/',
+                                MaxKeys=1
+                            )
+                            # Check if there's any directory metadata in the response
+                            # Filebase might include directory CID in common prefixes or metadata
+                            if 'CommonPrefixes' in list_response:
+                                # This indicates the directory exists, but doesn't give us the CID
+                                pass
+                        except Exception as e5:
+                            error_messages.append(f"S3 list method: {str(e5)}")
+                                    
+            except Exception as e:
+                error_messages.append(f"General error: {str(e)}")
+                
+                # Method 2: Use IPFS RPC API files/stat with path
                 if not directory_hash:
                     try:
                         rpc_url = f"{FILEBASE_IPFS_RPC}/api/v0/files/stat"
@@ -328,7 +425,7 @@ async def pin_to_filebase(domain: str, did: str) -> Dict[str, Any]:
                     except Exception as e2:
                         error_messages.append(f"files/stat method: {str(e2)}")
                 
-                # Method 2: Use IPFS RPC API ls
+                # Method 3: Use IPFS RPC API ls
                 if not directory_hash:
                     try:
                         rpc_url = f"{FILEBASE_IPFS_RPC}/api/v0/ls"
@@ -348,7 +445,7 @@ async def pin_to_filebase(domain: str, did: str) -> Dict[str, Any]:
                     except Exception as e3:
                         error_messages.append(f"ls method: {str(e3)}")
                 
-                # Method 3: Use IPFS RPC API object/stat (for IPFS objects, not MFS)
+                # Method 4: Use IPFS RPC API object/stat (for IPFS objects, not MFS)
                 if not directory_hash:
                     try:
                         rpc_url = f"{FILEBASE_IPFS_RPC}/api/v0/object/stat"
@@ -366,6 +463,10 @@ async def pin_to_filebase(domain: str, did: str) -> Dict[str, Any]:
                                 continue
                     except Exception as e4:
                         error_messages.append(f"object/stat method: {str(e4)}")
+                
+                # Method 5: If we have the file CID, try to use it with object/links to find parent
+                # This is more complex - we'd need to find which directory contains this file
+                # For now, skip this as it requires more complex traversal
                                 
         except Exception as e:
             error_messages.append(f"General error: {str(e)}")
