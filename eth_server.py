@@ -38,6 +38,8 @@ FILEBASE_ACCESS_KEY = os.getenv('FILEBASE_ACCESS_KEY')
 FILEBASE_SECRET_KEY = os.getenv('FILEBASE_SECRET_KEY')
 FILEBASE_BUCKET = os.getenv('FILEBASE_BUCKET', 'atproto-did')
 FILEBASE_ENDPOINT = os.getenv('FILEBASE_ENDPOINT', 'https://s3.filebase.com')
+FILEBASE_IPFS_RPC = os.getenv('FILEBASE_IPFS_RPC', 'https://ipfs.filebase.io')
+FILEBASE_IPFS_RPC_KEY = os.getenv('FILEBASE_IPFS_RPC_KEY')  # Optional IPFS RPC API key
 
 # Initialize Filebase S3 client
 if FILEBASE_ACCESS_KEY and FILEBASE_SECRET_KEY:
@@ -286,14 +288,86 @@ async def pin_to_filebase(domain: str, did: str) -> Dict[str, Any]:
             except Exception:
                 pass
         
-        # If we still don't have the hash, the file is pinned but we can't retrieve the CID
-        # This is acceptable - the file is still pinned to IPFS
-        if not ipfs_hash:
-            ipfs_hash = "pinned"  # Indicates file is pinned but CID not available
+        # Get the IPFS hash of the parent directory (domain directory)
+        # This is what's needed for ENS content hash
+        # The directory path is just the domain (e.g., "example.eth/")
+        directory_path = f"{domain}/"
+        
+        # Try to get the directory hash using IPFS RPC API
+        directory_hash = None
+        try:
+            # Use IPFS RPC to list the directory and get its hash
+            # Filebase uses IPFS RPC API - we need to resolve the directory path
+            # The path in IPFS would be /ipfs/{bucket_root}/{domain}/
+            # But we can use the ls command to get directory info
+            
+            if FILEBASE_IPFS_RPC_KEY:
+                headers = {'Authorization': f'Bearer {FILEBASE_IPFS_RPC_KEY}'}
+            else:
+                headers = {}
+            
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                # First, try to get the bucket root CID by listing the bucket
+                # Then use that to resolve the domain directory
+                
+                # Alternative: Use the IPFS gateway to resolve the directory
+                # Filebase exposes buckets via IPFS gateway at: https://{bucket}.ipfs.filebase.io
+                gateway_url = f"https://{FILEBASE_BUCKET}.ipfs.filebase.io/{directory_path}"
+                
+                # Try to resolve via gateway - this might give us redirect headers with the CID
+                gateway_response = await client.head(gateway_url, follow_redirects=False)
+                
+                # Check if we got a redirect or can extract CID from headers
+                location = gateway_response.headers.get('Location', '')
+                if '/ipfs/' in location:
+                    # Extract CID from location header
+                    parts = location.split('/ipfs/')
+                    if len(parts) > 1:
+                        directory_hash = parts[1].split('/')[0]
+                
+                # If that didn't work, try IPFS RPC API
+                if not directory_hash:
+                    # Use IPFS RPC to resolve the directory
+                    # We'll use the ls command to list the directory
+                    rpc_url = f"{FILEBASE_IPFS_RPC}/api/v0/ls"
+                    params = {
+                        'arg': f"/ipfs/{FILEBASE_BUCKET}/{directory_path}",
+                    }
+                    rpc_response = await client.post(rpc_url, headers=headers, params=params)
+                    
+                    if rpc_response.is_success:
+                        rpc_data = rpc_response.json()
+                        # The response should contain directory info
+                        if 'Objects' in rpc_data and len(rpc_data['Objects']) > 0:
+                            # Get the hash from the directory object
+                            directory_hash = rpc_data['Objects'][0].get('Hash')
+        except Exception as e:
+            print(f"Error getting directory hash: {e}")
+            # Fall back to trying S3 list operation
+            try:
+                # List objects to see if we can get directory metadata
+                list_response = s3_client.list_objects_v2(
+                    Bucket=FILEBASE_BUCKET,
+                    Prefix=directory_path,
+                    Delimiter='/',
+                    MaxKeys=1
+                )
+                # Filebase might include directory metadata, but this is unlikely
+            except Exception:
+                pass
+        
+        # If we couldn't get the directory hash, we need to return an error
+        # because the file hash is not what's needed for ENS
+        if not directory_hash:
+            return {
+                "success": False,
+                "ipfs_hash": None,
+                "error": f"Could not retrieve directory hash for {directory_path}. File was uploaded but directory CID is required for ENS content hash."
+            }
         
         return {
             "success": True,
-            "ipfs_hash": ipfs_hash,
+            "ipfs_hash": directory_hash,
             "error": None
         }
         
