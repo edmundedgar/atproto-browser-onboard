@@ -293,76 +293,91 @@ async def pin_to_filebase(domain: str, did: str) -> Dict[str, Any]:
         # The directory path is just the domain (e.g., "example.eth/")
         directory_path = f"{domain}/"
         
+        # Wait a moment for the file to propagate in IPFS
+        import asyncio
+        await asyncio.sleep(2)
+        
         # Try to get the directory hash using IPFS RPC API
         directory_hash = None
+        error_messages = []
+        
         try:
-            # Use IPFS RPC to list the directory and get its hash
-            # Filebase uses IPFS RPC API - we need to resolve the directory path
-            # The path in IPFS would be /ipfs/{bucket_root}/{domain}/
-            # But we can use the ls command to get directory info
-            
             if FILEBASE_IPFS_RPC_KEY:
                 headers = {'Authorization': f'Bearer {FILEBASE_IPFS_RPC_KEY}'}
             else:
                 headers = {}
             
             async with httpx.AsyncClient(timeout=10.0) as client:
-                # First, try to get the bucket root CID by listing the bucket
-                # Then use that to resolve the domain directory
-                
-                # Alternative: Use the IPFS gateway to resolve the directory
-                # Filebase exposes buckets via IPFS gateway at: https://{bucket}.ipfs.filebase.io
-                gateway_url = f"https://{FILEBASE_BUCKET}.ipfs.filebase.io/{directory_path}"
-                
-                # Try to resolve via gateway - this might give us redirect headers with the CID
-                gateway_response = await client.head(gateway_url, follow_redirects=False)
-                
-                # Check if we got a redirect or can extract CID from headers
-                location = gateway_response.headers.get('Location', '')
-                if '/ipfs/' in location:
-                    # Extract CID from location header
-                    parts = location.split('/ipfs/')
-                    if len(parts) > 1:
-                        directory_hash = parts[1].split('/')[0]
-                
-                # If that didn't work, try IPFS RPC API
-                if not directory_hash:
-                    # Use IPFS RPC to resolve the directory
-                    # We'll use the ls command to list the directory
-                    rpc_url = f"{FILEBASE_IPFS_RPC}/api/v0/ls"
-                    params = {
-                        'arg': f"/ipfs/{FILEBASE_BUCKET}/{directory_path}",
-                    }
-                    rpc_response = await client.post(rpc_url, headers=headers, params=params)
+                # Method 1: Try IPFS gateway to get directory listing
+                # Filebase exposes buckets at: https://{bucket}.ipfs.filebase.io
+                try:
+                    gateway_url = f"https://{FILEBASE_BUCKET}.ipfs.filebase.io/{directory_path}"
+                    gateway_response = await client.get(gateway_url, follow_redirects=True, timeout=10.0)
                     
-                    if rpc_response.is_success:
-                        rpc_data = rpc_response.json()
-                        # The response should contain directory info
-                        if 'Objects' in rpc_data and len(rpc_data['Objects']) > 0:
-                            # Get the hash from the directory object
-                            directory_hash = rpc_data['Objects'][0].get('Hash')
+                    # Check if we can extract CID from the final URL
+                    final_url = str(gateway_response.url)
+                    if '/ipfs/' in final_url:
+                        parts = final_url.split('/ipfs/')
+                        if len(parts) > 1:
+                            # Get the CID part (before any path)
+                            cid_part = parts[1].split('/')[0]
+                            # Verify it's a valid CID format (starts with Qm for v0 or base58 for v1)
+                            if cid_part and (cid_part.startswith('Qm') or len(cid_part) > 10):
+                                directory_hash = cid_part
+                except Exception as e1:
+                    error_messages.append(f"Gateway method: {str(e1)}")
+                
+                # Method 2: Use IPFS RPC API files/stat
+                if not directory_hash:
+                    try:
+                        rpc_url = f"{FILEBASE_IPFS_RPC}/api/v0/files/stat"
+                        # Try different path formats
+                        for path_format in [f"/{directory_path}", directory_path, f"{FILEBASE_BUCKET}/{directory_path}"]:
+                            try:
+                                params = {'arg': path_format}
+                                rpc_response = await client.post(rpc_url, headers=headers, params=params, timeout=10.0)
+                                
+                                if rpc_response.is_success:
+                                    rpc_data = rpc_response.json()
+                                    directory_hash = rpc_data.get('Hash')
+                                    if directory_hash:
+                                        break
+                            except Exception:
+                                continue
+                    except Exception as e2:
+                        error_messages.append(f"files/stat method: {str(e2)}")
+                
+                # Method 3: Use IPFS RPC API ls
+                if not directory_hash:
+                    try:
+                        rpc_url = f"{FILEBASE_IPFS_RPC}/api/v0/ls"
+                        for path_format in [f"/{directory_path}", directory_path, f"{FILEBASE_BUCKET}/{directory_path}"]:
+                            try:
+                                params = {'arg': path_format}
+                                rpc_response = await client.post(rpc_url, headers=headers, params=params, timeout=10.0)
+                                
+                                if rpc_response.is_success:
+                                    rpc_data = rpc_response.json()
+                                    if 'Objects' in rpc_data and len(rpc_data['Objects']) > 0:
+                                        directory_hash = rpc_data['Objects'][0].get('Hash')
+                                        if directory_hash:
+                                            break
+                            except Exception:
+                                continue
+                    except Exception as e3:
+                        error_messages.append(f"ls method: {str(e3)}")
+                                
         except Exception as e:
-            print(f"Error getting directory hash: {e}")
-            # Fall back to trying S3 list operation
-            try:
-                # List objects to see if we can get directory metadata
-                list_response = s3_client.list_objects_v2(
-                    Bucket=FILEBASE_BUCKET,
-                    Prefix=directory_path,
-                    Delimiter='/',
-                    MaxKeys=1
-                )
-                # Filebase might include directory metadata, but this is unlikely
-            except Exception:
-                pass
+            error_messages.append(f"General error: {str(e)}")
         
         # If we couldn't get the directory hash, we need to return an error
         # because the file hash is not what's needed for ENS
         if not directory_hash:
+            error_detail = "; ".join(error_messages) if error_messages else "Unknown error"
             return {
                 "success": False,
                 "ipfs_hash": None,
-                "error": f"Could not retrieve directory hash for {directory_path}. File was uploaded but directory CID is required for ENS content hash."
+                "error": f"Could not retrieve directory hash for {directory_path}. File was uploaded but directory CID is required for ENS content hash. Errors: {error_detail}. Please check FILEBASE_IPFS_RPC and FILEBASE_IPFS_RPC_KEY configuration."
             }
         
         return {
