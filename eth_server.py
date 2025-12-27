@@ -15,6 +15,8 @@ from botocore.exceptions import ClientError
 from typing import Dict, Any
 from dotenv import load_dotenv
 from io import BytesIO
+import tempfile
+import shutil
 
 # Load environment variables from .env file
 load_dotenv()
@@ -303,21 +305,82 @@ async def pin_to_filebase(domain: str, did: str) -> Dict[str, Any]:
             except Exception:
                 pass
         
-        # Get the IPFS hash of the parent directory (domain directory)
-        # This is what's needed for ENS content hash
-        # The directory path is just the domain (e.g., "example.eth/")
-        directory_path = f"{domain}/"
-        
-        # If we already got the directory CID from S3 response, use it
-        directory_hash = directory_cid
-        
-        # Wait a moment for the file to propagate in IPFS
-        import asyncio
-        await asyncio.sleep(2)
-        
-        # Try to get the directory hash using IPFS RPC API if we don't have it yet
+        # Calculate the directory hash locally
+        # We know the file content and structure, so we can compute the IPFS directory hash
+        directory_hash = None
         error_messages = []
         
+        try:
+            # Create a temporary directory structure
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # Create the domain directory
+                domain_dir = os.path.join(temp_dir, domain)
+                os.makedirs(domain_dir, exist_ok=True)
+                
+                # Create the .well-known directory
+                well_known_dir = os.path.join(domain_dir, '.well-known')
+                os.makedirs(well_known_dir, exist_ok=True)
+                
+                # Write the DID file
+                did_file = os.path.join(well_known_dir, 'atproto-did')
+                with open(did_file, 'wb') as f:
+                    f.write(file_content)
+                
+                # Calculate the directory hash locally using IPFS libraries
+                # We'll construct the UnixFS directory structure and calculate the CID
+                try:
+                    # Method 1: Try using ipfshttpclient (requires IPFS node)
+                    import ipfshttpclient
+                    client = ipfshttpclient.Client()
+                    result = client.add(domain_dir, recursive=True, only_hash=True)
+                    if result:
+                        directory_hash = result[-1]['Hash']
+                except (ImportError, Exception) as e:
+                    # Method 2: Fallback to subprocess ipfs command
+                    try:
+                        import subprocess
+                        result = subprocess.run(
+                            ['ipfs', 'add', '-r', '--only-hash', '-Q', domain_dir],
+                            capture_output=True,
+                            text=True,
+                            timeout=10
+                        )
+                        if result.returncode == 0:
+                            directory_hash = result.stdout.strip()
+                        else:
+                            error_messages.append(f"ipfs command failed: {result.stderr}")
+                    except FileNotFoundError:
+                        # Method 3: Pure Python calculation using IPFS libraries
+                        # This requires constructing UnixFS protobuf structures
+                        try:
+                            from multihash import encode as multihash_encode
+                            from multihash import decode as multihash_decode
+                            import hashlib
+                            import base58
+                            
+                            # Calculate file CID first
+                            file_hash = hashlib.sha256(file_content).digest()
+                            file_multihash = multihash_encode(file_hash, 0x12)  # SHA-256
+                            
+                            # For directories, we need to construct UnixFS protobuf
+                            # This is complex - for now, let's use a simpler approach:
+                            # Calculate the directory hash by hashing the directory structure
+                            # Note: This is a simplified approach and may not match IPFS exactly
+                            # For production, we'd need to construct proper UnixFS protobuf
+                            
+                            error_messages.append("Pure Python IPFS calculation not fully implemented. Please install IPFS (https://ipfs.io) or ensure ipfshttpclient can connect to a node.")
+                        except ImportError:
+                            error_messages.append("IPFS libraries not available. Please install IPFS (https://ipfs.io) or ipfshttpclient.")
+                        except Exception as e3:
+                            error_messages.append(f"Pure Python calculation error: {str(e3)}")
+                    
+                    if not directory_hash:
+                        error_messages.append(f"ipfshttpclient error: {str(e)}")
+        
+        except Exception as e:
+            error_messages.append(f"Directory hash calculation error: {str(e)}")
+        
+        # If local calculation failed, try IPFS RPC API as fallback
         if not directory_hash:
             try:
                 if FILEBASE_IPFS_RPC_KEY:
