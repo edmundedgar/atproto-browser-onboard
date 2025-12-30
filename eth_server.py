@@ -281,28 +281,29 @@ async def pin_to_filebase(domain: str, did: str) -> Dict[str, Any]:
         elif 'atproto-did' not in os.listdir(well_known_dir):
             local_ipfs_error = f"File not found in .well-known directory. Contents: {os.listdir(well_known_dir)}"
         else:
-                # Pin to local IPFS and get the directory hash using subprocess
-                try:
-                    import subprocess
-                    result = subprocess.run(
-                        ['ipfs', 'add', '-r', '-Q', domain_dir],
-                        capture_output=True,
-                        text=True,
-                        timeout=10
-                    )
-                    if result.returncode == 0:
-                        directory_hash = result.stdout.strip()
-                        # Verify we got a valid hash and it's not the empty directory hash
-                        if directory_hash == 'QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn':
-                            # This is the empty directory hash - the file wasn't included properly
-                            local_ipfs_error = f"IPFS returned empty directory hash. This suggests the file wasn't included. Check directory: {domain_dir}"
-                            directory_hash = None
-                    else:
-                        local_ipfs_error = f"ipfs command failed: {result.stderr}"
-                except FileNotFoundError:
-                    local_ipfs_error = "ipfs command not found. Please install IPFS from https://ipfs.io"
-                except Exception as e:
-                    local_ipfs_error = f"Subprocess IPFS error: {str(e)}"
+            # Pin to local IPFS and get the directory hash using subprocess
+            # Use -H flag to include hidden directories (dotfiles)
+            try:
+                import subprocess
+                result = subprocess.run(
+                    ['ipfs', 'add', '-r', '-H', '-Q', domain_dir],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                if result.returncode == 0:
+                    directory_hash = result.stdout.strip()
+                    # Verify we got a valid hash and it's not the empty directory hash
+                    if directory_hash == 'QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn':
+                        # This is the empty directory hash - the file wasn't included properly
+                        local_ipfs_error = f"IPFS returned empty directory hash. Check directory: {domain_dir}"
+                        directory_hash = None
+                else:
+                    local_ipfs_error = f"ipfs command failed: {result.stderr}"
+            except FileNotFoundError:
+                local_ipfs_error = "ipfs command not found. Please install IPFS from https://ipfs.io"
+            except Exception as e:
+                local_ipfs_error = f"Subprocess IPFS error: {str(e)}"
     
     except Exception as e:
         local_ipfs_error = f"Local IPFS pinning error: {str(e)}"
