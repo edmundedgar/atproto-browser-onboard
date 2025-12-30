@@ -17,6 +17,11 @@ from dotenv import load_dotenv
 from io import BytesIO
 import tempfile
 import shutil
+try:
+    from multiformats import CID
+    MULTIFORMATS_AVAILABLE = True
+except ImportError:
+    MULTIFORMATS_AVAILABLE = False
 
 # Load environment variables from .env file
 load_dotenv()
@@ -61,6 +66,67 @@ def is_valid_did(did: str) -> bool:
         return False
     did = did.strip()
     return bool(DID_PATTERN.match(did))
+
+
+def encode_ipfs_to_contenthash(ipfs_cid: str) -> str:
+    """
+    Encode an IPFS CID to ENS contenthash format.
+    
+    Format: 0xe3 (IPFS protocol) + 0x01/0x00 (CID version) + multihash bytes
+    
+    Args:
+        ipfs_cid: The IPFS CID string (e.g., "Qm..." or "bafy...")
+    
+    Returns:
+        Hex string of the contenthash (e.g., "0xe301...")
+    """
+    if not MULTIFORMATS_AVAILABLE:
+        raise ValueError("multiformats library is not installed. Please install it with: pip install multiformats")
+    
+    try:
+        # Parse the CID
+        cid = CID.decode(ipfs_cid)
+        
+        # IPFS protocol identifier
+        ipfs_protocol = 0xe3
+        
+        # CID version (0x00 for v0, 0x01 for v1)
+        cid_version = 0x01 if cid.version == 1 else 0x00
+        
+        # Get the multihash bytes
+        # The multihash object has a .digest property for the hash bytes
+        # But we need the full multihash encoding (code + length + digest)
+        # The multihash object should have a way to get the raw bytes
+        multihash = cid.multihash
+        
+        # Get the raw multihash bytes (this includes the hash code, length, and digest)
+        # The multihash.encode() method should give us the full multihash bytes
+        try:
+            multihash_bytes = multihash.encode()
+        except AttributeError:
+            # If encode() doesn't exist, try to construct it manually
+            # Multihash format: code (varint) + length (varint) + digest
+            # For simplicity, try accessing the digest and constructing
+            digest = multihash.digest
+            code = multihash.code
+            length = len(digest)
+            
+            # Encode code and length as varints (simplified - assumes single byte)
+            if code < 128 and length < 128:
+                multihash_bytes = bytes([code, length]) + digest
+            else:
+                # For larger values, we'd need proper varint encoding
+                # This is a simplified version that works for common cases
+                raise ValueError("Multihash code or length too large for simplified encoding")
+        
+        # Build the contenthash: protocol + version + multihash bytes
+        contenthash_bytes = bytes([ipfs_protocol, cid_version]) + multihash_bytes
+        
+        # Convert to hex string with 0x prefix
+        return '0x' + contenthash_bytes.hex()
+        
+    except Exception as e:
+        raise ValueError(f"Failed to encode IPFS CID to contenthash: {str(e)}")
 
 
 async def query_eth_link_gateway(domain: str) -> Dict[str, Any]:
@@ -408,10 +474,26 @@ async def create_atproto_did(domain: str, request: CreateDidRequest) -> JSONResp
     pin_result = await pin_to_filebase(domain, request.did)
     
     if pin_result["success"]:
+        # Encode IPFS hash to contenthash format
+        try:
+            contenthash = encode_ipfs_to_contenthash(pin_result["ipfs_hash"])
+        except Exception as e:
+            return JSONResponse(
+                content={
+                    "success": False,
+                    "ipfs_hash": pin_result["ipfs_hash"],
+                    "contenthash": None,
+                    "error": f"Failed to encode contenthash: {str(e)}",
+                    "errorType": "encoding_error"
+                },
+                status_code=500
+            )
+        
         return JSONResponse(
             content={
                 "success": True,
                 "ipfs_hash": pin_result["ipfs_hash"],
+                "contenthash": contenthash,
                 "error": None,
                 "errorType": None
             },

@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Set up .eth Domain</title>
+    <link rel="icon" href="data:,">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+            background: #0a0a0a;
+            background-image: 
+                radial-gradient(circle at 20% 50%, rgba(0, 255, 136, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(0, 162, 255, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 40% 20%, rgba(138, 43, 226, 0.1) 0%, transparent 50%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            padding: 40px;
+            max-width: 1200px;
+            width: 100%;
+            text-align: center;
+        }
+
+        h1 {
+            color: #ffffff;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            font-weight: 700;
+            letter-spacing: 2px;
+        }
+
+        .subtitle {
+            color: #a0a0a0;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+            font-weight: 400;
+        }
+
+        .info-box {
+            border: 1px solid #ffffff;
+            border-radius: 4px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+            background: #0f1f1a;
+        }
+
+        .info-box h3 {
+            color: #ffffff;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            letter-spacing: 2px;
+        }
+
+        .info-item {
+            margin: 15px 0;
+        }
+
+        .info-label {
+            color: #a0a0a0;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .info-value {
+            color: #ffffff;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            word-break: break-all;
+            padding: 10px;
+            background: #0a0a0a;
+            border: 1px solid #ffffff;
+            border-radius: 4px;
+        }
+
+        .status {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 5px;
+            font-weight: 500;
+        }
+
+        .status.error {
+            background: #1f0f0f;
+            color: #ff4444;
+            border: 1px solid #ff4444;
+        }
+
+        .status.success {
+            background: #0f1f1a;
+            color: #00ff88;
+            border: 1px solid #00ff88;
+        }
+
+        .status.loading {
+            background: #1a1a1a;
+            color: #ffffff;
+            border: 1px solid #ffffff;
+        }
+
+        .setup-btn {
+            background: #0a0a0a;
+            color: #ffffff;
+            border: 1px solid #ffffff;
+            padding: 15px 30px;
+            font-size: 1.1em;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 20px 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
+        }
+
+        .setup-btn:hover {
+            background: #ffffff;
+            color: #0a0a0a;
+            transform: translateY(-2px);
+        }
+
+        .setup-btn:active {
+            transform: translateY(0);
+        }
+
+        .setup-btn:disabled {
+            background: #1a1a1a;
+            color: #666;
+            border-color: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Set up .eth Domain</h1>
+        <p class="subtitle">Connect your ENS domain to your ATProto account</p>
+        
+        <div id="content"></div>
+    </div>
+
+    <!-- Load ethers.js -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6/dist/ethers.umd.min.js"></script>
+
+    <script>
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const did = urlParams.get('did');
+        const account = urlParams.get('account');
+
+        const contentDiv = document.getElementById('content');
+
+        // Check if parameters are missing
+        if (!did || !account) {
+            const missingParams = [];
+            if (!did) missingParams.push('did');
+            if (!account) missingParams.push('account');
+            
+            contentDiv.innerHTML = `
+                <div class="status error">
+                    <strong>Error: Missing required parameters</strong><br>
+                    The following parameters are missing: ${missingParams.join(', ')}<br>
+                    Please return to the account creation page and try again.
+                </div>
+            `;
+        } else {
+            // Show loading state
+            contentDiv.innerHTML = `
+                <div class="status loading">
+                    Checking domain status...
+                </div>
+            `;
+
+            // Check server for current status
+            checkDomainStatus(account, did);
+        }
+
+        async function checkDomainStatus(domain, expectedDid) {
+            try {
+                const url = `https://ens.goat.navy/atproto-did/${encodeURIComponent(domain)}`;
+                const response = await fetch(url);
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    
+                    if (result.success && result.did === expectedDid) {
+                        // Domain is already set up with the expected DID
+                        contentDiv.innerHTML = `
+                            <div class="status success">
+                                <strong>✓ Setup Complete</strong><br>
+                                The domain <strong>${domain}</strong> is already configured with the expected DID.<br>
+                                Your .eth domain is ready to use!
+                            </div>
+                            <div class="info-box">
+                                <h3>Account Information</h3>
+                                <div class="info-item">
+                                    <div class="info-label">Account Name</div>
+                                    <div class="info-value">${account}</div>
+                                </div>
+                                <div class="info-item">
+                                    <div class="info-label">DID:PLC Identifier</div>
+                                    <div class="info-value">${did}</div>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        // Domain not set up or has different DID
+                        showAccountInfo(account, did, result);
+                    }
+                } else {
+                    // Server error
+                    showAccountInfo(account, did, { error: 'Failed to check domain status' });
+                }
+            } catch (error) {
+                console.error('Error checking domain status:', error);
+                showAccountInfo(account, did, { error: error.message });
+            }
+        }
+
+        function showAccountInfo(account, did, statusResult) {
+            let statusMessage = '';
+            if (statusResult.error) {
+                statusMessage = `
+                    <div class="status error">
+                        <strong>Status Check Failed</strong><br>
+                        ${statusResult.error}
+                    </div>
+                `;
+            }
+            
+            contentDiv.innerHTML = `
+                ${statusMessage}
+                <div class="info-box">
+                    <h3>Account Information</h3>
+                    <div class="info-item">
+                        <div class="info-label">Account Name</div>
+                        <div class="info-value">${account}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">DID:PLC Identifier</div>
+                        <div class="info-value">${did}</div>
+                    </div>
+                </div>
+                <button id="setup-contenthash-btn" class="setup-btn">
+                    Set up Content Hash
+                </button>
+                <div id="setup-status"></div>
+            `;
+
+            // Add click handler for setup button
+            const setupBtn = document.getElementById('setup-contenthash-btn');
+            if (setupBtn) {
+                setupBtn.addEventListener('click', () => setupContenthash(account, did));
+            }
+        }
+
+        // ENS Registry address (same for Mainnet and Sepolia)
+        const ENS_REGISTRY_ADDRESS = '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e';
+
+        // Minimal ABIs for the contracts we need
+        const REGISTRY_ABI = [
+            "function resolver(bytes32 node) view returns (address)"
+        ];
+
+        const RESOLVER_ABI = [
+            "function setContenthash(bytes32 node, bytes hash)"
+        ];
+
+        async function setupContenthash(domain, did) {
+            const setupBtn = document.getElementById('setup-contenthash-btn');
+            const statusDiv = document.getElementById('setup-status');
+
+            try {
+                // Check if MetaMask is installed
+                if (typeof window.ethereum === 'undefined') {
+                    statusDiv.innerHTML = `
+                        <div class="status error">
+                            <strong>MetaMask Not Found</strong><br>
+                            Please install MetaMask or another Ethereum wallet to continue.
+                        </div>
+                    `;
+                    return;
+                }
+
+                // Disable button and show loading
+                if (setupBtn) setupBtn.disabled = true;
+                statusDiv.innerHTML = `
+                    <div class="status loading">
+                        Connecting wallet...
+                    </div>
+                `;
+
+                // Connect to wallet
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const signer = await provider.getSigner();
+                const network = await provider.getNetwork();
+
+                statusDiv.innerHTML = `
+                    <div class="status loading">
+                        Creating IPFS record...
+                    </div>
+                `;
+
+                // Step 1: Create and pin the DID file to get IPFS hash
+                const ipfsResponse = await fetch(`https://ens.goat.navy/atproto-did/${encodeURIComponent(domain)}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        domain: domain,
+                        did: did
+                    })
+                });
+
+                if (!ipfsResponse.ok) {
+                    const errorData = await ipfsResponse.json();
+                    throw new Error(errorData.error || 'Failed to create IPFS record');
+                }
+
+                const ipfsData = await ipfsResponse.json();
+                if (!ipfsData.success || !ipfsData.contenthash) {
+                    throw new Error(ipfsData.error || 'Failed to get contenthash from server');
+                }
+
+                const contenthash = ipfsData.contenthash;
+                console.log('Contenthash from server:', contenthash);
+
+                statusDiv.innerHTML = `
+                    <div class="status loading">
+                        Getting resolver address...
+                    </div>
+                `;
+
+                // Step 3: Get the resolver address for the domain
+                const registry = new ethers.Contract(ENS_REGISTRY_ADDRESS, REGISTRY_ABI, provider);
+                const namehash = ethers.namehash(domain);
+                const resolverAddress = await registry.resolver(namehash);
+
+                if (!resolverAddress || resolverAddress === '0x0000000000000000000000000000000000000000') {
+                    throw new Error('No resolver set for this domain. Please set a resolver first in the ENS Manager app.');
+                }
+
+                console.log('Resolver address:', resolverAddress);
+
+                statusDiv.innerHTML = `
+                    <div class="status loading">
+                        Setting contenthash on blockchain...<br>
+                        <small>Please confirm the transaction in your wallet</small>
+                    </div>
+                `;
+
+                // Step 4: Set the contenthash on the resolver
+                const resolver = new ethers.Contract(resolverAddress, RESOLVER_ABI, signer);
+                const tx = await resolver.setContenthash(namehash, contenthash);
+
+                statusDiv.innerHTML = `
+                    <div class="status loading">
+                        Transaction sent! Waiting for confirmation...<br>
+                        <small>Transaction hash: ${tx.hash}</small>
+                    </div>
+                `;
+
+                // Wait for transaction confirmation
+                const receipt = await tx.wait();
+
+                if (receipt.status === 1) {
+                    statusDiv.innerHTML = `
+                        <div class="status success">
+                            <strong>✓ Contenthash Set Successfully!</strong><br>
+                            Transaction confirmed in block ${receipt.blockNumber}<br>
+                            <small>Transaction hash: ${tx.hash}</small><br><br>
+                            Your ENS domain is now configured. It may take a few minutes for the changes to propagate.
+                        </div>
+                    `;
+                    if (setupBtn) setupBtn.style.display = 'none';
+                    
+                    // Refresh the page status after a short delay
+                    setTimeout(() => {
+                        checkDomainStatus(account, did);
+                    }, 2000);
+                } else {
+                    throw new Error('Transaction failed');
+                }
+
+            } catch (error) {
+                console.error('Error setting contenthash:', error);
+                statusDiv.innerHTML = `
+                    <div class="status error">
+                        <strong>Error Setting Contenthash</strong><br>
+                        ${error.message}
+                    </div>
+                `;
+                if (setupBtn) setupBtn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
+
