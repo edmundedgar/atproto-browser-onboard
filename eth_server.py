@@ -327,26 +327,26 @@ async def pin_to_filebase(domain: str, did: str) -> Dict[str, Any]:
                                 directory_hash = None
                             elif not directory_hash:
                                 local_ipfs_error = f"Failed to extract directory hash from IPFS result: {result}"
-            except ImportError:
-                # Fallback to subprocess ipfs command
-                try:
-                    import subprocess
-                    result = subprocess.run(
-                        ['ipfs', 'add', '-r', '-Q', domain_dir],
-                        capture_output=True,
-                        text=True,
-                        timeout=10
-                    )
-                    if result.returncode == 0:
-                        directory_hash = result.stdout.strip()
-                    else:
-                        local_ipfs_error = f"ipfs command failed: {result.stderr}"
-                except FileNotFoundError:
-                    local_ipfs_error = "ipfs command not found. Please install IPFS (https://ipfs.io) or ensure ipfshttpclient is installed."
+                except ImportError:
+                    # Fallback to subprocess ipfs command
+                    try:
+                        import subprocess
+                        result = subprocess.run(
+                            ['ipfs', 'add', '-r', '-Q', domain_dir],
+                            capture_output=True,
+                            text=True,
+                            timeout=10
+                        )
+                        if result.returncode == 0:
+                            directory_hash = result.stdout.strip()
+                        else:
+                            local_ipfs_error = f"ipfs command failed: {result.stderr}"
+                    except FileNotFoundError:
+                        local_ipfs_error = "ipfs command not found. Please install IPFS (https://ipfs.io) or ensure ipfshttpclient is installed."
+                    except Exception as e:
+                        local_ipfs_error = f"Subprocess IPFS error: {str(e)}"
                 except Exception as e:
-                    local_ipfs_error = f"Subprocess IPFS error: {str(e)}"
-            except Exception as e:
-                local_ipfs_error = f"ipfshttpclient error: {str(e)}"
+                    local_ipfs_error = f"ipfshttpclient error: {str(e)}"
     
     except Exception as e:
         local_ipfs_error = f"Local IPFS pinning error: {str(e)}"
