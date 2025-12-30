@@ -244,109 +244,65 @@ async def pin_to_filebase(domain: str, did: str) -> Dict[str, Any]:
     
     try:
         # Create a temporary directory structure
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create the domain directory
-            domain_dir = os.path.join(temp_dir, domain)
-            os.makedirs(domain_dir, exist_ok=True)
-            
-            # Create the .well-known directory
-            well_known_dir = os.path.join(domain_dir, '.well-known')
-            os.makedirs(well_known_dir, exist_ok=True)
-            
-            # Write the DID file
-            did_file = os.path.join(well_known_dir, 'atproto-did')
-            with open(did_file, 'wb') as f:
-                f.write(file_content)
-                f.flush()
-                os.fsync(f.fileno())  # Ensure file is written to disk
-            
-            # Verify the file exists and has content before adding to IPFS
-            # Also verify the directory structure is correct
-            if not os.path.exists(did_file):
-                local_ipfs_error = f"File was not created: {did_file}"
-            elif os.path.getsize(did_file) == 0:
-                local_ipfs_error = f"File is empty: {did_file}"
-            elif os.path.getsize(did_file) != len(file_content):
-                local_ipfs_error = f"File size mismatch: expected {len(file_content)}, got {os.path.getsize(did_file)}"
-            elif not os.path.exists(well_known_dir):
-                local_ipfs_error = f".well-known directory does not exist: {well_known_dir}"
-            elif 'atproto-did' not in os.listdir(well_known_dir):
-                local_ipfs_error = f"File not found in .well-known directory. Contents: {os.listdir(well_known_dir)}"
-            else:
-                # Pin to local IPFS and get the directory hash
+        # Use a fixed location for debugging - files will be kept for inspection
+        import time
+        debug_dir = os.path.join('/tmp', f'ipfs_debug_{domain}_{int(time.time())}')
+        os.makedirs(debug_dir, exist_ok=True)
+        temp_dir = debug_dir
+        print(f"DEBUG: Temporary directory created at: {temp_dir}")
+        # Uncomment the line below to use proper temp directory that gets deleted:
+        # with tempfile.TemporaryDirectory() as temp_dir:
+        
+        # Create the domain directory
+        domain_dir = os.path.join(temp_dir, domain)
+        os.makedirs(domain_dir, exist_ok=True)
+        
+        # Create the .well-known directory
+        well_known_dir = os.path.join(domain_dir, '.well-known')
+        os.makedirs(well_known_dir, exist_ok=True)
+        
+        # Write the DID file
+        did_file = os.path.join(well_known_dir, 'atproto-did')
+        with open(did_file, 'wb') as f:
+            f.write(file_content)
+            f.flush()
+            os.fsync(f.fileno())  # Ensure file is written to disk
+        
+        # Verify the file exists and has content before adding to IPFS
+        # Also verify the directory structure is correct
+        if not os.path.exists(did_file):
+            local_ipfs_error = f"File was not created: {did_file}"
+        elif os.path.getsize(did_file) == 0:
+            local_ipfs_error = f"File is empty: {did_file}"
+        elif os.path.getsize(did_file) != len(file_content):
+            local_ipfs_error = f"File size mismatch: expected {len(file_content)}, got {os.path.getsize(did_file)}"
+        elif not os.path.exists(well_known_dir):
+            local_ipfs_error = f".well-known directory does not exist: {well_known_dir}"
+        elif 'atproto-did' not in os.listdir(well_known_dir):
+            local_ipfs_error = f"File not found in .well-known directory. Contents: {os.listdir(well_known_dir)}"
+        else:
+                # Pin to local IPFS and get the directory hash using subprocess
                 try:
-                    import ipfshttpclient
-                    client = ipfshttpclient.Client()
-                    # Add the directory (this pins it) and get the hash
-                    # The result is a list of dicts, one for each file/directory added
-                    # When adding recursively, the order is typically:
-                    # - Files first (deepest first)
-                    # - Then directories (deepest first)
-                    # - Finally the root directory (last item)
-                    result = client.add(domain_dir, recursive=True)
-                    if result:
-                        # When adding recursively, IPFS returns items in order:
-                        # 1. Files (deepest first): e.g., "test.eth/.well-known/atproto-did"
-                        # 2. Directories (deepest first): e.g., "test.eth/.well-known"
-                        # 3. Root directory (last): e.g., "test.eth"
-                        # 
-                        # First, verify the file was included in the result
-                        file_found = False
-                        for item in result:
-                            name = item.get('Name', '')
-                            if 'atproto-did' in name and os.sep.join(['.well-known', 'atproto-did']) in name:
-                                file_found = True
-                                break
-                        
-                        if not file_found:
-                            local_ipfs_error = f"File 'atproto-did' was not found in IPFS add result. Items: {[r.get('Name') for r in result]}"
-                        else:
-                            # Find the root directory hash
-                            # The root directory should be the last item, or the one matching the domain name
-                            root_item = None
-                            for item in result:
-                                # The 'Name' field contains the relative path from the added directory
-                                # For the root directory, it should be just the basename
-                                name = item.get('Name', '')
-                                # Check if this is the root directory (no path separators, or matches basename)
-                                if name == os.path.basename(domain_dir) or (os.sep not in name and name == domain):
-                                    root_item = item
-                                    break
-                            
-                            # If we found the root item, use it
-                            if root_item:
-                                directory_hash = root_item.get('Hash')
-                            else:
-                                # Fallback: use the last item (should be root directory)
-                                directory_hash = result[-1].get('Hash')
-                            
-                            # Verify we got a valid hash and it's not the empty directory hash
-                            if directory_hash == 'QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn':
-                                # This is the empty directory hash - the file wasn't included properly
-                                local_ipfs_error = f"IPFS returned empty directory hash despite file being in result. This suggests a directory structure issue. Result: {[{'Name': r.get('Name'), 'Hash': r.get('Hash')} for r in result]}"
-                                directory_hash = None
-                            elif not directory_hash:
-                                local_ipfs_error = f"Failed to extract directory hash from IPFS result: {result}"
-                except ImportError:
-                    # Fallback to subprocess ipfs command
-                    try:
-                        import subprocess
-                        result = subprocess.run(
-                            ['ipfs', 'add', '-r', '-Q', domain_dir],
-                            capture_output=True,
-                            text=True,
-                            timeout=10
-                        )
-                        if result.returncode == 0:
-                            directory_hash = result.stdout.strip()
-                        else:
-                            local_ipfs_error = f"ipfs command failed: {result.stderr}"
-                    except FileNotFoundError:
-                        local_ipfs_error = "ipfs command not found. Please install IPFS (https://ipfs.io) or ensure ipfshttpclient is installed."
-                    except Exception as e:
-                        local_ipfs_error = f"Subprocess IPFS error: {str(e)}"
+                    import subprocess
+                    result = subprocess.run(
+                        ['ipfs', 'add', '-r', '-Q', domain_dir],
+                        capture_output=True,
+                        text=True,
+                        timeout=10
+                    )
+                    if result.returncode == 0:
+                        directory_hash = result.stdout.strip()
+                        # Verify we got a valid hash and it's not the empty directory hash
+                        if directory_hash == 'QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn':
+                            # This is the empty directory hash - the file wasn't included properly
+                            local_ipfs_error = f"IPFS returned empty directory hash. This suggests the file wasn't included. Check directory: {domain_dir}"
+                            directory_hash = None
+                    else:
+                        local_ipfs_error = f"ipfs command failed: {result.stderr}"
+                except FileNotFoundError:
+                    local_ipfs_error = "ipfs command not found. Please install IPFS from https://ipfs.io"
                 except Exception as e:
-                    local_ipfs_error = f"ipfshttpclient error: {str(e)}"
+                    local_ipfs_error = f"Subprocess IPFS error: {str(e)}"
     
     except Exception as e:
         local_ipfs_error = f"Local IPFS pinning error: {str(e)}"
