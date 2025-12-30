@@ -244,66 +244,58 @@ async def pin_to_filebase(domain: str, did: str) -> Dict[str, Any]:
     
     try:
         # Create a temporary directory structure
-        # Use a fixed location for debugging - files will be kept for inspection
-        import time
-        debug_dir = os.path.join('/tmp', f'ipfs_debug_{domain}_{int(time.time())}')
-        os.makedirs(debug_dir, exist_ok=True)
-        temp_dir = debug_dir
-        print(f"DEBUG: Temporary directory created at: {temp_dir}")
-        # Uncomment the line below to use proper temp directory that gets deleted:
-        # with tempfile.TemporaryDirectory() as temp_dir:
-        
-        # Create the domain directory
-        domain_dir = os.path.join(temp_dir, domain)
-        os.makedirs(domain_dir, exist_ok=True)
-        
-        # Create the .well-known directory
-        well_known_dir = os.path.join(domain_dir, '.well-known')
-        os.makedirs(well_known_dir, exist_ok=True)
-        
-        # Write the DID file
-        did_file = os.path.join(well_known_dir, 'atproto-did')
-        with open(did_file, 'wb') as f:
-            f.write(file_content)
-            f.flush()
-            os.fsync(f.fileno())  # Ensure file is written to disk
-        
-        # Verify the file exists and has content before adding to IPFS
-        # Also verify the directory structure is correct
-        if not os.path.exists(did_file):
-            local_ipfs_error = f"File was not created: {did_file}"
-        elif os.path.getsize(did_file) == 0:
-            local_ipfs_error = f"File is empty: {did_file}"
-        elif os.path.getsize(did_file) != len(file_content):
-            local_ipfs_error = f"File size mismatch: expected {len(file_content)}, got {os.path.getsize(did_file)}"
-        elif not os.path.exists(well_known_dir):
-            local_ipfs_error = f".well-known directory does not exist: {well_known_dir}"
-        elif 'atproto-did' not in os.listdir(well_known_dir):
-            local_ipfs_error = f"File not found in .well-known directory. Contents: {os.listdir(well_known_dir)}"
-        else:
-            # Pin to local IPFS and get the directory hash using subprocess
-            # Use -H flag to include hidden directories (dotfiles)
-            try:
-                import subprocess
-                result = subprocess.run(
-                    ['ipfs', 'add', '-r', '-H', '-Q', domain_dir],
-                    capture_output=True,
-                    text=True,
-                    timeout=10
-                )
-                if result.returncode == 0:
-                    directory_hash = result.stdout.strip()
-                    # Verify we got a valid hash and it's not the empty directory hash
-                    if directory_hash == 'QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn':
-                        # This is the empty directory hash - the file wasn't included properly
-                        local_ipfs_error = f"IPFS returned empty directory hash. Check directory: {domain_dir}"
-                        directory_hash = None
-                else:
-                    local_ipfs_error = f"ipfs command failed: {result.stderr}"
-            except FileNotFoundError:
-                local_ipfs_error = "ipfs command not found. Please install IPFS from https://ipfs.io"
-            except Exception as e:
-                local_ipfs_error = f"Subprocess IPFS error: {str(e)}"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Create the domain directory
+            domain_dir = os.path.join(temp_dir, domain)
+            os.makedirs(domain_dir, exist_ok=True)
+            
+            # Create the .well-known directory
+            well_known_dir = os.path.join(domain_dir, '.well-known')
+            os.makedirs(well_known_dir, exist_ok=True)
+            
+            # Write the DID file
+            did_file = os.path.join(well_known_dir, 'atproto-did')
+            with open(did_file, 'wb') as f:
+                f.write(file_content)
+                f.flush()
+                os.fsync(f.fileno())  # Ensure file is written to disk
+            
+            # Verify the file exists and has content before adding to IPFS
+            # Also verify the directory structure is correct
+            if not os.path.exists(did_file):
+                local_ipfs_error = f"File was not created: {did_file}"
+            elif os.path.getsize(did_file) == 0:
+                local_ipfs_error = f"File is empty: {did_file}"
+            elif os.path.getsize(did_file) != len(file_content):
+                local_ipfs_error = f"File size mismatch: expected {len(file_content)}, got {os.path.getsize(did_file)}"
+            elif not os.path.exists(well_known_dir):
+                local_ipfs_error = f".well-known directory does not exist: {well_known_dir}"
+            elif 'atproto-did' not in os.listdir(well_known_dir):
+                local_ipfs_error = f"File not found in .well-known directory. Contents: {os.listdir(well_known_dir)}"
+            else:
+                # Pin to local IPFS and get the directory hash using subprocess
+                # Use -H flag to include hidden directories (dotfiles)
+                try:
+                    import subprocess
+                    result = subprocess.run(
+                        ['ipfs', 'add', '-r', '-H', '-Q', domain_dir],
+                        capture_output=True,
+                        text=True,
+                        timeout=10
+                    )
+                    if result.returncode == 0:
+                        directory_hash = result.stdout.strip()
+                        # Verify we got a valid hash and it's not the empty directory hash
+                        if directory_hash == 'QmUNLLsPACCz1vLxQVkXqqLX5R1X345qqfHbsf67hvA3Nn':
+                            # This is the empty directory hash - the file wasn't included properly
+                            local_ipfs_error = f"IPFS returned empty directory hash. Check directory: {domain_dir}"
+                            directory_hash = None
+                    else:
+                        local_ipfs_error = f"ipfs command failed: {result.stderr}"
+                except FileNotFoundError:
+                    local_ipfs_error = "ipfs command not found. Please install IPFS from https://ipfs.io"
+                except Exception as e:
+                    local_ipfs_error = f"Subprocess IPFS error: {str(e)}"
     
     except Exception as e:
         local_ipfs_error = f"Local IPFS pinning error: {str(e)}"
