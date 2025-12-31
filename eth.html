@@ -275,7 +275,8 @@
 
         // Minimal ABIs for the contracts we need
         const REGISTRY_ABI = [
-            "function resolver(bytes32 node) view returns (address)"
+            "function resolver(bytes32 node) view returns (address)",
+            "function owner(bytes32 node) view returns (address)"
         ];
 
         const RESOLVER_ABI = [
@@ -310,6 +311,27 @@
                 const provider = new ethers.BrowserProvider(window.ethereum);
                 const signer = await provider.getSigner();
                 const network = await provider.getNetwork();
+                
+                console.log('Connected to network:', network.name, 'Chain ID:', network.chainId);
+                
+                // Warn if on mainnet (costs real money)
+                if (network.chainId === 1n) {
+                    const useMainnet = confirm(
+                        'You are connected to Ethereum Mainnet. This will cost real ETH.\n\n' +
+                        'For testing, switch to Sepolia testnet in MetaMask.\n\n' +
+                        'Click OK to continue on Mainnet, or Cancel to switch networks.'
+                    );
+                    if (!useMainnet) {
+                        statusDiv.innerHTML = `
+                            <div class="status error">
+                                <strong>Please Switch Networks</strong><br>
+                                Switch MetaMask to Sepolia testnet and try again.
+                            </div>
+                        `;
+                        if (setupBtn) setupBtn.disabled = false;
+                        return;
+                    }
+                }
 
                 statusDiv.innerHTML = `
                     <div class="status loading">
@@ -351,13 +373,73 @@
                 // Step 3: Get the resolver address for the domain
                 const registry = new ethers.Contract(ENS_REGISTRY_ADDRESS, REGISTRY_ABI, provider);
                 const namehash = ethers.namehash(domain);
+                
+                // First check if the domain exists (has an owner)
+                const owner = await registry.owner(namehash);
+                console.log('Domain owner:', owner);
+                console.log('Domain being queried:', domain);
+                console.log('Namehash:', namehash);
+                console.log('Network:', network.name, 'Chain ID:', network.chainId);
+                
+                // Check if domain exists
+                const zeroAddr = ethers.ZeroAddress || '0x0000000000000000000000000000000000000000';
+                const ownerNormalized = ethers.getAddress ? ethers.getAddress(owner) : owner.toLowerCase();
+                const zeroAddrNormalized = ethers.getAddress ? ethers.getAddress(zeroAddr) : zeroAddr.toLowerCase();
+                
+                if (ownerNormalized === zeroAddrNormalized) {
+                    const networkName = network.name || `Chain ID ${network.chainId}`;
+                    const testnetUrl = network.chainId === 11155111n ? 'https://sepolia.app.ens.domains' : 
+                                      network.chainId === 17000n ? 'https://holesky.app.ens.domains' :
+                                      'https://app.ens.domains';
+                    throw new Error(
+                        `Domain "${domain}" is not registered on ${networkName}.\n\n` +
+                        `Please register the domain first:\n` +
+                        `1. Go to ${testnetUrl}\n` +
+                        `2. Search for "${domain}"\n` +
+                        `3. Register the domain if available\n` +
+                        `4. Set a resolver in the "Records" tab\n\n` +
+                        `Make sure you're on the ${networkName} network.`
+                    );
+                }
+                
                 const resolverAddress = await registry.resolver(namehash);
-
-                if (!resolverAddress || resolverAddress === '0x0000000000000000000000000000000000000000') {
-                    throw new Error('No resolver set for this domain. Please set a resolver first in the ENS Manager app.');
+                console.log('Resolver address (raw):', resolverAddress);
+                console.log('Resolver address type:', typeof resolverAddress);
+                
+                // Normalize the address using ethers.js
+                let normalizedResolverAddress;
+                try {
+                    // ethers.js v6: getAddress normalizes and validates
+                    normalizedResolverAddress = ethers.getAddress(resolverAddress);
+                } catch (e) {
+                    // Fallback: convert to string and lowercase
+                    normalizedResolverAddress = resolverAddress?.toString().toLowerCase() || '';
+                }
+                
+                // Check if resolver is set (compare with zero address)
+                const zeroAddr2 = ethers.ZeroAddress || '0x0000000000000000000000000000000000000000';
+                const zeroAddr2Normalized = ethers.getAddress ? ethers.getAddress(zeroAddr2) : zeroAddr2.toLowerCase();
+                
+                if (!normalizedResolverAddress || normalizedResolverAddress === zeroAddr2Normalized) {
+                    const networkName = network.name || `Chain ID ${network.chainId}`;
+                    const testnetUrl = network.chainId === 11155111n ? 'https://sepolia.app.ens.domains' : 
+                                      network.chainId === 17000n ? 'https://holesky.app.ens.domains' :
+                                      'https://app.ens.domains';
+                    throw new Error(
+                        `No resolver set for this domain on ${networkName}.\n\n` +
+                        `Please set a resolver first:\n` +
+                        `1. Go to ${testnetUrl}\n` +
+                        `2. Search for "${domain}"\n` +
+                        `3. Go to the "Records" tab\n` +
+                        `4. Set a resolver (you can use the Public Resolver)\n\n` +
+                        `Make sure you're on the ${networkName} network when setting the resolver.`
+                    );
                 }
 
-                console.log('Resolver address:', resolverAddress);
+                console.log('Resolver address (normalized):', normalizedResolverAddress);
+                
+                // Use normalized address for the contract
+                const finalResolverAddress = normalizedResolverAddress;
 
                 statusDiv.innerHTML = `
                     <div class="status loading">
@@ -367,7 +449,7 @@
                 `;
 
                 // Step 4: Set the contenthash on the resolver
-                const resolver = new ethers.Contract(resolverAddress, RESOLVER_ABI, signer);
+                const resolver = new ethers.Contract(finalResolverAddress, RESOLVER_ABI, signer);
                 const tx = await resolver.setContenthash(namehash, contenthash);
 
                 statusDiv.innerHTML = `
