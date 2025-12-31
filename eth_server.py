@@ -23,6 +23,13 @@ try:
 except ImportError:
     MULTIFORMATS_AVAILABLE = False
 
+# Try to import base58 for CIDv0 decoding fallback
+try:
+    import base58
+    BASE58_AVAILABLE = True
+except ImportError:
+    BASE58_AVAILABLE = False
+
 # Load environment variables from .env file
 load_dotenv()
 
@@ -94,30 +101,89 @@ def encode_ipfs_to_contenthash(ipfs_cid: str) -> str:
         cid_version = 0x01 if cid.version == 1 else 0x00
         
         # Get the multihash bytes
-        # The multihash object has a .digest property for the hash bytes
-        # But we need the full multihash encoding (code + length + digest)
-        # The multihash object should have a way to get the raw bytes
-        multihash = cid.multihash
+        # In multiformats 0.3.x, the API is different
+        # Try different ways to access the multihash
+        multihash_bytes = None
         
-        # Get the raw multihash bytes (this includes the hash code, length, and digest)
-        # The multihash.encode() method should give us the full multihash bytes
-        try:
-            multihash_bytes = multihash.encode()
-        except AttributeError:
-            # If encode() doesn't exist, try to construct it manually
-            # Multihash format: code (varint) + length (varint) + digest
-            # For simplicity, try accessing the digest and constructing
-            digest = multihash.digest
-            code = multihash.code
-            length = len(digest)
-            
-            # Encode code and length as varints (simplified - assumes single byte)
-            if code < 128 and length < 128:
-                multihash_bytes = bytes([code, length]) + digest
-            else:
-                # For larger values, we'd need proper varint encoding
-                # This is a simplified version that works for common cases
-                raise ValueError("Multihash code or length too large for simplified encoding")
+        # Method 1: Try accessing multihash attribute (newer versions)
+        if hasattr(cid, 'multihash'):
+            multihash = cid.multihash
+            if hasattr(multihash, 'encode'):
+                multihash_bytes = multihash.encode()
+            elif hasattr(multihash, 'bytes'):
+                multihash_bytes = multihash.bytes
+            elif hasattr(multihash, 'digest') and hasattr(multihash, 'code'):
+                # Construct manually: code (varint) + length (varint) + digest
+                digest = multihash.digest
+                code = multihash.code
+                length = len(digest)
+                # Simple varint encoding (assumes single byte for code and length)
+                if code < 128 and length < 128:
+                    multihash_bytes = bytes([code, length]) + digest
+                else:
+                    raise ValueError("Multihash code or length too large for simplified encoding")
+        
+        # Method 2: Try accessing through hash attribute (older versions)
+        if multihash_bytes is None and hasattr(cid, 'hash'):
+            hash_obj = cid.hash
+            if hasattr(hash_obj, 'encode'):
+                multihash_bytes = hash_obj.encode()
+            elif hasattr(hash_obj, 'bytes'):
+                multihash_bytes = hash_obj.bytes
+        
+        # Method 3: Try to get bytes directly from CID and extract multihash
+        if multihash_bytes is None:
+            # The CID bytes contain the multihash, but we need to extract it
+            # For CIDv0, the entire CID is the multihash
+            # For CIDv1, we need to skip the version and codec
+            try:
+                cid_bytes = bytes(cid)
+                if cid.version == 0:
+                    # CIDv0: the entire thing is the multihash
+                    multihash_bytes = cid_bytes
+                elif cid.version == 1:
+                    # CIDv1: skip version (1 byte) and codec (varint)
+                    # The codec for IPFS is 0x70 (dag-pb) or 0x71 (dag-cbor)
+                    # After that comes the multihash
+                    # This is complex, so let's try a simpler approach
+                    # Actually, we can use the CID's string representation and decode
+                    # But for now, let's try accessing the underlying multihash differently
+                    raise ValueError("CIDv1 multihash extraction not implemented for this multiformats version")
+            except (TypeError, AttributeError):
+                pass
+        
+        if multihash_bytes is None:
+            # Last resort: try to access any bytes-like attribute
+            for attr in ['bytes', 'raw_bytes', 'buffer', 'data']:
+                if hasattr(cid, attr):
+                    try:
+                        candidate = getattr(cid, attr)
+                        if isinstance(candidate, bytes):
+                            # For CIDv0, this might be the multihash directly
+                            if cid.version == 0:
+                                multihash_bytes = candidate
+                                break
+                    except:
+                        pass
+        
+        # Method 4: For CIDv0, decode from base58 directly (common case)
+        if multihash_bytes is None and cid.version == 0 and BASE58_AVAILABLE:
+            try:
+                # CIDv0 is just the multihash encoded in base58
+                multihash_bytes = base58.b58decode(ipfs_cid)
+            except Exception as e:
+                pass
+        
+        if multihash_bytes is None:
+            # Provide helpful error message
+            available_attrs = [x for x in dir(cid) if not x.startswith('_')]
+            raise ValueError(
+                f"Could not extract multihash from CID. "
+                f"CID version: {cid.version}, "
+                f"CID string: {ipfs_cid}, "
+                f"Available attributes: {available_attrs}. "
+                f"Consider installing base58 for CIDv0 support: pip install base58"
+            )
         
         # Build the contenthash: protocol + version + multihash bytes
         contenthash_bytes = bytes([ipfs_protocol, cid_version]) + multihash_bytes
