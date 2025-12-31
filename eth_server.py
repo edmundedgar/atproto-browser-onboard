@@ -17,18 +17,7 @@ from dotenv import load_dotenv
 from io import BytesIO
 import tempfile
 import shutil
-try:
-    from multiformats import CID
-    MULTIFORMATS_AVAILABLE = True
-except ImportError:
-    MULTIFORMATS_AVAILABLE = False
-
-# Try to import base58 for CIDv0 decoding fallback
-try:
-    import base58
-    BASE58_AVAILABLE = True
-except ImportError:
-    BASE58_AVAILABLE = False
+import content_hash
 
 # Load environment variables from .env file
 load_dotenv()
@@ -77,11 +66,7 @@ def is_valid_did(did: str) -> bool:
 
 def encode_ipfs_to_contenthash(ipfs_cid: str) -> str:
     """
-    Encode an IPFS CID to ENS contenthash format.
-    
-    According to ENSIP-7, the format is:
-    - For CIDv0: 0xe3 (IPFS) + 0x00 (version) + multihash bytes
-    - For CIDv1: 0xe3 (IPFS) + 0x01 (version) + codec (varint) + multihash bytes
+    Encode an IPFS CID to ENS contenthash format using the content-hash library.
     
     Args:
         ipfs_cid: The IPFS CID string (e.g., "Qm..." or "bafy...")
@@ -89,98 +74,12 @@ def encode_ipfs_to_contenthash(ipfs_cid: str) -> str:
     Returns:
         Hex string of the contenthash (e.g., "0xe301...")
     """
-    if not MULTIFORMATS_AVAILABLE:
-        raise ValueError("multiformats library is not installed. Please install it with: pip install multiformats")
+    # Use content-hash library to encode
+    codec = 'ipfs'
+    value = content_hash.encode(codec, ipfs_cid)
     
-    try:
-        # Parse the CID
-        cid = CID.decode(ipfs_cid)
-        
-        # IPFS protocol identifier
-        ipfs_protocol = 0xe3
-        
-        if cid.version == 0:
-            # CIDv0: 0xe3 + 0x00 + multihash bytes
-            # For CIDv0, the entire CID (base58 decoded) is the multihash
-            if BASE58_AVAILABLE:
-                multihash_bytes = base58.b58decode(ipfs_cid)
-            else:
-                # Try to get multihash from CID object
-                if hasattr(cid, 'multihash'):
-                    multihash = cid.multihash
-                    if hasattr(multihash, 'encode'):
-                        multihash_bytes = multihash.encode()
-                    elif hasattr(multihash, 'digest') and hasattr(multihash, 'code'):
-                        digest = multihash.digest
-                        code = multihash.code
-                        length = len(digest)
-                        if code < 128 and length < 128:
-                            multihash_bytes = bytes([code, length]) + digest
-                        else:
-                            raise ValueError("Multihash code or length too large for simplified encoding")
-                    else:
-                        raise ValueError("Could not extract multihash from CIDv0. Install base58: pip install base58")
-                else:
-                    raise ValueError("Could not extract multihash from CIDv0. Install base58: pip install base58")
-            
-            # Build contenthash: protocol + version + multihash
-            contenthash_bytes = bytes([ipfs_protocol, 0x00]) + multihash_bytes
-            
-        elif cid.version == 1:
-            # CIDv1: 0xe3 + 0x01 + codec (varint) + multihash bytes
-            # For CIDv1, we need to get the codec and multihash
-            
-            # Get the codec (content type)
-            codec = None
-            if hasattr(cid, 'code'):
-                codec = cid.code
-            elif hasattr(cid, 'codec'):
-                codec = cid.codec
-            
-            if codec is None:
-                raise ValueError("Could not extract codec from CIDv1")
-            
-            # Get multihash bytes
-            multihash_bytes = None
-            if hasattr(cid, 'multihash'):
-                multihash = cid.multihash
-                if hasattr(multihash, 'encode'):
-                    multihash_bytes = multihash.encode()
-                elif hasattr(multihash, 'bytes'):
-                    multihash_bytes = multihash.bytes
-                elif hasattr(multihash, 'digest') and hasattr(multihash, 'code'):
-                    # Construct manually: code (varint) + length (varint) + digest
-                    digest = multihash.digest
-                    mh_code = multihash.code
-                    length = len(digest)
-                    # Simple varint encoding (assumes single byte for code and length)
-                    if mh_code < 128 and length < 128:
-                        multihash_bytes = bytes([mh_code, length]) + digest
-                    else:
-                        raise ValueError("Multihash code or length too large for simplified encoding")
-            
-            if multihash_bytes is None:
-                raise ValueError("Could not extract multihash from CIDv1")
-            
-            # Encode codec as varint
-            # For common codecs (< 128), single byte is sufficient
-            if codec < 128:
-                codec_bytes = bytes([codec])
-            else:
-                # For larger codecs, need proper varint encoding
-                # This is a simplified version - may need improvement for edge cases
-                codec_bytes = bytes([codec])
-            
-            # Build contenthash: protocol + version + codec + multihash
-            contenthash_bytes = bytes([ipfs_protocol, 0x01]) + codec_bytes + multihash_bytes
-        else:
-            raise ValueError(f"Unsupported CID version: {cid.version}")
-        
-        # Convert to hex string with 0x prefix
-        return '0x' + contenthash_bytes.hex()
-        
-    except Exception as e:
-        raise ValueError(f"Failed to encode IPFS CID to contenthash: {str(e)}")
+    # content_hash.encode returns bytes, convert to hex string with 0x prefix
+    return '0x' + value.hex()
 
 
 async def query_eth_link_gateway(domain: str) -> Dict[str, Any]:
