@@ -79,7 +79,7 @@ def encode_ipfs_to_contenthash(ipfs_cid: str) -> str:
     value = content_hash.encode(codec, ipfs_cid)
     
     # content_hash.encode returns bytes, convert to hex string with 0x prefix
-    return '0x' + value.hex()
+    return '0x' + value
 
 
 async def query_eth_link_gateway(domain: str) -> Dict[str, Any]:

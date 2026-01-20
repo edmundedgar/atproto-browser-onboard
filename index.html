@@ -3536,6 +3536,13 @@
             // Only add dot if domain doesn't already start with one
             const handle = domain.startsWith('.') ? `${subdomain}${domain}` : `${subdomain}.${domain}`;
             
+            // For .eth.link, strip .link to get just .eth for the account name parameter
+            let accountName = handle;
+            if (domain.endsWith('.link')) {
+                const domainWithoutLink = domain.slice(0, -5); // Remove '.link'
+                accountName = domainWithoutLink.startsWith('.') ? `${subdomain}${domainWithoutLink}` : `${subdomain}.${domainWithoutLink}`;
+            }
+            
             try {
                 // Create initial DID:PLC operation
                 const initialOperation = createDidPlcInitialOperation({
@@ -3549,8 +3556,8 @@
                 // Generate DID:PLC ID from the signed operation
                 const didPlcId = await generateDidPlcId(signedInitialOperation);
                 
-                // Open eth.html in a new window with the DID as a parameter
-                const ethUrl = `eth.html?did=${encodeURIComponent(didPlcId)}`;
+                // Open eth.html in a new window with the DID and account name as parameters
+                const ethUrl = `eth.html?did=${encodeURIComponent(didPlcId)}&account=${encodeURIComponent(accountName)}`;
                 window.open(ethUrl, '_blank');
                 
             } catch (error) {
