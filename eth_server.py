@@ -12,12 +12,13 @@ import re
 import os
 import boto3
 from botocore.exceptions import ClientError
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from dotenv import load_dotenv
 from io import BytesIO
 import tempfile
 import shutil
 import content_hash
+from web3 import Web3
 
 # Load environment variables from .env file
 load_dotenv()
@@ -47,6 +48,40 @@ FILEBASE_IPFS_RPC_KEY = os.getenv('FILEBASE_IPFS_RPC_KEY')  # Optional IPFS RPC 
 # Sepolia testing mode - use test server instead of .eth.link gateway
 TEST_SERVER_URL = os.getenv('TEST_SERVER_URL')  # e.g., "http://localhost:3000"
 SEPOLIA_TEST_MODE = os.getenv('SEPOLIA_TEST_MODE', 'false').lower() == 'true'
+
+# Ethereum RPC configuration for ENS Registry queries
+ETH_RPC_URL = os.getenv('ETH_RPC_URL')  # e.g., "https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY" or "https://sepolia.infura.io/v3/YOUR_KEY"
+# ENS Registry contract address (same on Mainnet and Sepolia)
+ENS_REGISTRY_ADDRESS = '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e'
+# ENS Registry ABI - only need the owner() function
+ENS_REGISTRY_ABI = [
+    {
+        "constant": True,
+        "inputs": [{"name": "node", "type": "bytes32"}],
+        "name": "owner",
+        "outputs": [{"name": "", "type": "address"}],
+        "type": "function"
+    }
+]
+
+# Initialize Web3 if RPC URL is provided
+web3_instance = None
+ens_registry_contract = None
+if ETH_RPC_URL:
+    try:
+        web3_instance = Web3(Web3.HTTPProvider(ETH_RPC_URL))
+        if web3_instance.is_connected():
+            ens_registry_contract = web3_instance.eth.contract(
+                address=Web3.to_checksum_address(ENS_REGISTRY_ADDRESS),
+                abi=ENS_REGISTRY_ABI
+            )
+        else:
+            print(f"Warning: Failed to connect to Ethereum RPC at {ETH_RPC_URL}")
+            web3_instance = None
+    except Exception as e:
+        print(f"Warning: Failed to initialize Web3: {e}")
+        web3_instance = None
+        ens_registry_contract = None
 
 # Initialize Filebase S3 client
 if FILEBASE_ACCESS_KEY and FILEBASE_SECRET_KEY:
@@ -86,6 +121,71 @@ def encode_ipfs_to_contenthash(ipfs_cid: str) -> str:
     return '0x' + value
 
 
+def ens_namehash(name: str) -> bytes:
+    """
+    Calculate the namehash for an ENS domain name.
+    
+    Args:
+        name: The ENS domain (e.g., "example.eth")
+    
+    Returns:
+        bytes32 namehash
+    """
+    if not name:
+        return b'\x00' * 32
+    
+    # Split the name into labels
+    labels = name.split('.')
+    
+    # Start with the zero hash
+    node = b'\x00' * 32
+    
+    # Process labels in reverse order (right to left)
+    for label in reversed(labels):
+        # Hash the label
+        label_hash = Web3.keccak(text=label)
+        # Hash the concatenation of the previous node and label hash
+        # Convert both to hex strings, remove 0x prefix, concatenate, then hash
+        node_hex = Web3.to_hex(node)[2:]  # Remove '0x'
+        label_hex = Web3.to_hex(label_hash)[2:]  # Remove '0x'
+        combined = '0x' + node_hex + label_hex
+        node = Web3.keccak(hexstr=combined)
+    
+    return node
+
+
+def check_ens_domain_registered(domain: str) -> Optional[bool]:
+    """
+    Check if an ENS domain is registered by querying the ENS Registry contract.
+    
+    Args:
+        domain: The ENS domain (e.g., "example.eth")
+    
+    Returns:
+        True if registered, False if not registered, None if check failed/unavailable
+    """
+    if not ens_registry_contract or not web3_instance:
+        # RPC not configured or not available
+        return None
+    
+    try:
+        # Calculate namehash for the domain
+        node = ens_namehash(domain)
+        
+        # Call the owner() function on the registry contract
+        owner = ens_registry_contract.functions.owner(node).call()
+        
+        # If owner is zero address, domain is not registered
+        # Otherwise, it's registered (even if resolver/contenthash not set)
+        zero_address = '0x0000000000000000000000000000000000000000'
+        is_registered = owner.lower() != zero_address.lower()
+        return is_registered
+    except Exception as e:
+        # If there's an error, return None to indicate we couldn't check
+        print(f"Error checking ENS domain registration for {domain}: {e}")
+        return None
+
+
 async def query_eth_link_gateway(domain: str) -> Dict[str, Any]:
     """
     Query the .eth.link gateway (or test server in Sepolia mode) for the .well-known/atproto-did file.
@@ -96,6 +196,9 @@ async def query_eth_link_gateway(domain: str) -> Dict[str, Any]:
     Returns:
         Dict with 'success', 'did', 'error', and 'errorType' keys
     """
+    # First, check if the domain is registered via ENS Registry (if available)
+    registration_status = check_ens_domain_registered(domain)
+    
     # Use test server if Sepolia test mode is enabled
     if SEPOLIA_TEST_MODE and TEST_SERVER_URL:
         gateway_url = f"{TEST_SERVER_URL}/.well-known/atproto-did?ens={domain}"
@@ -108,23 +211,50 @@ async def query_eth_link_gateway(domain: str) -> Dict[str, Any]:
         async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(gateway_url)
             
-            # Check if the domain exists (404 means domain not found)
+            # Check if the domain exists (404 means gateway couldn't find it)
             if response.status_code == 404:
-                return {
-                    "success": False,
-                    "did": None,
-                    "error": f"ENS domain '{domain}' is not registered",
-                    "errorType": "no_domain"
-                }
+                # If we know the domain is registered, this means no contenthash/DID file
+                if registration_status is True:
+                    return {
+                        "success": False,
+                        "did": None,
+                        "error": f"ENS domain '{domain}' is registered but does not have a .well-known/atproto-did file set. Please set the contenthash for this domain.",
+                        "errorType": "no_contenthash"
+                    }
+                # If we know it's not registered, return that
+                elif registration_status is False:
+                    return {
+                        "success": False,
+                        "did": None,
+                        "error": f"ENS domain '{domain}' is not registered",
+                        "errorType": "no_domain"
+                    }
+                # If we couldn't check registration, use the old behavior (assume not registered)
+                else:
+                    return {
+                        "success": False,
+                        "did": None,
+                        "error": f"ENS domain '{domain}' is not registered or does not have a .well-known/atproto-did file",
+                        "errorType": "no_domain"
+                    }
             
             # Check for other HTTP errors
             if not response.is_success:
-                return {
-                    "success": False,
-                    "did": None,
-                    "error": f"Gateway returned status {response.status_code}",
-                    "errorType": "gateway_failure"
-                }
+                # If we know the domain is registered, provide more context
+                if registration_status is True:
+                    return {
+                        "success": False,
+                        "did": None,
+                        "error": f"ENS domain '{domain}' is registered but gateway returned status {response.status_code}. The domain may not have a contenthash set.",
+                        "errorType": "gateway_failure"
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "did": None,
+                        "error": f"Gateway returned status {response.status_code}",
+                        "errorType": "gateway_failure"
+                    }
             
             # Get the content
             content = response.text.strip()
