@@ -44,6 +44,10 @@ FILEBASE_ENDPOINT = os.getenv('FILEBASE_ENDPOINT', 'https://s3.filebase.com')
 FILEBASE_IPFS_RPC = os.getenv('FILEBASE_IPFS_RPC', 'https://ipfs.filebase.io')
 FILEBASE_IPFS_RPC_KEY = os.getenv('FILEBASE_IPFS_RPC_KEY')  # Optional IPFS RPC API key
 
+# Sepolia testing mode - use test server instead of .eth.link gateway
+TEST_SERVER_URL = os.getenv('TEST_SERVER_URL')  # e.g., "http://localhost:3000"
+SEPOLIA_TEST_MODE = os.getenv('SEPOLIA_TEST_MODE', 'false').lower() == 'true'
+
 # Initialize Filebase S3 client
 if FILEBASE_ACCESS_KEY and FILEBASE_SECRET_KEY:
     s3_client = boto3.client(
@@ -84,7 +88,7 @@ def encode_ipfs_to_contenthash(ipfs_cid: str) -> str:
 
 async def query_eth_link_gateway(domain: str) -> Dict[str, Any]:
     """
-    Query the .eth.link gateway for the .well-known/atproto-did file.
+    Query the .eth.link gateway (or test server in Sepolia mode) for the .well-known/atproto-did file.
     
     Args:
         domain: The ENS domain (e.g., "example.eth" or "bot.reality.eth")
@@ -92,8 +96,12 @@ async def query_eth_link_gateway(domain: str) -> Dict[str, Any]:
     Returns:
         Dict with 'success', 'did', 'error', and 'errorType' keys
     """
-    # Construct the gateway URL
-    gateway_url = f"https://{domain}.link/.well-known/atproto-did/"
+    # Use test server if Sepolia test mode is enabled
+    if SEPOLIA_TEST_MODE and TEST_SERVER_URL:
+        gateway_url = f"{TEST_SERVER_URL}/.well-known/atproto-did?ens={domain}"
+    else:
+        # Construct the gateway URL
+        gateway_url = f"https://{domain}.link/.well-known/atproto-did/"
     
     try:
         # Make request with 10-second timeout
