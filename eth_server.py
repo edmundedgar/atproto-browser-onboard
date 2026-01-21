@@ -53,13 +53,30 @@ SEPOLIA_TEST_MODE = os.getenv('SEPOLIA_TEST_MODE', 'false').lower() == 'true'
 ETH_RPC_URL = os.getenv('ETH_RPC_URL')  # e.g., "https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY" or "https://sepolia.infura.io/v3/YOUR_KEY"
 # ENS Registry contract address (same on Mainnet and Sepolia)
 ENS_REGISTRY_ADDRESS = '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e'
-# ENS Registry ABI - only need the owner() function
+# ENS Registry ABI - need owner() and resolver() functions
 ENS_REGISTRY_ABI = [
     {
         "constant": True,
         "inputs": [{"name": "node", "type": "bytes32"}],
         "name": "owner",
         "outputs": [{"name": "", "type": "address"}],
+        "type": "function"
+    },
+    {
+        "constant": True,
+        "inputs": [{"name": "node", "type": "bytes32"}],
+        "name": "resolver",
+        "outputs": [{"name": "", "type": "address"}],
+        "type": "function"
+    }
+]
+# ENS Resolver ABI - need contenthash() function
+ENS_RESOLVER_ABI = [
+    {
+        "constant": True,
+        "inputs": [{"name": "node", "type": "bytes32"}],
+        "name": "contenthash",
+        "outputs": [{"name": "", "type": "bytes"}],
         "type": "function"
     }
 ]
@@ -186,6 +203,53 @@ def check_ens_domain_registered(domain: str) -> Optional[bool]:
         return None
 
 
+def check_ens_contenthash_exists(domain: str) -> Optional[bool]:
+    """
+    Check if an ENS domain has a contenthash set by querying the resolver contract.
+    
+    Args:
+        domain: The ENS domain (e.g., "example.eth")
+    
+    Returns:
+        True if contenthash exists, False if not set, None if check failed/unavailable
+    """
+    if not ens_registry_contract or not web3_instance:
+        # RPC not configured or not available
+        return None
+    
+    try:
+        # Calculate namehash for the domain
+        node = ens_namehash(domain)
+        
+        # Get the resolver address from the registry
+        resolver_address = ens_registry_contract.functions.resolver(node).call()
+        
+        zero_address = '0x0000000000000000000000000000000000000000'
+        if resolver_address.lower() == zero_address.lower():
+            # No resolver set, so no contenthash
+            return False
+        
+        # Create resolver contract instance
+        resolver_contract = web3_instance.eth.contract(
+            address=Web3.to_checksum_address(resolver_address),
+            abi=ENS_RESOLVER_ABI
+        )
+        
+        # Query the contenthash
+        contenthash_bytes = resolver_contract.functions.contenthash(node).call()
+        
+        # If contenthash is empty (0x or empty bytes), it's not set
+        if not contenthash_bytes or contenthash_bytes == b'' or contenthash_bytes.hex() == '00':
+            return False
+        
+        # Contenthash exists
+        return True
+    except Exception as e:
+        # If there's an error (e.g., resolver doesn't support contenthash), return None
+        print(f"Error checking ENS contenthash for {domain}: {e}")
+        return None
+
+
 async def query_eth_link_gateway(domain: str) -> Dict[str, Any]:
     """
     Query the .eth.link gateway (or test server in Sepolia mode) for the .well-known/atproto-did file.
@@ -198,6 +262,8 @@ async def query_eth_link_gateway(domain: str) -> Dict[str, Any]:
     """
     # First, check if the domain is registered via ENS Registry (if available)
     registration_status = check_ens_domain_registered(domain)
+    # Also check if contenthash exists
+    contenthash_exists = check_ens_contenthash_exists(domain)
     
     # Use test server if Sepolia test mode is enabled
     if SEPOLIA_TEST_MODE and TEST_SERVER_URL:
@@ -213,12 +279,21 @@ async def query_eth_link_gateway(domain: str) -> Dict[str, Any]:
             
             # Check if the domain exists (404 means gateway couldn't find it)
             if response.status_code == 404:
-                # If we know the domain is registered, this means no contenthash/DID file
-                if registration_status is True:
+                # If we know the domain is registered and has a contenthash, but gateway returns 404,
+                # it means the contenthash points to content that doesn't have the .well-known/atproto-did file
+                if registration_status is True and contenthash_exists is True:
                     return {
                         "success": False,
                         "did": None,
-                        "error": f"ENS domain '{domain}' is registered but does not have a .well-known/atproto-did file set. Please set the contenthash for this domain.",
+                        "error": f"ENS domain '{domain}' is registered and has a contenthash set, but the content does not include a .well-known/atproto-did file. Please update the contenthash to point to content that includes this file.",
+                        "errorType": "no_did_file"
+                    }
+                # If domain is registered but no contenthash is set
+                elif registration_status is True and contenthash_exists is False:
+                    return {
+                        "success": False,
+                        "did": None,
+                        "error": f"ENS domain '{domain}' is registered but does not have a contenthash set. Please set the contenthash for this domain.",
                         "errorType": "no_contenthash"
                     }
                 # If we know it's not registered, return that
@@ -240,8 +315,16 @@ async def query_eth_link_gateway(domain: str) -> Dict[str, Any]:
             
             # Check for other HTTP errors
             if not response.is_success:
-                # If we know the domain is registered, provide more context
-                if registration_status is True:
+                # If we know the domain is registered and has contenthash, provide more context
+                if registration_status is True and contenthash_exists is True:
+                    return {
+                        "success": False,
+                        "did": None,
+                        "error": f"ENS domain '{domain}' is registered and has a contenthash set, but gateway returned status {response.status_code}. The content may not include a .well-known/atproto-did file.",
+                        "errorType": "gateway_failure"
+                    }
+                # If domain is registered but no contenthash
+                elif registration_status is True and contenthash_exists is False:
                     return {
                         "success": False,
                         "did": None,
