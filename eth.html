@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+    <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -357,11 +357,13 @@
                 }
 
                 const ipfsData = await ipfsResponse.json();
-                if (!ipfsData.success || !ipfsData.contenthash) {
+                if (!ipfsData.success || !ipfsData.contenthash || !ipfsData.ipfs_hash) {
                     throw new Error(ipfsData.error || 'Failed to get contenthash from server');
                 }
 
+                const ipfsHash = ipfsData.ipfs_hash;
                 const contenthash = ipfsData.contenthash;
+                console.log('IPFS hash:', ipfsHash);
                 console.log('Contenthash from server:', contenthash);
 
                 statusDiv.innerHTML = `
@@ -444,6 +446,7 @@
                 statusDiv.innerHTML = `
                     <div class="status loading">
                         Setting contenthash on blockchain...<br>
+                        <small>IPFS: ${ipfsHash} (${contenthash})</small><br>
                         <small>Please confirm the transaction in your wallet</small>
                     </div>
                 `;
