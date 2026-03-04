@@ -5,7 +5,7 @@ Server for interfacing with .eth domains to query .well-known/atproto-did files.
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 import httpx
 import re
@@ -389,6 +389,16 @@ async def query_eth_link_gateway(domain: str) -> Dict[str, Any]:
             "error": f"Unexpected error: {str(e)}",
             "errorType": "gateway_failure"
         }
+
+
+@app.get("/")
+async def serve_index():
+    return FileResponse("index.html")
+
+
+@app.get("/eth.html")
+async def serve_eth():
+    return FileResponse("eth.html")
 
 
 @app.get("/atproto-did/{domain}")
