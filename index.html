@@ -1132,6 +1132,10 @@
 </script>
 
     <script type="module">
+        // ==== BEGIN LOGIC ====
+        // No DOM access. Edit this block in index.html (canonical source);
+        // run ./split.py to regenerate logic.js for testing.
+
         import * as secp256k1 from '@noble/secp256k1';
         import { encode as dagCborEncode } from '@ipld/dag-cbor';
         import { CID } from 'multiformats';
@@ -1140,13 +1144,13 @@
         import { base58btc } from 'multiformats/bases/base58';
         import { generateMnemonic, validateMnemonic, mnemonicToEntropy, entropyToMnemonic } from 'web-bip39';
         import wordlist from 'web-bip39/wordlists/english';
-        
+
         let currentKey = null;
         let currentMnemonic = null;
         let currentPublicKey = null;
         let currentDidKey = null;
-        
-        
+
+
         // Generate secp256k1 public key from private key
         function generatePublicKey(privateKeyHex) {
             try {
@@ -1155,15 +1159,15 @@
                 for (let i = 0; i < privateKeyHex.length; i += 2) {
                     privateKeyBytes[i / 2] = parseInt(privateKeyHex.slice(i, i + 2), 16);
                 }
-                
+
                 // Generate public key using @noble/secp256k1
                 const publicKeyBytes = secp256k1.getPublicKey(privateKeyBytes, true); // true = compressed
-                
+
                 // Convert public key bytes to hex string
                 const publicKeyHex = Array.from(publicKeyBytes)
                     .map(byte => byte.toString(16).padStart(2, '0'))
                     .join('');
-                
+
                 return publicKeyHex;
             } catch (error) {
                 console.error('Error generating public key:', error);
@@ -1179,22 +1183,1142 @@
                 for (let i = 0; i < publicKeyHex.length; i += 2) {
                     publicKeyBytes[i / 2] = parseInt(publicKeyHex.slice(i, i + 2), 16);
                 }
-                
+
                 // Add multicodec prefix for secp256k1 compressed public key (0xe7)
                 const multicodecPrefix = new Uint8Array([0xe7, 0x01]);
                 const prefixedKey = new Uint8Array([...multicodecPrefix, ...publicKeyBytes]);
-                
+
                 // Encode using base58
                 const encoded = base58btc.encode(prefixedKey);
-                
+
                 const didKey = `did:key:${encoded}`;
-                
+
                 return didKey;
             } catch (error) {
                 console.error('Error generating DID key:', error);
                 throw new Error('Failed to generate DID key: ' + error.message);
             }
         }
+
+        // Fetch actual operation from plc.directory
+        async function fetchActualOperation() {
+            try {
+                const response = await fetch('https://plc.directory/did:plc:pyzlzqt6b2nyrha7smfry6rv/log/audit');
+                const data = await response.json();
+                const operation = data[0].operation;
+
+                // Remove sig field for CID generation
+                const operationForCid = { ...operation };
+                delete operationForCid.sig;
+
+                console.log('Fetched operation from plc.directory:', operationForCid);
+
+                // Debug: Compare with expected structure
+                console.log('=== Operation Structure Comparison ===');
+                console.log('Operation keys:', Object.keys(operationForCid));
+                console.log('Operation prev:', operationForCid.prev);
+                console.log('Operation type:', operationForCid.type);
+                console.log('Operation services:', operationForCid.services);
+                console.log('Operation alsoKnownAs:', operationForCid.alsoKnownAs);
+                console.log('Operation rotationKeys:', operationForCid.rotationKeys);
+                console.log('Operation verificationMethods:', operationForCid.verificationMethods);
+
+                return operationForCid;
+            } catch (error) {
+                console.error('Error fetching operation:', error);
+                return null;
+            }
+        }
+
+        // Test case for DID:PLC ID generation
+        async function testDidPlcIdGeneration() {
+            console.log('=== DID:PLC ID Generation Test ===');
+
+            // Fetch the actual operation with signature from plc.directory
+            const testDid = 'did:plc:pyzlzqt6b2nyrha7smfry6rv';
+            const expectedCid = 'bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq';
+
+            try {
+                const { didDocument, auditLog } = await fetchDidPlcRecord(testDid);
+                const testOperation = auditLog[0].operation; // This includes the signature
+
+                console.log('Fetched operation from plc.directory:', testOperation);
+                console.log('Operation includes signature:', !!testOperation.sig);
+                console.log('Signature value:', testOperation.sig);
+
+                console.log('Expected DID:', testDid);
+                console.log('Expected CID:', expectedCid);
+
+                // Test the DID:PLC ID generation with signed operation
+                const generatedDid = await generateDidPlcId(testOperation);
+                console.log('Generated DID:', generatedDid);
+                console.log('Match:', generatedDid === testDid ? 'PASS' : 'FAIL');
+
+                if (generatedDid !== testDid) {
+                    console.log('Test failed - generated DID does not match expected');
+                    console.log('This may be due to:');
+                    console.log('1. Different DAG-CBOR serialization order');
+                    console.log('2. Different CID generation method');
+                    console.log('3. Different base32 encoding');
+                    console.log('4. Missing or incorrect signature');
+                } else {
+                    console.log('Test passed - DID:PLC ID generation is working correctly!');
+                }
+
+                return {
+                    success: generatedDid === testDid,
+                    operation: testOperation,
+                    generatedDid: generatedDid,
+                    expectedDid: testDid,
+                    expectedCid: expectedCid
+                };
+            } catch (error) {
+                console.error('Test failed with error:', error);
+                return {
+                    success: false,
+                    error: error.message
+                };
+            }
+        }
+
+        // SHA-256 hash function using Web Crypto API
+        async function sha256Hash(data) {
+            console.log('=== SHA-256 Hash Debug ===');
+            console.log('Input data type:', typeof data);
+            console.log('Input data constructor:', data.constructor.name);
+            console.log('Input data length:', data.length);
+            console.log('Input data (first 20 bytes hex):', Array.from(data.slice(0, 20)).map(b => b.toString(16).padStart(2, '0')).join(''));
+            console.log('Input data (last 20 bytes hex):', Array.from(data.slice(-20)).map(b => b.toString(16).padStart(2, '0')).join(''));
+
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const result = new Uint8Array(hashBuffer);
+
+            console.log('Hash result length:', result.length);
+            console.log('Hash result (hex):', Array.from(result).map(b => b.toString(16).padStart(2, '0')).join(''));
+
+            return result;
+        }
+
+        // Verify a signed DID:PLC operation and recover the public key
+        async function verifyDidPlcOperation(signedOperation) {
+            try {
+                console.log('=== Verifying DID:PLC Operation ===');
+                console.log('Signed operation:', signedOperation);
+
+                // Extract the signature
+                const signatureBase64 = signedOperation.sig;
+                console.log('Signature (base64url):', signatureBase64);
+
+                // Decode the signature from base64url
+                const signatureBase64Standard = signatureBase64
+                    .replace(/-/g, '+')
+                    .replace(/_/g, '/');
+
+                // Add padding if needed
+                const padding = signatureBase64Standard.length % 4;
+                const paddedSignature = signatureBase64Standard + '='.repeat(padding ? 4 - padding : 0);
+
+                const signatureBytes = new Uint8Array(atob(paddedSignature).split('').map(c => c.charCodeAt(0)));
+                console.log('Signature bytes (hex):', Array.from(signatureBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+                console.log('Signature length:', signatureBytes.length);
+
+                // Create unsigned operation for verification
+                const unsignedOperation = { ...signedOperation };
+                delete unsignedOperation.sig;
+                console.log('Unsigned operation for verification:', unsignedOperation);
+
+                // Serialize to DAG-CBOR
+                const dagCborBytes = dagCborEncode(unsignedOperation);
+                console.log('DAG-CBOR bytes for verification:', Array.from(dagCborBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+
+                // Extract r and s from the 64-byte signature
+                const r = signatureBytes.slice(0, 32);
+                const s = signatureBytes.slice(32, 64);
+                console.log('r (hex):', Array.from(r).map(b => b.toString(16).padStart(2, '0')).join(''));
+                console.log('s (hex):', Array.from(s).map(b => b.toString(16).padStart(2, '0')).join(''));
+
+                // Hash the DAG-CBOR bytes for signature verification
+                const messageHash = await crypto.subtle.digest('SHA-256', dagCborBytes);
+                const messageHashHex = Array.from(new Uint8Array(messageHash)).map(b => b.toString(16).padStart(2, '0')).join('');
+                console.log('Message hash (SHA-256):', messageHashHex);
+
+                // Get all rotation keys to verify against
+                const operationRotationKeys = signedOperation.rotationKeys;
+                console.log('Operation rotation keys:', operationRotationKeys);
+
+                // Try to recover the public key using @noble/secp256k1
+                let recoveredPublicKey = null;
+                let correctRecovery = null;
+                let matchedRotationKey = null;
+
+                for (let recovery = 0; recovery <= 1; recovery++) {
+                    try {
+                        // Create a 64-byte signature (r + s) as hex string
+                        const signatureHex = Array.from(r).map(b => b.toString(16).padStart(2, '0')).join('') + 
+                                           Array.from(s).map(b => b.toString(16).padStart(2, '0')).join('');
+
+                        console.log(`Trying recovery ${recovery} with signature hex:`, signatureHex);
+                        console.log(`Signature hex length:`, signatureHex.length, 'characters');
+
+                        // Use correct API: recoverPublicKey(hash, signature, recovery)
+                        const recovered = secp256k1.recoverPublicKey(messageHashHex, signatureHex, recovery, true);
+
+                        if (recovered) {
+                            console.log(`Recovered public key with recovery ${recovery}:`, Array.from(recovered).map(b => b.toString(16).padStart(2, '0')).join(''));
+
+                            // Generate DID:key from recovered public key
+                            const recoveredPublicKeyHex = Array.from(recovered).map(b => b.toString(16).padStart(2, '0')).join('');
+                            const recoveredDidKey = generateDidKey(recoveredPublicKeyHex);
+                            console.log(`Recovered DID:key with recovery ${recovery}:`, recoveredDidKey);
+
+                            // Check if this matches any of the rotation keys
+                            let foundMatch = false;
+                            for (let i = 0; i < operationRotationKeys.length; i++) {
+                                const rotationKey = operationRotationKeys[i];
+                                console.log(`Checking against rotation key ${i}:`, rotationKey);
+
+                                if (recoveredDidKey === rotationKey) {
+                                    console.log(`Recovery ${recovery} matches rotation key ${i}!`);
+                                    recoveredPublicKey = recovered;
+                                    correctRecovery = recovery;
+                                    matchedRotationKey = rotationKey;
+                                    foundMatch = true;
+                                    break;
+                                } else {
+                                    console.log(`Recovery ${recovery} does not match rotation key ${i}`);
+                                }
+                            }
+
+                            if (foundMatch) {
+                                break;
+                            }
+                        }
+                    } catch (e) {
+                        console.log(`Recovery ${recovery} failed:`, e.message);
+                    }
+                }
+
+                if (!recoveredPublicKey) {
+                    throw new Error('Could not recover public key from signature that matches the expected rotation key');
+                }
+
+                console.log(`Successfully recovered correct public key with recovery ${correctRecovery}`);
+                console.log(`Matched rotation key:`, matchedRotationKey);
+
+                // Generate DID:key from recovered public key (for final comparison)
+                const recoveredPublicKeyHex = Array.from(recoveredPublicKey).map(b => b.toString(16).padStart(2, '0')).join('');
+                const recoveredDidKey = generateDidKey(recoveredPublicKeyHex);
+                console.log('Final recovered DID:key:', recoveredDidKey);
+                console.log('Keys match:', recoveredDidKey === matchedRotationKey);
+
+                // Also verify using the known public key (if available)
+                let knownDidKey = null;
+                let knownKeyMatches = false;
+
+                if (currentPublicKey) {
+                    const knownPublicKeyHex = currentPublicKey;
+                    knownDidKey = generateDidKey(knownPublicKeyHex);
+                    console.log('Known DID:key:', knownDidKey);
+                    console.log('Known key matches recovered:', recoveredDidKey === knownDidKey);
+                    console.log('Known key matches operation:', knownDidKey === matchedRotationKey);
+                    knownKeyMatches = knownDidKey === matchedRotationKey;
+                } else {
+                    console.log('No current public key available for comparison');
+                }
+
+                return {
+                    success: true,
+                    recoveredPublicKey: recoveredPublicKeyHex,
+                    recoveredDidKey: recoveredDidKey,
+                    operationRotationKey: matchedRotationKey,
+                    knownDidKey: knownDidKey,
+                    keysMatch: recoveredDidKey === matchedRotationKey,
+                    knownKeyMatches: knownKeyMatches
+                };
+
+            } catch (error) {
+                console.error('Error verifying DID:PLC operation:', error);
+                return {
+                    success: false,
+                    error: error.message
+                };
+            }
+        }
+
+        // Submit a signed DID:PLC operation to plc.directory
+        async function submitDidPlcOperation(signedOperation, didPlcId) {
+            try {
+                console.log('=== Submitting DID:PLC Operation ===');
+                console.log('Operation to submit:', signedOperation);
+                console.log('DID:PLC ID:', didPlcId);
+
+                // Use the DID:PLC ID in the endpoint URL
+                const endpoint = `https://plc.directory/${didPlcId}`;
+                console.log('Submitting to endpoint:', endpoint);
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(signedOperation)
+                });
+
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Submission failed:', errorText);
+                    throw new Error(`Failed to submit operation: ${response.status} ${response.statusText}\n${errorText}`);
+                }
+
+                // plc.directory returns plain text, not JSON
+                const resultText = await response.text();
+                console.log('Submission successful:', resultText);
+
+                return { success: true, message: resultText };
+
+            } catch (error) {
+                console.error('Error submitting DID:PLC operation:', error);
+                throw error;
+            }
+        }
+
+        // Reserve a signing key on the PDS
+        async function reserveSigningKey(pdsEndpoint, did) {
+            try {
+                console.log('=== Reserving Signing Key ===');
+                console.log('PDS Endpoint:', pdsEndpoint);
+                console.log('DID:', did);
+
+                const endpoint = `${pdsEndpoint}/xrpc/com.atproto.server.reserveSigningKey`;
+                console.log('Reserving at endpoint:', endpoint);
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        did: did
+                    })
+                });
+
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Reservation failed:', errorText);
+                    throw new Error(`Failed to reserve signing key: ${response.status} ${response.statusText}\n${errorText}`);
+                }
+
+                const result = await response.json();
+                console.log('Reservation successful:', result);
+
+                return { success: true, result: result };
+
+            } catch (error) {
+                console.error('Error reserving signing key:', error);
+                throw error;
+            }
+        }
+
+        // Create initial DID:PLC operation with rotation key
+        // We include all the fields that createDidPlcEntry uses (including alsoKnownAs)
+        function createDidPlcInitialOperation(data, rotationKey) {
+            const alsoKnownAs = [];
+            if (data.handle && data.handle.trim()) {
+                // Format handle as AT Protocol identifier
+                const handle = data.handle.trim();
+                // If handle already contains '@' or is already an at:// URL, use it as-is
+                // Otherwise, format it as at://handle
+                if (handle.startsWith('at://')) {
+                    alsoKnownAs.push(handle);
+                } else if (handle.includes('.')) {
+                    // Handle might be in format like handle.domain, format as at://handle.domain
+                    alsoKnownAs.push(`at://${handle}`);
+                } else {
+                    // Just handle name, format as at://handle
+                    alsoKnownAs.push(`at://${handle}`);
+                }
+            }
+
+            return {
+                type: 'plc_operation',
+                prev: null,
+                rotationKeys: [rotationKey],
+                verificationMethods: {
+                    atproto: rotationKey
+                },
+                alsoKnownAs: alsoKnownAs,
+                services: {
+                    atproto_pds: {
+                        type: 'AtprotoPersonalDataServer',
+                        endpoint: data.pdsEndpoint
+                    }
+                }
+            };
+        }
+
+        // Get the last operation CID for a DID:PLC ID
+        async function getLastOperationCid(didPlcId) {
+            try {
+                const { auditLog } = await fetchDidPlcRecord(didPlcId);
+                if (auditLog && auditLog.length > 0) {
+                    const lastRecord = auditLog[auditLog.length - 1];
+                    return lastRecord.cid;
+                }
+                return null;
+            } catch (error) {
+                console.error('Error fetching audit log:', error);
+                return null;
+            }
+        }
+
+        // Base64URL encode (URL-safe base64, no padding)
+        // For binary data (like signatures), btoa treats the string as Latin-1 (ISO-8859-1)
+        // where each character is directly a byte (0-255), which is what we need
+        function base64UrlEncode(str) {
+            // Use btoa directly - it treats the string as Latin-1, not UTF-8
+            // This is correct for binary data where each character represents a byte
+            const base64 = btoa(str);
+            // Convert to base64url (URL-safe, no padding)
+            return base64
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+        }
+
+        // Generate a unique JWT ID
+        function generateJti() {
+            const array = new Uint8Array(16);
+            crypto.getRandomValues(array);
+            return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+        }
+
+        // Get PDS server information including availableUserDomains
+        async function getPdsServerInfo(pdsEndpoint) {
+            // Try 1: ATProto server description endpoint
+            try {
+                const describeUrl = `${pdsEndpoint}/xrpc/com.atproto.server.describeServer`;
+                const response = await fetch(describeUrl);
+                if (response.ok) {
+                    const description = await response.json();
+                    if (description.did) {
+                        console.log('Resolved PDS server info from describeServer:', description);
+                        return description;
+                    }
+                }
+            } catch (error) {
+                console.log('Could not get PDS server info from describeServer:', error);
+            }
+
+            // Try 2: Well-known DID endpoint (fallback for DID only)
+            try {
+                const wellKnownUrl = `${pdsEndpoint}/.well-known/did.json`;
+                const response = await fetch(wellKnownUrl);
+                if (response.ok) {
+                    const didDoc = await response.json();
+                    if (didDoc.id) {
+                        console.log('Resolved PDS DID from well-known:', didDoc.id);
+                        return { did: didDoc.id, availableUserDomains: [] };
+                    }
+                }
+            } catch (error) {
+                console.log('Could not resolve PDS DID from well-known:', error);
+            }
+
+            // If we can't resolve the DID, throw an error instead of using the URL
+            // The PDS requires the DID as the audience, not the URL
+            throw new Error('Could not resolve PDS server information. Please ensure the PDS endpoint is correct and accessible.');
+        }
+
+        // Get PDS DID from endpoint (try multiple methods)
+        async function getPdsDid(pdsEndpoint) {
+            const serverInfo = await getPdsServerInfo(pdsEndpoint);
+            return serverInfo.did;
+        }
+
+        // Create a JWT service authentication token signed with the rotation key
+        async function createServiceAuthToken(didPlcId, pdsEndpoint, privateKeyHex) {
+            try {
+                console.log('=== Creating Service Auth Token ===');
+                console.log('DID:PLC ID:', didPlcId);
+                console.log('PDS Endpoint:', pdsEndpoint);
+
+                // Get PDS DID for audience
+                const pdsDid = await getPdsDid(pdsEndpoint);
+
+                // Create JWT header
+                const header = {
+                    alg: 'ES256K',
+                    typ: 'JWT'
+                };
+
+                // Create JWT payload
+                const now = Math.floor(Date.now() / 1000);
+                const payload = {
+                    iss: didPlcId,  // Issuer: User's DID
+                    aud: pdsDid,    // Audience: PDS DID or endpoint URL
+                    exp: now + 60,  // Expiration: 60 seconds from now
+                    iat: now,       // Issued At: Current timestamp
+                    jti: generateJti(),  // JWT ID: Unique identifier
+                    lxm: 'com.atproto.server.createAccount'  // Lexicon Method
+                };
+
+                console.log('JWT Header:', header);
+                console.log('JWT Payload:', payload);
+
+                // Base64URL encode header and payload
+                const encodedHeader = base64UrlEncode(JSON.stringify(header));
+                const encodedPayload = base64UrlEncode(JSON.stringify(payload));
+                const signingInput = `${encodedHeader}.${encodedPayload}`;
+
+                console.log('Signing input:', signingInput);
+
+                // Hash the signing input with SHA-256
+                const signingInputBytes = new TextEncoder().encode(signingInput);
+                const messageHash = await crypto.subtle.digest('SHA-256', signingInputBytes);
+                const messageHashHex = Array.from(new Uint8Array(messageHash))
+                    .map(b => b.toString(16).padStart(2, '0'))
+                    .join('');
+
+                console.log('Message hash (SHA-256):', messageHashHex);
+
+                // Convert hex private key to Uint8Array
+                const privateKeyBytes = new Uint8Array(32);
+                for (let i = 0; i < privateKeyHex.length; i += 2) {
+                    privateKeyBytes[i / 2] = parseInt(privateKeyHex.slice(i, i + 2), 16);
+                }
+
+                // Sign the hashed message using @noble/secp256k1
+                const signature = await secp256k1.sign(messageHashHex, privateKeyBytes);
+
+                // Convert signature to compact format (64 bytes)
+                let signatureArray;
+                if (signature instanceof Uint8Array) {
+                    if (signature.length >= 68 && signature[0] === 0x30) {
+                        // Parse DER structure
+                        let offset = 2;
+
+                        // Parse r value
+                        if (signature[offset] !== 0x02) {
+                            throw new Error('Invalid DER format: expected r value marker');
+                        }
+                        offset++;
+                        const rLength = signature[offset];
+                        offset++;
+                        const rBytes = signature.slice(offset, offset + rLength);
+                        offset += rLength;
+
+                        // Parse s value
+                        if (signature[offset] !== 0x02) {
+                            throw new Error('Invalid DER format: expected s value marker');
+                        }
+                        offset++;
+                        const sLength = signature[offset];
+                        offset++;
+                        const sBytes = signature.slice(offset, offset + sLength);
+
+                        // Remove leading zero byte from r if present
+                        const rCompact = rBytes[0] === 0 ? rBytes.slice(1) : rBytes;
+
+                        // Create compact signature (64 bytes)
+                        signatureArray = new Uint8Array(64);
+                        // Pad r and s to exactly 32 bytes each (pad with leading zeros if needed)
+                        const rPadded = new Uint8Array(32);
+                        rPadded.set(rCompact, 32 - rCompact.length);
+                        const sPadded = new Uint8Array(32);
+                        sPadded.set(sBytes, 32 - sBytes.length);
+                        signatureArray.set(rPadded, 0);
+                        signatureArray.set(sPadded, 32);
+
+                        console.log('rCompact length:', rCompact.length, 'rPadded length:', rPadded.length);
+                        console.log('sBytes length:', sBytes.length, 'sPadded length:', sPadded.length);
+                        console.log('signatureArray length:', signatureArray.length);
+                    } else {
+                        throw new Error('Unexpected DER signature format');
+                    }
+                } else {
+                    throw new Error('Signature is not Uint8Array');
+                }
+
+                console.log('Signature array before encoding (hex):', Array.from(signatureArray).map(b => b.toString(16).padStart(2, '0')).join(''));
+                console.log('Signature array length:', signatureArray.length);
+
+                // Base64URL encode the signature
+                // Build string from bytes using a loop to avoid spread operator issues
+                let signatureString = '';
+                for (let i = 0; i < signatureArray.length; i++) {
+                    signatureString += String.fromCharCode(signatureArray[i]);
+                }
+                console.log('Signature string length:', signatureString.length);
+                const encodedSignature = base64UrlEncode(signatureString);
+                console.log('Encoded signature:', encodedSignature);
+                console.log('Encoded signature length:', encodedSignature.length);
+
+                // Assemble the complete JWT
+                const jwt = `${signingInput}.${encodedSignature}`;
+
+                console.log('Generated JWT:', jwt);
+
+                return jwt;
+
+            } catch (error) {
+                console.error('Error creating service auth token:', error);
+                throw error;
+            }
+        }
+
+        // Verify a JWT service authentication token using a public key
+        async function verifyServiceAuthToken(jwt, publicKeyHex) {
+            try {
+                console.log('=== Verifying Service Auth Token ===');
+                console.log('JWT:', jwt);
+                console.log('Public Key (hex):', publicKeyHex);
+
+                // Parse JWT
+                const parts = jwt.split('.');
+                if (parts.length !== 3) {
+                    throw new Error('Invalid JWT format: expected 3 parts');
+                }
+
+                const [encodedHeader, encodedPayload, encodedSignature] = parts;
+
+                // Decode header and payload
+                const headerJson = atob(encodedHeader.replace(/-/g, '+').replace(/_/g, '/'));
+                const payloadJson = atob(encodedPayload.replace(/-/g, '+').replace(/_/g, '/'));
+                const header = JSON.parse(headerJson);
+                const payload = JSON.parse(payloadJson);
+
+                console.log('JWT Header:', header);
+                console.log('JWT Payload:', payload);
+
+                // Check algorithm
+                if (header.alg !== 'ES256K') {
+                    throw new Error(`Unsupported algorithm: ${header.alg}`);
+                }
+
+                // Recreate signing input
+                const signingInput = `${encodedHeader}.${encodedPayload}`;
+                console.log('Signing input:', signingInput);
+
+                // Hash the signing input with SHA-256
+                const signingInputBytes = new TextEncoder().encode(signingInput);
+                const messageHash = await crypto.subtle.digest('SHA-256', signingInputBytes);
+                const messageHashHex = Array.from(new Uint8Array(messageHash))
+                    .map(b => b.toString(16).padStart(2, '0'))
+                    .join('');
+
+                console.log('Message hash (SHA-256):', messageHashHex);
+
+                // Decode signature from base64url
+                console.log('Encoded signature from JWT:', encodedSignature);
+                console.log('Encoded signature length:', encodedSignature.length);
+                const signatureBase64 = encodedSignature.replace(/-/g, '+').replace(/_/g, '/');
+                const padding = '='.repeat((4 - signatureBase64.length % 4) % 4);
+                console.log('Base64 signature (with padding):', signatureBase64 + padding);
+                const signatureBinaryString = atob(signatureBase64 + padding);
+                console.log('Decoded binary string length:', signatureBinaryString.length);
+                const signatureBytes = new Uint8Array(signatureBinaryString.length);
+                for (let i = 0; i < signatureBinaryString.length; i++) {
+                    signatureBytes[i] = signatureBinaryString.charCodeAt(i);
+                }
+
+                console.log('Signature bytes length:', signatureBytes.length);
+                console.log('Signature bytes (hex):', Array.from(signatureBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+
+                if (signatureBytes.length !== 64) {
+                    console.error(`Invalid signature length: expected 64 bytes, got ${signatureBytes.length}`);
+                    console.error('This suggests the JWT was created with incorrect encoding. Please regenerate the JWT.');
+                    throw new Error(`Invalid signature length: expected 64 bytes, got ${signatureBytes.length}`);
+                }
+
+                // Convert public key hex to Uint8Array
+                const publicKeyBytes = new Uint8Array(33); // Compressed public key is 33 bytes
+                for (let i = 0; i < publicKeyHex.length; i += 2) {
+                    publicKeyBytes[i / 2] = parseInt(publicKeyHex.slice(i, i + 2), 16);
+                }
+
+                // Verify signature using @noble/secp256k1
+                // Note: secp256k1.verify expects the signature in compact format (64 bytes: r + s)
+                // and the message hash as a hex string (same as secp256k1.sign)
+                const isValid = secp256k1.verify(signatureBytes, messageHashHex, publicKeyBytes);
+
+                console.log('Signature verification result:', isValid);
+
+                if (isValid) {
+                    console.log('✓ JWT signature is VALID');
+                } else {
+                    console.error('✗ JWT signature is INVALID');
+                }
+
+                return isValid;
+
+            } catch (error) {
+                console.error('Error verifying service auth token:', error);
+                throw error;
+            }
+        }
+
+        // Create an account on the PDS with a signed DID:PLC update
+        async function createAccountWithSignedOperation(pdsEndpoint, handle, email, password, didPlcId, signedUpdate, inviteCode, privateKeyHex) {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
+            try {
+                console.log('=== Creating Account with Signed Update ===');
+                console.log('PDS Endpoint:', pdsEndpoint);
+                console.log('Handle:', handle);
+                console.log('Email:', email);
+                console.log('DID:PLC ID:', didPlcId);
+                console.log('Signed Update:', signedUpdate);
+
+                const endpoint = `${pdsEndpoint}/xrpc/com.atproto.server.createAccount`;
+                console.log('Creating account at endpoint:', endpoint);
+                            // Create JWT service authentication token
+                // This is signed with our rotation key, which is still the current verification method
+                // The PDS will verify the JWT using the current verification method, then apply the update
+                const jwt = await createServiceAuthToken(didPlcId, pdsEndpoint, privateKeyHex);
+
+                // Self-verify the JWT to ensure signature is correct
+                const publicKeyHex = generatePublicKey(privateKeyHex);
+                const isValid = await verifyServiceAuthToken(jwt, publicKeyHex);
+                if (!isValid) {
+                    console.error('WARNING: JWT signature verification failed! The JWT we created is invalid.');
+                    throw new Error('JWT signature verification failed - the created JWT is invalid');
+                }
+                console.log('✓ JWT signature verified successfully before sending to PDS');
+
+                const requestBody = {
+                    handle: handle,
+                    email: email,
+                    password: password,
+                    did: didPlcId
+                };
+
+                // Add invite code if provided
+                if (inviteCode && inviteCode.trim()) {
+                    requestBody.inviteCode = inviteCode.trim();
+                }
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${jwt}`
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Account creation failed:', errorText);
+                    throw new Error(`Failed to create account: ${response.status} ${response.statusText}\n${errorText}`);
+                }
+
+                const result = await response.json();
+                console.log('Account creation successful:', result);
+
+                // After successful account creation, submit the update to plc.directory
+                console.log('Submitting update to plc.directory after account creation...');
+                const updateSubmitResult = await submitDidPlcOperation(signedUpdate, didPlcId);
+
+                if (!updateSubmitResult.success) {
+                    console.warn('Warning: Failed to submit update to plc.directory, but account was created successfully');
+                    console.warn('You may need to manually submit the update later');
+                } else {
+                    console.log('Update successfully submitted to plc.directory');
+                }
+
+                return { success: true, result: result };
+
+            } catch (error) {
+                console.error('Error creating account:', error);
+                throw error;
+            }
+        }
+
+        // Create an account on the PDS
+        async function createAccount(pdsEndpoint, handle, email, password, recoveryKey, inviteCode) {
+            try {
+                console.log('=== Creating Account ===');
+                console.log('PDS Endpoint:', pdsEndpoint);
+                console.log('Handle:', handle);
+                console.log('Email:', email);
+                console.log('Recovery Key:', recoveryKey);
+
+                const endpoint = `${pdsEndpoint}/xrpc/com.atproto.server.createAccount`;
+                console.log('Creating account at endpoint:', endpoint);
+
+                const requestBody = {
+                    handle: handle,
+                    email: email,
+                    password: password,
+                    recoveryKey: recoveryKey
+                };
+
+                // Add invite code if provided
+                if (inviteCode && inviteCode.trim()) {
+                    requestBody.inviteCode = inviteCode.trim();
+                }
+
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                console.log('Response status:', response.status);
+                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Account creation failed:', errorText);
+                    throw new Error(`Failed to create account: ${response.status} ${response.statusText}\n${errorText}`);
+                }
+
+                const result = await response.json();
+                console.log('Account creation successful:', result);
+
+                return { success: true, result: result };
+
+            } catch (error) {
+                console.error('Error creating account:', error);
+                throw error;
+            }
+        }
+
+        // Sign a DID:PLC operation with the current key
+        async function signDidPlcOperation(operation, privateKeyHex) {
+            try {
+                console.log('=== Signing DID:PLC Operation ===');
+                console.log('Operation to sign:', operation);
+                console.log('Private key (hex):', privateKeyHex);
+
+                // Create a copy without the signature for signing
+                const operationForSigning = { ...operation };
+                delete operationForSigning.sig;
+
+                console.log('Operation for signing (without sig):', operationForSigning);
+
+                // Serialize to DAG-CBOR
+                const dagCborBytes = dagCborEncode(operationForSigning);
+                console.log('DAG-CBOR bytes for signing:', Array.from(dagCborBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+
+                // Hash the DAG-CBOR bytes with SHA-256 before signing
+                const messageHash = await crypto.subtle.digest('SHA-256', dagCborBytes);
+                const messageHashHex = Array.from(new Uint8Array(messageHash)).map(b => b.toString(16).padStart(2, '0')).join('');
+                console.log('Message hash (SHA-256):', messageHashHex);
+
+                // Convert hex private key to Uint8Array
+                const privateKeyBytes = new Uint8Array(32);
+                for (let i = 0; i < privateKeyHex.length; i += 2) {
+                    privateKeyBytes[i / 2] = parseInt(privateKeyHex.slice(i, i + 2), 16);
+                }
+
+                // Sign the hashed message using @noble/secp256k1
+                const signature = await secp256k1.sign(messageHashHex, privateKeyBytes);
+                console.log('Signature object:', signature);
+                console.log('Signature object type:', typeof signature);
+                console.log('Signature object constructor:', signature.constructor.name);
+                console.log('Signature object methods:', Object.getOwnPropertyNames(signature));
+                console.log('Signature object prototype methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(signature)));
+                console.log('Signature object keys:', Object.keys(signature));
+                console.log('Signature object values:', Object.values(signature));
+
+                // Check for common signature properties
+                console.log('Has toCompactRawBytes:', 'toCompactRawBytes' in signature);
+                console.log('Has toBytes:', 'toBytes' in signature);
+                console.log('Has toCompactHex:', 'toCompactHex' in signature);
+                console.log('Has r:', 'r' in signature);
+                console.log('Has s:', 's' in signature);
+                console.log('Has recovery:', 'recovery' in signature);
+
+                // Convert signature to base64url
+                let signatureArray;
+
+                if (signature instanceof Uint8Array) {
+                    // Signature is already a Uint8Array (DER format)
+                    console.log('Signature is Uint8Array, length:', signature.length);
+                    console.log('Signature bytes (hex):', Array.from(signature).map(b => b.toString(16).padStart(2, '0')).join(''));
+
+                    // Convert DER to compact format (64 bytes)
+                    if (signature.length >= 68 && signature[0] === 0x30) {
+                        // Parse DER structure dynamically
+                        let offset = 2; // Skip 0x30 [length]
+
+                        // Parse r value
+                        if (signature[offset] !== 0x02) {
+                            throw new Error('Invalid DER format: expected r value marker');
+                        }
+                        offset++; // Skip 0x02
+                        const rLength = signature[offset];
+                        offset++; // Skip r length
+                        const rBytes = signature.slice(offset, offset + rLength);
+                        offset += rLength;
+
+                        // Parse s value
+                        if (signature[offset] !== 0x02) {
+                            throw new Error('Invalid DER format: expected s value marker');
+                        }
+                        offset++; // Skip 0x02
+                        const sLength = signature[offset];
+                        offset++; // Skip s length
+                        const sBytes = signature.slice(offset, offset + sLength);
+
+                        // Remove leading zero byte from r if present
+                        const rCompact = rBytes[0] === 0 ? rBytes.slice(1) : rBytes;
+
+                        // Create compact signature (64 bytes)
+                        signatureArray = new Uint8Array(64);
+                        signatureArray.set(rCompact, 0);
+                        signatureArray.set(sBytes, 32);
+
+                        console.log('DER structure parsed:');
+                        console.log('- r length:', rLength, 'bytes');
+                        console.log('- s length:', sLength, 'bytes');
+                        console.log('- r compact length:', rCompact.length, 'bytes');
+                        console.log('- Converted to compact signature, length:', signatureArray.length);
+                        console.log('Compact signature (hex):', Array.from(signatureArray).map(b => b.toString(16).padStart(2, '0')).join(''));
+                    } else {
+                        throw new Error('Unexpected DER signature format');
+                    }
+                } else {
+                    throw new Error('Signature is not Uint8Array');
+                }
+                const signatureBase64 = btoa(String.fromCharCode(...signatureArray))
+                    .replace(/\+/g, '-')
+                    .replace(/\//g, '_')
+                    .replace(/=/g, '');
+
+                console.log('Generated signature (base64url):', signatureBase64);
+
+                // Add signature to operation
+                const signedOperation = { ...operation };
+                signedOperation.sig = signatureBase64;
+
+                console.log('Signed operation:', signedOperation);
+
+                return signedOperation;
+
+            } catch (error) {
+                console.error('Error signing DID:PLC operation:', error);
+                throw error;
+            }
+        }
+
+        // Generate a DID:PLC ID from operation
+        async function generateDidPlcId(operation) {
+            try {
+                // For testing with real data, include the signature
+                // In production, you'd sign the unsigned operation first
+                const operationForHash = { ...operation };
+
+                console.log('Operation includes signature:', !!operationForHash.sig);
+                console.log('Operation for hashing:', operationForHash);
+
+                // Serialize operation to DAG-CBOR
+                const dagCborBytes = dagCborEncode(operationForHash);
+
+                // Debug: Output the DAG-CBOR bytes
+                console.log('DAG-CBOR bytes length:', dagCborBytes.length);
+                console.log('DAG-CBOR bytes (hex):', Array.from(dagCborBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+
+                // Hash the DAG-CBOR bytes with SHA-256
+                const hashBytes = await sha256Hash(dagCborBytes);
+
+                console.log('SHA-256 hash (hex):', Array.from(hashBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+
+                // Convert hash to base32 and take first 24 characters
+                const hashBase32 = base32.encode(hashBytes);
+                console.log('Hash base32:', hashBase32);
+
+                // Remove 'b' prefix and padding, then take first 24 characters
+                const base32Part = hashBase32.substring(1).replace(/=/g, '');
+                console.log('Base32 part (no prefix/padding):', base32Part);
+                console.log('Base32 part length:', base32Part.length);
+
+                const didPlcId = base32Part.substring(0, 24);
+                console.log('Extracted DID:PLC ID (first 24 chars):', didPlcId);
+                console.log('Expected DID:PLC ID: pyzlzqt6b2nyrha7smfry6rv');
+
+                return `did:plc:${didPlcId}`;
+
+                // Debug: Check multihash digest structure
+                console.log('Multihash digest object:', multihashDigest);
+                console.log('Multihash digest has code property:', 'code' in multihashDigest);
+                console.log('Multihash digest has size property:', 'size' in multihashDigest);
+                console.log('Multihash digest has bytes property:', 'bytes' in multihashDigest);
+                console.log('Multihash digest has digest property:', 'digest' in multihashDigest);
+
+                // Debug: Output multihash digest details
+                console.log('Multihash digest code:', multihashDigest.code);
+                console.log('Multihash digest size:', multihashDigest.size);
+                console.log('Multihash digest bytes (hex):', Array.from(multihashDigest.bytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+                console.log('Multihash digest bytes length:', multihashDigest.bytes.length);
+
+                // Create CID from the digest
+                console.log('Creating CID with:');
+                console.log('- Version: 1');
+                console.log('- Codec: 0x71 (113)');
+                console.log('- Multihash digest:', multihashDigest);
+                console.log('- Multihash digest code:', multihashDigest.code);
+                console.log('- Multihash digest size:', multihashDigest.size);
+                console.log('- Multihash digest bytes length:', multihashDigest.bytes.length);
+
+                cid = CID.create(1, 0x71, multihashDigest); // CIDv1 with DAG-CBOR codec (0x71)
+
+                // Debug: Decode the generated CID to see its raw bytes (including header)
+                const generatedCidBase32 = cid.toString(base32);
+                console.log('Generated CID base32 string:', generatedCidBase32);
+
+                // Use the CID's bytes property directly if available
+                if (cid.bytes) {
+                    const generatedCidHex = Array.from(cid.bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+                    console.log('Generated CID raw bytes (hex):', generatedCidHex);
+                    console.log('Generated CID length:', cid.bytes.length);
+
+                    if (cid.bytes.length >= 2) {
+                        const version = cid.bytes[0];
+                        const codec = cid.bytes[1];
+                        const multihash = cid.bytes.slice(2);
+                        console.log('Generated CID version:', version);
+                        console.log('Generated CID codec:', codec);
+                        console.log('Generated CID multihash (hex):', Array.from(multihash).map(b => b.toString(16).padStart(2, '0')).join(''));
+
+                        if (multihash.length >= 2) {
+                            const mhCode = multihash[0];
+                            const mhSize = multihash[1];
+                            const mhDigest = multihash.slice(2);
+                            console.log('Generated multihash code:', mhCode);
+                            console.log('Generated multihash size:', mhSize);
+                            console.log('Generated multihash digest (hex):', Array.from(mhDigest).map(b => b.toString(16).padStart(2, '0')).join(''));
+                        }
+                    }
+                } else {
+                    console.log('CID.bytes not available, trying base32 decode...');
+                    // Fallback to base32 decoding - decode the full base32 string including 'b' prefix
+                    const generatedCidStandardBase32 = generatedCidBase32.toUpperCase();
+                    const generatedCidPadded = generatedCidStandardBase32 + '='.repeat((8 - generatedCidStandardBase32.length % 8) % 8);
+
+                    try {
+                        // Decode base32 to get raw CID bytes (including header)
+                        const generatedCidBytes = new Uint8Array(
+                            atob(generatedCidPadded.replace(/-/g, '+').replace(/_/g, '/'))
+                                .split('')
+                                .map(c => c.charCodeAt(0))
+                        );
+
+                        // Convert to hex
+                        const generatedCidHex = Array.from(generatedCidBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+                        console.log('Generated CID raw bytes (hex):', generatedCidHex);
+                        console.log('Generated CID length:', generatedCidBytes.length);
+
+                        if (generatedCidBytes.length >= 2) {
+                            const version = generatedCidBytes[0];
+                            const codec = generatedCidBytes[1];
+                            const multihash = generatedCidBytes.slice(2);
+                            console.log('Generated CID version:', version);
+                            console.log('Generated CID codec:', codec);
+                            console.log('Generated CID multihash (hex):', Array.from(multihash).map(b => b.toString(16).padStart(2, '0')).join(''));
+                        }
+                    } catch (e) {
+                        console.log('Error decoding generated CID:', e);
+                    }
+                }
+
+                // Debug: Output the CID before base32 encoding
+                console.log('Generated CID:', cid.toString());
+                console.log('Expected CID:', 'bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq');
+                console.log('CID match:', cid.toString() === 'bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq' ? 'MATCH' : 'NO MATCH');
+
+                // Debug: Check if the issue is in CID generation or base32 encoding
+                console.log('CID version:', cid.version);   
+                console.log('CID codec:', cid.code);
+                console.log('CID multihash:', cid.multihash);
+                console.log('CID multihash code:', cid.multihash.code);
+                console.log('CID multihash size:', cid.multihash.size);
+                console.log('CID multihash digest (hex):', Array.from(cid.multihash.digest).map(b => b.toString(16).padStart(2, '0')).join(''));
+
+            } catch (error) {
+                console.error('Error generating DID:PLC ID:', error);
+                throw new Error('Failed to generate DID:PLC ID: ' + error.message);
+            }
+
+            // Get base32 representation of CID
+            const cidBase32 = cid.toString(base32);
+
+            // Debug: Output base32 encoding details
+            console.log('CID base32:', cidBase32);
+            console.log('Expected base32 for CID bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq:');
+
+            // Extract the base32 part (remove 'b' prefix and '=' padding)
+            const base32Part = cidBase32.substring(1).replace(/=/g, '');
+
+            // Debug: Output base32 part
+            console.log('Base32 part (no prefix/padding):', base32Part);
+            console.log('Base32 part length:', base32Part.length);
+
+            // Take first 24 characters for DID:PLC ID
+            const didPlcId = base32Part.substring(0, 24);
+
+            // Debug: Output DID:PLC ID extraction
+            console.log('Extracted DID:PLC ID (first 24 chars):', didPlcId);
+            console.log('Expected DID:PLC ID: pyzlzqt6b2nyrha7smfry6rv');
+
+            return `did:plc:${didPlcId}`;
+        }
+
+
+        // DID:PLC fetching functionality
+        async function fetchDidPlcRecord(didPlc) {
+            const url = `https://plc.directory/${didPlc}/log/audit`;
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                const auditLog = await response.json();
+
+                // Get the latest (current) record from the audit log
+                if (auditLog.length === 0) {
+                    throw new Error('No records found in audit log');
+                }
+
+                const latestRecord = auditLog[auditLog.length - 1];
+                const operation = latestRecord.operation;
+
+                // Extract the DID document data from the operation
+                console.log('Latest record operation:', operation);
+                console.log('Operation rotation keys:', operation.rotationKeys);
+
+                const didDocument = {
+                    id: latestRecord.did,
+                    rotationKeys: operation.rotationKeys,
+                    verificationMethods: operation.verificationMethods,
+                    services: operation.services,
+                    alsoKnownAs: operation.alsoKnownAs,
+                    previousRotationKey: latestRecord.operation.prev
+                };
+
+                console.log('Extracted DID document:', didDocument);
+
+                return { didDocument, auditLog };
+            } catch (error) {
+                console.error('Failed to fetch DID document:', error);
+                throw error;
+            }
+        }
+
+        // ==== END LOGIC ====
+
+        // === UI layer — DOM access below, not extracted to logic.js ===
+
 
         async function generateKey() {
             const keyDisplay = document.getElementById('keyDisplay');
@@ -1471,1081 +2595,6 @@
             console.warn('No status element found');
             return null;
         }
-
-        // Fetch actual operation from plc.directory
-        async function fetchActualOperation() {
-            try {
-                const response = await fetch('https://plc.directory/did:plc:pyzlzqt6b2nyrha7smfry6rv/log/audit');
-                const data = await response.json();
-                const operation = data[0].operation;
-                
-                // Remove sig field for CID generation
-                const operationForCid = { ...operation };
-                delete operationForCid.sig;
-                
-                console.log('Fetched operation from plc.directory:', operationForCid);
-                
-                // Debug: Compare with expected structure
-                console.log('=== Operation Structure Comparison ===');
-                console.log('Operation keys:', Object.keys(operationForCid));
-                console.log('Operation prev:', operationForCid.prev);
-                console.log('Operation type:', operationForCid.type);
-                console.log('Operation services:', operationForCid.services);
-                console.log('Operation alsoKnownAs:', operationForCid.alsoKnownAs);
-                console.log('Operation rotationKeys:', operationForCid.rotationKeys);
-                console.log('Operation verificationMethods:', operationForCid.verificationMethods);
-                
-                return operationForCid;
-            } catch (error) {
-                console.error('Error fetching operation:', error);
-                return null;
-            }
-        }
-
-        // Test case for DID:PLC ID generation
-        async function testDidPlcIdGeneration() {
-            console.log('=== DID:PLC ID Generation Test ===');
-            
-            // Fetch the actual operation with signature from plc.directory
-            const testDid = 'did:plc:pyzlzqt6b2nyrha7smfry6rv';
-            const expectedCid = 'bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq';
-            
-            try {
-                const { didDocument, auditLog } = await fetchDidPlcRecord(testDid);
-                const testOperation = auditLog[0].operation; // This includes the signature
-                
-                console.log('Fetched operation from plc.directory:', testOperation);
-                console.log('Operation includes signature:', !!testOperation.sig);
-                console.log('Signature value:', testOperation.sig);
-                
-                console.log('Expected DID:', testDid);
-                console.log('Expected CID:', expectedCid);
-                
-                // Test the DID:PLC ID generation with signed operation
-                const generatedDid = await generateDidPlcId(testOperation);
-                console.log('Generated DID:', generatedDid);
-                console.log('Match:', generatedDid === testDid ? 'PASS' : 'FAIL');
-                
-                if (generatedDid !== testDid) {
-                    console.log('Test failed - generated DID does not match expected');
-                    console.log('This may be due to:');
-                    console.log('1. Different DAG-CBOR serialization order');
-                    console.log('2. Different CID generation method');
-                    console.log('3. Different base32 encoding');
-                    console.log('4. Missing or incorrect signature');
-                } else {
-                    console.log('Test passed - DID:PLC ID generation is working correctly!');
-                }
-                
-                return {
-                    success: generatedDid === testDid,
-                    operation: testOperation,
-                    generatedDid: generatedDid,
-                    expectedDid: testDid,
-                    expectedCid: expectedCid
-                };
-            } catch (error) {
-                console.error('Test failed with error:', error);
-                return {
-                    success: false,
-                    error: error.message
-                };
-            }
-        }
-
-        // SHA-256 hash function using Web Crypto API
-        async function sha256Hash(data) {
-            console.log('=== SHA-256 Hash Debug ===');
-            console.log('Input data type:', typeof data);
-            console.log('Input data constructor:', data.constructor.name);
-            console.log('Input data length:', data.length);
-            console.log('Input data (first 20 bytes hex):', Array.from(data.slice(0, 20)).map(b => b.toString(16).padStart(2, '0')).join(''));
-            console.log('Input data (last 20 bytes hex):', Array.from(data.slice(-20)).map(b => b.toString(16).padStart(2, '0')).join(''));
-            
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            const result = new Uint8Array(hashBuffer);
-            
-            console.log('Hash result length:', result.length);
-            console.log('Hash result (hex):', Array.from(result).map(b => b.toString(16).padStart(2, '0')).join(''));
-            
-            return result;
-        }
-
-        // Verify a signed DID:PLC operation and recover the public key
-        async function verifyDidPlcOperation(signedOperation) {
-            try {
-                console.log('=== Verifying DID:PLC Operation ===');
-                console.log('Signed operation:', signedOperation);
-                
-                // Extract the signature
-                const signatureBase64 = signedOperation.sig;
-                console.log('Signature (base64url):', signatureBase64);
-                
-                // Decode the signature from base64url
-                const signatureBase64Standard = signatureBase64
-                    .replace(/-/g, '+')
-                    .replace(/_/g, '/');
-                
-                // Add padding if needed
-                const padding = signatureBase64Standard.length % 4;
-                const paddedSignature = signatureBase64Standard + '='.repeat(padding ? 4 - padding : 0);
-                
-                const signatureBytes = new Uint8Array(atob(paddedSignature).split('').map(c => c.charCodeAt(0)));
-                console.log('Signature bytes (hex):', Array.from(signatureBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
-                console.log('Signature length:', signatureBytes.length);
-                
-                // Create unsigned operation for verification
-                const unsignedOperation = { ...signedOperation };
-                delete unsignedOperation.sig;
-                console.log('Unsigned operation for verification:', unsignedOperation);
-                
-                // Serialize to DAG-CBOR
-                const dagCborBytes = dagCborEncode(unsignedOperation);
-                console.log('DAG-CBOR bytes for verification:', Array.from(dagCborBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
-                
-                // Extract r and s from the 64-byte signature
-                const r = signatureBytes.slice(0, 32);
-                const s = signatureBytes.slice(32, 64);
-                console.log('r (hex):', Array.from(r).map(b => b.toString(16).padStart(2, '0')).join(''));
-                console.log('s (hex):', Array.from(s).map(b => b.toString(16).padStart(2, '0')).join(''));
-                
-                // Hash the DAG-CBOR bytes for signature verification
-                const messageHash = await crypto.subtle.digest('SHA-256', dagCborBytes);
-                const messageHashHex = Array.from(new Uint8Array(messageHash)).map(b => b.toString(16).padStart(2, '0')).join('');
-                console.log('Message hash (SHA-256):', messageHashHex);
-                
-                // Get all rotation keys to verify against
-                const operationRotationKeys = signedOperation.rotationKeys;
-                console.log('Operation rotation keys:', operationRotationKeys);
-                
-                // Try to recover the public key using @noble/secp256k1
-                let recoveredPublicKey = null;
-                let correctRecovery = null;
-                let matchedRotationKey = null;
-                
-                for (let recovery = 0; recovery <= 1; recovery++) {
-                    try {
-                        // Create a 64-byte signature (r + s) as hex string
-                        const signatureHex = Array.from(r).map(b => b.toString(16).padStart(2, '0')).join('') + 
-                                           Array.from(s).map(b => b.toString(16).padStart(2, '0')).join('');
-                        
-                        console.log(`Trying recovery ${recovery} with signature hex:`, signatureHex);
-                        console.log(`Signature hex length:`, signatureHex.length, 'characters');
-                        
-                        // Use correct API: recoverPublicKey(hash, signature, recovery)
-                        const recovered = secp256k1.recoverPublicKey(messageHashHex, signatureHex, recovery, true);
-                        
-                        if (recovered) {
-                            console.log(`Recovered public key with recovery ${recovery}:`, Array.from(recovered).map(b => b.toString(16).padStart(2, '0')).join(''));
-                            
-                            // Generate DID:key from recovered public key
-                            const recoveredPublicKeyHex = Array.from(recovered).map(b => b.toString(16).padStart(2, '0')).join('');
-                            const recoveredDidKey = generateDidKey(recoveredPublicKeyHex);
-                            console.log(`Recovered DID:key with recovery ${recovery}:`, recoveredDidKey);
-                            
-                            // Check if this matches any of the rotation keys
-                            let foundMatch = false;
-                            for (let i = 0; i < operationRotationKeys.length; i++) {
-                                const rotationKey = operationRotationKeys[i];
-                                console.log(`Checking against rotation key ${i}:`, rotationKey);
-                                
-                                if (recoveredDidKey === rotationKey) {
-                                    console.log(`Recovery ${recovery} matches rotation key ${i}!`);
-                                    recoveredPublicKey = recovered;
-                                    correctRecovery = recovery;
-                                    matchedRotationKey = rotationKey;
-                                    foundMatch = true;
-                                    break;
-                                } else {
-                                    console.log(`Recovery ${recovery} does not match rotation key ${i}`);
-                                }
-                            }
-                            
-                            if (foundMatch) {
-                                break;
-                            }
-                        }
-                    } catch (e) {
-                        console.log(`Recovery ${recovery} failed:`, e.message);
-                    }
-                }
-                
-                if (!recoveredPublicKey) {
-                    throw new Error('Could not recover public key from signature that matches the expected rotation key');
-                }
-                
-                console.log(`Successfully recovered correct public key with recovery ${correctRecovery}`);
-                console.log(`Matched rotation key:`, matchedRotationKey);
-                
-                // Generate DID:key from recovered public key (for final comparison)
-                const recoveredPublicKeyHex = Array.from(recoveredPublicKey).map(b => b.toString(16).padStart(2, '0')).join('');
-                const recoveredDidKey = generateDidKey(recoveredPublicKeyHex);
-                console.log('Final recovered DID:key:', recoveredDidKey);
-                console.log('Keys match:', recoveredDidKey === matchedRotationKey);
-                
-                // Also verify using the known public key (if available)
-                let knownDidKey = null;
-                let knownKeyMatches = false;
-                
-                if (currentPublicKey) {
-                    const knownPublicKeyHex = currentPublicKey;
-                    knownDidKey = generateDidKey(knownPublicKeyHex);
-                    console.log('Known DID:key:', knownDidKey);
-                    console.log('Known key matches recovered:', recoveredDidKey === knownDidKey);
-                    console.log('Known key matches operation:', knownDidKey === matchedRotationKey);
-                    knownKeyMatches = knownDidKey === matchedRotationKey;
-                } else {
-                    console.log('No current public key available for comparison');
-                }
-                
-                return {
-                    success: true,
-                    recoveredPublicKey: recoveredPublicKeyHex,
-                    recoveredDidKey: recoveredDidKey,
-                    operationRotationKey: matchedRotationKey,
-                    knownDidKey: knownDidKey,
-                    keysMatch: recoveredDidKey === matchedRotationKey,
-                    knownKeyMatches: knownKeyMatches
-                };
-                
-            } catch (error) {
-                console.error('Error verifying DID:PLC operation:', error);
-                return {
-                    success: false,
-                    error: error.message
-                };
-            }
-        }
-
-        // Submit a signed DID:PLC operation to plc.directory
-        async function submitDidPlcOperation(signedOperation, didPlcId) {
-            try {
-                console.log('=== Submitting DID:PLC Operation ===');
-                console.log('Operation to submit:', signedOperation);
-                console.log('DID:PLC ID:', didPlcId);
-                
-                // Use the DID:PLC ID in the endpoint URL
-                const endpoint = `https://plc.directory/${didPlcId}`;
-                console.log('Submitting to endpoint:', endpoint);
-                
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(signedOperation)
-                });
-                
-                console.log('Response status:', response.status);
-                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-                
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Submission failed:', errorText);
-                    throw new Error(`Failed to submit operation: ${response.status} ${response.statusText}\n${errorText}`);
-                }
-                
-                // plc.directory returns plain text, not JSON
-                const resultText = await response.text();
-                console.log('Submission successful:', resultText);
-                
-                return { success: true, message: resultText };
-                
-            } catch (error) {
-                console.error('Error submitting DID:PLC operation:', error);
-                throw error;
-            }
-        }
-
-        // Reserve a signing key on the PDS
-        async function reserveSigningKey(pdsEndpoint, did) {
-            try {
-                console.log('=== Reserving Signing Key ===');
-                console.log('PDS Endpoint:', pdsEndpoint);
-                console.log('DID:', did);
-                
-                const endpoint = `${pdsEndpoint}/xrpc/com.atproto.server.reserveSigningKey`;
-                console.log('Reserving at endpoint:', endpoint);
-                
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        did: did
-                    })
-                });
-                
-                console.log('Response status:', response.status);
-                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-                
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Reservation failed:', errorText);
-                    throw new Error(`Failed to reserve signing key: ${response.status} ${response.statusText}\n${errorText}`);
-                }
-                
-                const result = await response.json();
-                console.log('Reservation successful:', result);
-                
-                return { success: true, result: result };
-                
-            } catch (error) {
-                console.error('Error reserving signing key:', error);
-                throw error;
-            }
-        }
-
-        // Create initial DID:PLC operation with rotation key
-        // We include all the fields that createDidPlcEntry uses (including alsoKnownAs)
-        function createDidPlcInitialOperation(data, rotationKey) {
-            const alsoKnownAs = [];
-            if (data.handle && data.handle.trim()) {
-                // Format handle as AT Protocol identifier
-                const handle = data.handle.trim();
-                // If handle already contains '@' or is already an at:// URL, use it as-is
-                // Otherwise, format it as at://handle
-                if (handle.startsWith('at://')) {
-                    alsoKnownAs.push(handle);
-                } else if (handle.includes('.')) {
-                    // Handle might be in format like handle.domain, format as at://handle.domain
-                    alsoKnownAs.push(`at://${handle}`);
-                } else {
-                    // Just handle name, format as at://handle
-                    alsoKnownAs.push(`at://${handle}`);
-                }
-            }
-            
-            return {
-                type: 'plc_operation',
-                prev: null,
-                rotationKeys: [rotationKey],
-                verificationMethods: {
-                    atproto: rotationKey
-                },
-                alsoKnownAs: alsoKnownAs,
-                services: {
-                    atproto_pds: {
-                        type: 'AtprotoPersonalDataServer',
-                        endpoint: data.pdsEndpoint
-                    }
-                }
-            };
-        }
-        
-        // Get the last operation CID for a DID:PLC ID
-        async function getLastOperationCid(didPlcId) {
-            try {
-                const { auditLog } = await fetchDidPlcRecord(didPlcId);
-                if (auditLog && auditLog.length > 0) {
-                    const lastRecord = auditLog[auditLog.length - 1];
-                    return lastRecord.cid;
-                }
-                return null;
-            } catch (error) {
-                console.error('Error fetching audit log:', error);
-                return null;
-            }
-        }
-        
-        // Base64URL encode (URL-safe base64, no padding)
-        // For binary data (like signatures), btoa treats the string as Latin-1 (ISO-8859-1)
-        // where each character is directly a byte (0-255), which is what we need
-        function base64UrlEncode(str) {
-            // Use btoa directly - it treats the string as Latin-1, not UTF-8
-            // This is correct for binary data where each character represents a byte
-            const base64 = btoa(str);
-            // Convert to base64url (URL-safe, no padding)
-            return base64
-                .replace(/\+/g, '-')
-                .replace(/\//g, '_')
-                .replace(/=/g, '');
-        }
-        
-        // Generate a unique JWT ID
-        function generateJti() {
-            const array = new Uint8Array(16);
-            crypto.getRandomValues(array);
-            return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
-        }
-        
-        // Get PDS server information including availableUserDomains
-        async function getPdsServerInfo(pdsEndpoint) {
-            // Try 1: ATProto server description endpoint
-            try {
-                const describeUrl = `${pdsEndpoint}/xrpc/com.atproto.server.describeServer`;
-                const response = await fetch(describeUrl);
-                if (response.ok) {
-                    const description = await response.json();
-                    if (description.did) {
-                        console.log('Resolved PDS server info from describeServer:', description);
-                        return description;
-                    }
-                }
-            } catch (error) {
-                console.log('Could not get PDS server info from describeServer:', error);
-            }
-            
-            // Try 2: Well-known DID endpoint (fallback for DID only)
-            try {
-                const wellKnownUrl = `${pdsEndpoint}/.well-known/did.json`;
-                const response = await fetch(wellKnownUrl);
-                if (response.ok) {
-                    const didDoc = await response.json();
-                    if (didDoc.id) {
-                        console.log('Resolved PDS DID from well-known:', didDoc.id);
-                        return { did: didDoc.id, availableUserDomains: [] };
-                    }
-                }
-            } catch (error) {
-                console.log('Could not resolve PDS DID from well-known:', error);
-            }
-            
-            // If we can't resolve the DID, throw an error instead of using the URL
-            // The PDS requires the DID as the audience, not the URL
-            throw new Error('Could not resolve PDS server information. Please ensure the PDS endpoint is correct and accessible.');
-        }
-        
-        // Get PDS DID from endpoint (try multiple methods)
-        async function getPdsDid(pdsEndpoint) {
-            const serverInfo = await getPdsServerInfo(pdsEndpoint);
-            return serverInfo.did;
-        }
-        
-        // Create a JWT service authentication token signed with the rotation key
-        async function createServiceAuthToken(didPlcId, pdsEndpoint, privateKeyHex) {
-            try {
-                console.log('=== Creating Service Auth Token ===');
-                console.log('DID:PLC ID:', didPlcId);
-                console.log('PDS Endpoint:', pdsEndpoint);
-                
-                // Get PDS DID for audience
-                const pdsDid = await getPdsDid(pdsEndpoint);
-                
-                // Create JWT header
-                const header = {
-                    alg: 'ES256K',
-                    typ: 'JWT'
-                };
-                
-                // Create JWT payload
-                const now = Math.floor(Date.now() / 1000);
-                const payload = {
-                    iss: didPlcId,  // Issuer: User's DID
-                    aud: pdsDid,    // Audience: PDS DID or endpoint URL
-                    exp: now + 60,  // Expiration: 60 seconds from now
-                    iat: now,       // Issued At: Current timestamp
-                    jti: generateJti(),  // JWT ID: Unique identifier
-                    lxm: 'com.atproto.server.createAccount'  // Lexicon Method
-                };
-                
-                console.log('JWT Header:', header);
-                console.log('JWT Payload:', payload);
-                
-                // Base64URL encode header and payload
-                const encodedHeader = base64UrlEncode(JSON.stringify(header));
-                const encodedPayload = base64UrlEncode(JSON.stringify(payload));
-                const signingInput = `${encodedHeader}.${encodedPayload}`;
-                
-                console.log('Signing input:', signingInput);
-                
-                // Hash the signing input with SHA-256
-                const signingInputBytes = new TextEncoder().encode(signingInput);
-                const messageHash = await crypto.subtle.digest('SHA-256', signingInputBytes);
-                const messageHashHex = Array.from(new Uint8Array(messageHash))
-                    .map(b => b.toString(16).padStart(2, '0'))
-                    .join('');
-                
-                console.log('Message hash (SHA-256):', messageHashHex);
-                
-                // Convert hex private key to Uint8Array
-                const privateKeyBytes = new Uint8Array(32);
-                for (let i = 0; i < privateKeyHex.length; i += 2) {
-                    privateKeyBytes[i / 2] = parseInt(privateKeyHex.slice(i, i + 2), 16);
-                }
-                
-                // Sign the hashed message using @noble/secp256k1
-                const signature = await secp256k1.sign(messageHashHex, privateKeyBytes);
-                
-                // Convert signature to compact format (64 bytes)
-                let signatureArray;
-                if (signature instanceof Uint8Array) {
-                    if (signature.length >= 68 && signature[0] === 0x30) {
-                        // Parse DER structure
-                        let offset = 2;
-                        
-                        // Parse r value
-                        if (signature[offset] !== 0x02) {
-                            throw new Error('Invalid DER format: expected r value marker');
-                        }
-                        offset++;
-                        const rLength = signature[offset];
-                        offset++;
-                        const rBytes = signature.slice(offset, offset + rLength);
-                        offset += rLength;
-                        
-                        // Parse s value
-                        if (signature[offset] !== 0x02) {
-                            throw new Error('Invalid DER format: expected s value marker');
-                        }
-                        offset++;
-                        const sLength = signature[offset];
-                        offset++;
-                        const sBytes = signature.slice(offset, offset + sLength);
-                        
-                        // Remove leading zero byte from r if present
-                        const rCompact = rBytes[0] === 0 ? rBytes.slice(1) : rBytes;
-                        
-                        // Create compact signature (64 bytes)
-                        signatureArray = new Uint8Array(64);
-                        // Pad r and s to exactly 32 bytes each (pad with leading zeros if needed)
-                        const rPadded = new Uint8Array(32);
-                        rPadded.set(rCompact, 32 - rCompact.length);
-                        const sPadded = new Uint8Array(32);
-                        sPadded.set(sBytes, 32 - sBytes.length);
-                        signatureArray.set(rPadded, 0);
-                        signatureArray.set(sPadded, 32);
-                        
-                        console.log('rCompact length:', rCompact.length, 'rPadded length:', rPadded.length);
-                        console.log('sBytes length:', sBytes.length, 'sPadded length:', sPadded.length);
-                        console.log('signatureArray length:', signatureArray.length);
-                    } else {
-                        throw new Error('Unexpected DER signature format');
-                    }
-                } else {
-                    throw new Error('Signature is not Uint8Array');
-                }
-                
-                console.log('Signature array before encoding (hex):', Array.from(signatureArray).map(b => b.toString(16).padStart(2, '0')).join(''));
-                console.log('Signature array length:', signatureArray.length);
-                
-                // Base64URL encode the signature
-                // Build string from bytes using a loop to avoid spread operator issues
-                let signatureString = '';
-                for (let i = 0; i < signatureArray.length; i++) {
-                    signatureString += String.fromCharCode(signatureArray[i]);
-                }
-                console.log('Signature string length:', signatureString.length);
-                const encodedSignature = base64UrlEncode(signatureString);
-                console.log('Encoded signature:', encodedSignature);
-                console.log('Encoded signature length:', encodedSignature.length);
-                
-                // Assemble the complete JWT
-                const jwt = `${signingInput}.${encodedSignature}`;
-                
-                console.log('Generated JWT:', jwt);
-                
-                return jwt;
-                
-            } catch (error) {
-                console.error('Error creating service auth token:', error);
-                throw error;
-            }
-        }
-        
-        // Verify a JWT service authentication token using a public key
-        async function verifyServiceAuthToken(jwt, publicKeyHex) {
-            try {
-                console.log('=== Verifying Service Auth Token ===');
-                console.log('JWT:', jwt);
-                console.log('Public Key (hex):', publicKeyHex);
-                
-                // Parse JWT
-                const parts = jwt.split('.');
-                if (parts.length !== 3) {
-                    throw new Error('Invalid JWT format: expected 3 parts');
-                }
-                
-                const [encodedHeader, encodedPayload, encodedSignature] = parts;
-                
-                // Decode header and payload
-                const headerJson = atob(encodedHeader.replace(/-/g, '+').replace(/_/g, '/'));
-                const payloadJson = atob(encodedPayload.replace(/-/g, '+').replace(/_/g, '/'));
-                const header = JSON.parse(headerJson);
-                const payload = JSON.parse(payloadJson);
-                
-                console.log('JWT Header:', header);
-                console.log('JWT Payload:', payload);
-                
-                // Check algorithm
-                if (header.alg !== 'ES256K') {
-                    throw new Error(`Unsupported algorithm: ${header.alg}`);
-                }
-                
-                // Recreate signing input
-                const signingInput = `${encodedHeader}.${encodedPayload}`;
-                console.log('Signing input:', signingInput);
-                
-                // Hash the signing input with SHA-256
-                const signingInputBytes = new TextEncoder().encode(signingInput);
-                const messageHash = await crypto.subtle.digest('SHA-256', signingInputBytes);
-                const messageHashHex = Array.from(new Uint8Array(messageHash))
-                    .map(b => b.toString(16).padStart(2, '0'))
-                    .join('');
-                
-                console.log('Message hash (SHA-256):', messageHashHex);
-                
-                // Decode signature from base64url
-                console.log('Encoded signature from JWT:', encodedSignature);
-                console.log('Encoded signature length:', encodedSignature.length);
-                const signatureBase64 = encodedSignature.replace(/-/g, '+').replace(/_/g, '/');
-                const padding = '='.repeat((4 - signatureBase64.length % 4) % 4);
-                console.log('Base64 signature (with padding):', signatureBase64 + padding);
-                const signatureBinaryString = atob(signatureBase64 + padding);
-                console.log('Decoded binary string length:', signatureBinaryString.length);
-                const signatureBytes = new Uint8Array(signatureBinaryString.length);
-                for (let i = 0; i < signatureBinaryString.length; i++) {
-                    signatureBytes[i] = signatureBinaryString.charCodeAt(i);
-                }
-                
-                console.log('Signature bytes length:', signatureBytes.length);
-                console.log('Signature bytes (hex):', Array.from(signatureBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
-                
-                if (signatureBytes.length !== 64) {
-                    console.error(`Invalid signature length: expected 64 bytes, got ${signatureBytes.length}`);
-                    console.error('This suggests the JWT was created with incorrect encoding. Please regenerate the JWT.');
-                    throw new Error(`Invalid signature length: expected 64 bytes, got ${signatureBytes.length}`);
-                }
-                
-                // Convert public key hex to Uint8Array
-                const publicKeyBytes = new Uint8Array(33); // Compressed public key is 33 bytes
-                for (let i = 0; i < publicKeyHex.length; i += 2) {
-                    publicKeyBytes[i / 2] = parseInt(publicKeyHex.slice(i, i + 2), 16);
-                }
-                
-                // Verify signature using @noble/secp256k1
-                // Note: secp256k1.verify expects the signature in compact format (64 bytes: r + s)
-                // and the message hash as a hex string (same as secp256k1.sign)
-                const isValid = secp256k1.verify(signatureBytes, messageHashHex, publicKeyBytes);
-                
-                console.log('Signature verification result:', isValid);
-                
-                if (isValid) {
-                    console.log('✓ JWT signature is VALID');
-                } else {
-                    console.error('✗ JWT signature is INVALID');
-                }
-                
-                return isValid;
-                
-            } catch (error) {
-                console.error('Error verifying service auth token:', error);
-                throw error;
-            }
-        }
-        
-        // Create an account on the PDS with a signed DID:PLC update
-        async function createAccountWithSignedOperation(pdsEndpoint, handle, email, password, didPlcId, signedUpdate, inviteCode, privateKeyHex) {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
-            try {
-                console.log('=== Creating Account with Signed Update ===');
-                console.log('PDS Endpoint:', pdsEndpoint);
-                console.log('Handle:', handle);
-                console.log('Email:', email);
-                console.log('DID:PLC ID:', didPlcId);
-                console.log('Signed Update:', signedUpdate);
-                
-                const endpoint = `${pdsEndpoint}/xrpc/com.atproto.server.createAccount`;
-                console.log('Creating account at endpoint:', endpoint);
-                            // Create JWT service authentication token
-                // This is signed with our rotation key, which is still the current verification method
-                // The PDS will verify the JWT using the current verification method, then apply the update
-                const jwt = await createServiceAuthToken(didPlcId, pdsEndpoint, privateKeyHex);
-                
-                // Self-verify the JWT to ensure signature is correct
-                const publicKeyHex = generatePublicKey(privateKeyHex);
-                const isValid = await verifyServiceAuthToken(jwt, publicKeyHex);
-                if (!isValid) {
-                    console.error('WARNING: JWT signature verification failed! The JWT we created is invalid.');
-                    throw new Error('JWT signature verification failed - the created JWT is invalid');
-                }
-                console.log('✓ JWT signature verified successfully before sending to PDS');
-                
-                const requestBody = {
-                    handle: handle,
-                    email: email,
-                    password: password,
-                    did: didPlcId
-                };
-                
-                // Add invite code if provided
-                if (inviteCode && inviteCode.trim()) {
-                    requestBody.inviteCode = inviteCode.trim();
-                }
-                
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${jwt}`
-                    },
-                    body: JSON.stringify(requestBody)
-                });
-                
-                console.log('Response status:', response.status);
-                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-                
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Account creation failed:', errorText);
-                    throw new Error(`Failed to create account: ${response.status} ${response.statusText}\n${errorText}`);
-                }
-                
-                const result = await response.json();
-                console.log('Account creation successful:', result);
-                
-                // After successful account creation, submit the update to plc.directory
-                console.log('Submitting update to plc.directory after account creation...');
-                const updateSubmitResult = await submitDidPlcOperation(signedUpdate, didPlcId);
-                
-                if (!updateSubmitResult.success) {
-                    console.warn('Warning: Failed to submit update to plc.directory, but account was created successfully');
-                    console.warn('You may need to manually submit the update later');
-                } else {
-                    console.log('Update successfully submitted to plc.directory');
-                }
-                
-                return { success: true, result: result };
-                
-            } catch (error) {
-                console.error('Error creating account:', error);
-                throw error;
-            }
-        }
-        
-        // Create an account on the PDS
-        async function createAccount(pdsEndpoint, handle, email, password, recoveryKey, inviteCode) {
-            try {
-                console.log('=== Creating Account ===');
-                console.log('PDS Endpoint:', pdsEndpoint);
-                console.log('Handle:', handle);
-                console.log('Email:', email);
-                console.log('Recovery Key:', recoveryKey);
-                
-                const endpoint = `${pdsEndpoint}/xrpc/com.atproto.server.createAccount`;
-                console.log('Creating account at endpoint:', endpoint);
-                
-                const requestBody = {
-                    handle: handle,
-                    email: email,
-                    password: password,
-                    recoveryKey: recoveryKey
-                };
-                
-                // Add invite code if provided
-                if (inviteCode && inviteCode.trim()) {
-                    requestBody.inviteCode = inviteCode.trim();
-                }
-                
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(requestBody)
-                });
-                
-                console.log('Response status:', response.status);
-                console.log('Response headers:', Object.fromEntries(response.headers.entries()));
-                
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Account creation failed:', errorText);
-                    throw new Error(`Failed to create account: ${response.status} ${response.statusText}\n${errorText}`);
-                }
-                
-                const result = await response.json();
-                console.log('Account creation successful:', result);
-                
-                return { success: true, result: result };
-                
-            } catch (error) {
-                console.error('Error creating account:', error);
-                throw error;
-            }
-        }
-
-        // Sign a DID:PLC operation with the current key
-        async function signDidPlcOperation(operation, privateKeyHex) {
-            try {
-                console.log('=== Signing DID:PLC Operation ===');
-                console.log('Operation to sign:', operation);
-                console.log('Private key (hex):', privateKeyHex);
-                
-                // Create a copy without the signature for signing
-                const operationForSigning = { ...operation };
-                delete operationForSigning.sig;
-                
-                console.log('Operation for signing (without sig):', operationForSigning);
-                
-                // Serialize to DAG-CBOR
-                const dagCborBytes = dagCborEncode(operationForSigning);
-                console.log('DAG-CBOR bytes for signing:', Array.from(dagCborBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
-                
-                // Hash the DAG-CBOR bytes with SHA-256 before signing
-                const messageHash = await crypto.subtle.digest('SHA-256', dagCborBytes);
-                const messageHashHex = Array.from(new Uint8Array(messageHash)).map(b => b.toString(16).padStart(2, '0')).join('');
-                console.log('Message hash (SHA-256):', messageHashHex);
-                
-                // Convert hex private key to Uint8Array
-                const privateKeyBytes = new Uint8Array(32);
-                for (let i = 0; i < privateKeyHex.length; i += 2) {
-                    privateKeyBytes[i / 2] = parseInt(privateKeyHex.slice(i, i + 2), 16);
-                }
-                
-                // Sign the hashed message using @noble/secp256k1
-                const signature = await secp256k1.sign(messageHashHex, privateKeyBytes);
-                console.log('Signature object:', signature);
-                console.log('Signature object type:', typeof signature);
-                console.log('Signature object constructor:', signature.constructor.name);
-                console.log('Signature object methods:', Object.getOwnPropertyNames(signature));
-                console.log('Signature object prototype methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(signature)));
-                console.log('Signature object keys:', Object.keys(signature));
-                console.log('Signature object values:', Object.values(signature));
-                
-                // Check for common signature properties
-                console.log('Has toCompactRawBytes:', 'toCompactRawBytes' in signature);
-                console.log('Has toBytes:', 'toBytes' in signature);
-                console.log('Has toCompactHex:', 'toCompactHex' in signature);
-                console.log('Has r:', 'r' in signature);
-                console.log('Has s:', 's' in signature);
-                console.log('Has recovery:', 'recovery' in signature);
-                
-                // Convert signature to base64url
-                let signatureArray;
-                
-                if (signature instanceof Uint8Array) {
-                    // Signature is already a Uint8Array (DER format)
-                    console.log('Signature is Uint8Array, length:', signature.length);
-                    console.log('Signature bytes (hex):', Array.from(signature).map(b => b.toString(16).padStart(2, '0')).join(''));
-                    
-                    // Convert DER to compact format (64 bytes)
-                    if (signature.length >= 68 && signature[0] === 0x30) {
-                        // Parse DER structure dynamically
-                        let offset = 2; // Skip 0x30 [length]
-                        
-                        // Parse r value
-                        if (signature[offset] !== 0x02) {
-                            throw new Error('Invalid DER format: expected r value marker');
-                        }
-                        offset++; // Skip 0x02
-                        const rLength = signature[offset];
-                        offset++; // Skip r length
-                        const rBytes = signature.slice(offset, offset + rLength);
-                        offset += rLength;
-                        
-                        // Parse s value
-                        if (signature[offset] !== 0x02) {
-                            throw new Error('Invalid DER format: expected s value marker');
-                        }
-                        offset++; // Skip 0x02
-                        const sLength = signature[offset];
-                        offset++; // Skip s length
-                        const sBytes = signature.slice(offset, offset + sLength);
-                        
-                        // Remove leading zero byte from r if present
-                        const rCompact = rBytes[0] === 0 ? rBytes.slice(1) : rBytes;
-                        
-                        // Create compact signature (64 bytes)
-                        signatureArray = new Uint8Array(64);
-                        signatureArray.set(rCompact, 0);
-                        signatureArray.set(sBytes, 32);
-                        
-                        console.log('DER structure parsed:');
-                        console.log('- r length:', rLength, 'bytes');
-                        console.log('- s length:', sLength, 'bytes');
-                        console.log('- r compact length:', rCompact.length, 'bytes');
-                        console.log('- Converted to compact signature, length:', signatureArray.length);
-                        console.log('Compact signature (hex):', Array.from(signatureArray).map(b => b.toString(16).padStart(2, '0')).join(''));
-                    } else {
-                        throw new Error('Unexpected DER signature format');
-                    }
-                } else {
-                    throw new Error('Signature is not Uint8Array');
-                }
-                const signatureBase64 = btoa(String.fromCharCode(...signatureArray))
-                    .replace(/\+/g, '-')
-                    .replace(/\//g, '_')
-                    .replace(/=/g, '');
-                
-                console.log('Generated signature (base64url):', signatureBase64);
-                
-                // Add signature to operation
-                const signedOperation = { ...operation };
-                signedOperation.sig = signatureBase64;
-                
-                console.log('Signed operation:', signedOperation);
-                
-                return signedOperation;
-                
-            } catch (error) {
-                console.error('Error signing DID:PLC operation:', error);
-                throw error;
-            }
-        }
-
-        // Generate a DID:PLC ID from operation
-        async function generateDidPlcId(operation) {
-            try {
-                // For testing with real data, include the signature
-                // In production, you'd sign the unsigned operation first
-                const operationForHash = { ...operation };
-                
-                console.log('Operation includes signature:', !!operationForHash.sig);
-                console.log('Operation for hashing:', operationForHash);
-                
-                // Serialize operation to DAG-CBOR
-                const dagCborBytes = dagCborEncode(operationForHash);
-                
-                // Debug: Output the DAG-CBOR bytes
-                console.log('DAG-CBOR bytes length:', dagCborBytes.length);
-                console.log('DAG-CBOR bytes (hex):', Array.from(dagCborBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
-                
-                // Hash the DAG-CBOR bytes with SHA-256
-                const hashBytes = await sha256Hash(dagCborBytes);
-                
-                console.log('SHA-256 hash (hex):', Array.from(hashBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
-                
-                // Convert hash to base32 and take first 24 characters
-                const hashBase32 = base32.encode(hashBytes);
-                console.log('Hash base32:', hashBase32);
-                
-                // Remove 'b' prefix and padding, then take first 24 characters
-                const base32Part = hashBase32.substring(1).replace(/=/g, '');
-                console.log('Base32 part (no prefix/padding):', base32Part);
-                console.log('Base32 part length:', base32Part.length);
-                
-                const didPlcId = base32Part.substring(0, 24);
-                console.log('Extracted DID:PLC ID (first 24 chars):', didPlcId);
-                console.log('Expected DID:PLC ID: pyzlzqt6b2nyrha7smfry6rv');
-                
-                return `did:plc:${didPlcId}`;
-                
-                // Debug: Check multihash digest structure
-                console.log('Multihash digest object:', multihashDigest);
-                console.log('Multihash digest has code property:', 'code' in multihashDigest);
-                console.log('Multihash digest has size property:', 'size' in multihashDigest);
-                console.log('Multihash digest has bytes property:', 'bytes' in multihashDigest);
-                console.log('Multihash digest has digest property:', 'digest' in multihashDigest);
-                
-                // Debug: Output multihash digest details
-                console.log('Multihash digest code:', multihashDigest.code);
-                console.log('Multihash digest size:', multihashDigest.size);
-                console.log('Multihash digest bytes (hex):', Array.from(multihashDigest.bytes).map(b => b.toString(16).padStart(2, '0')).join(''));
-                console.log('Multihash digest bytes length:', multihashDigest.bytes.length);
-                
-                // Create CID from the digest
-                console.log('Creating CID with:');
-                console.log('- Version: 1');
-                console.log('- Codec: 0x71 (113)');
-                console.log('- Multihash digest:', multihashDigest);
-                console.log('- Multihash digest code:', multihashDigest.code);
-                console.log('- Multihash digest size:', multihashDigest.size);
-                console.log('- Multihash digest bytes length:', multihashDigest.bytes.length);
-                
-                cid = CID.create(1, 0x71, multihashDigest); // CIDv1 with DAG-CBOR codec (0x71)
-                
-                // Debug: Decode the generated CID to see its raw bytes (including header)
-                const generatedCidBase32 = cid.toString(base32);
-                console.log('Generated CID base32 string:', generatedCidBase32);
-                
-                // Use the CID's bytes property directly if available
-                if (cid.bytes) {
-                    const generatedCidHex = Array.from(cid.bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-                    console.log('Generated CID raw bytes (hex):', generatedCidHex);
-                    console.log('Generated CID length:', cid.bytes.length);
-                    
-                    if (cid.bytes.length >= 2) {
-                        const version = cid.bytes[0];
-                        const codec = cid.bytes[1];
-                        const multihash = cid.bytes.slice(2);
-                        console.log('Generated CID version:', version);
-                        console.log('Generated CID codec:', codec);
-                        console.log('Generated CID multihash (hex):', Array.from(multihash).map(b => b.toString(16).padStart(2, '0')).join(''));
-                        
-                        if (multihash.length >= 2) {
-                            const mhCode = multihash[0];
-                            const mhSize = multihash[1];
-                            const mhDigest = multihash.slice(2);
-                            console.log('Generated multihash code:', mhCode);
-                            console.log('Generated multihash size:', mhSize);
-                            console.log('Generated multihash digest (hex):', Array.from(mhDigest).map(b => b.toString(16).padStart(2, '0')).join(''));
-                        }
-                    }
-                } else {
-                    console.log('CID.bytes not available, trying base32 decode...');
-                    // Fallback to base32 decoding - decode the full base32 string including 'b' prefix
-                    const generatedCidStandardBase32 = generatedCidBase32.toUpperCase();
-                    const generatedCidPadded = generatedCidStandardBase32 + '='.repeat((8 - generatedCidStandardBase32.length % 8) % 8);
-                    
-                    try {
-                        // Decode base32 to get raw CID bytes (including header)
-                        const generatedCidBytes = new Uint8Array(
-                            atob(generatedCidPadded.replace(/-/g, '+').replace(/_/g, '/'))
-                                .split('')
-                                .map(c => c.charCodeAt(0))
-                        );
-                        
-                        // Convert to hex
-                        const generatedCidHex = Array.from(generatedCidBytes).map(b => b.toString(16).padStart(2, '0')).join('');
-                        console.log('Generated CID raw bytes (hex):', generatedCidHex);
-                        console.log('Generated CID length:', generatedCidBytes.length);
-                        
-                        if (generatedCidBytes.length >= 2) {
-                            const version = generatedCidBytes[0];
-                            const codec = generatedCidBytes[1];
-                            const multihash = generatedCidBytes.slice(2);
-                            console.log('Generated CID version:', version);
-                            console.log('Generated CID codec:', codec);
-                            console.log('Generated CID multihash (hex):', Array.from(multihash).map(b => b.toString(16).padStart(2, '0')).join(''));
-                        }
-                    } catch (e) {
-                        console.log('Error decoding generated CID:', e);
-                    }
-                }
-                
-                // Debug: Output the CID before base32 encoding
-                console.log('Generated CID:', cid.toString());
-                console.log('Expected CID:', 'bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq');
-                console.log('CID match:', cid.toString() === 'bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq' ? 'MATCH' : 'NO MATCH');
-                
-                // Debug: Check if the issue is in CID generation or base32 encoding
-                console.log('CID version:', cid.version);   
-                console.log('CID codec:', cid.code);
-                console.log('CID multihash:', cid.multihash);
-                console.log('CID multihash code:', cid.multihash.code);
-                console.log('CID multihash size:', cid.multihash.size);
-                console.log('CID multihash digest (hex):', Array.from(cid.multihash.digest).map(b => b.toString(16).padStart(2, '0')).join(''));
-                
-            } catch (error) {
-                console.error('Error generating DID:PLC ID:', error);
-                throw new Error('Failed to generate DID:PLC ID: ' + error.message);
-            }
-            
-            // Get base32 representation of CID
-            const cidBase32 = cid.toString(base32);
-            
-            // Debug: Output base32 encoding details
-            console.log('CID base32:', cidBase32);
-            console.log('Expected base32 for CID bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq:');
-            
-            // Extract the base32 part (remove 'b' prefix and '=' padding)
-            const base32Part = cidBase32.substring(1).replace(/=/g, '');
-            
-            // Debug: Output base32 part
-            console.log('Base32 part (no prefix/padding):', base32Part);
-            console.log('Base32 part length:', base32Part.length);
-            
-            // Take first 24 characters for DID:PLC ID
-            const didPlcId = base32Part.substring(0, 24);
-            
-            // Debug: Output DID:PLC ID extraction
-            console.log('Extracted DID:PLC ID (first 24 chars):', didPlcId);
-            console.log('Expected DID:PLC ID: pyzlzqt6b2nyrha7smfry6rv');
-            
-            return `did:plc:${didPlcId}`;
-        }
-
         // Make functions globally accessible for onclick handlers
         window.generateKey = generateKey;
         window.copyKey = copyKey;
@@ -3741,46 +3790,6 @@
                 // TODO: Implement copy functionality
                 console.log('Copy account details clicked');
             });
-        }
-
-        // DID:PLC fetching functionality
-        async function fetchDidPlcRecord(didPlc) {
-            const url = `https://plc.directory/${didPlc}/log/audit`;
-            try {
-                const response = await fetch(url);
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                const auditLog = await response.json();
-                
-                // Get the latest (current) record from the audit log
-                if (auditLog.length === 0) {
-                    throw new Error('No records found in audit log');
-                }
-                
-                const latestRecord = auditLog[auditLog.length - 1];
-                const operation = latestRecord.operation;
-                
-                // Extract the DID document data from the operation
-                console.log('Latest record operation:', operation);
-                console.log('Operation rotation keys:', operation.rotationKeys);
-                
-                const didDocument = {
-                    id: latestRecord.did,
-                    rotationKeys: operation.rotationKeys,
-                    verificationMethods: operation.verificationMethods,
-                    services: operation.services,
-                    alsoKnownAs: operation.alsoKnownAs,
-                    previousRotationKey: latestRecord.operation.prev
-                };
-                
-                console.log('Extracted DID document:', didDocument);
-                
-                return { didDocument, auditLog };
-            } catch (error) {
-                console.error('Failed to fetch DID document:', error);
-                throw error;
-            }
         }
 
         function populateFormFromDidDocument(didDocument) {
