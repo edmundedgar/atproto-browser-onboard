@@ -167,34 +167,6 @@
             
         }
 
-        .public-key-display {
-            background: #f0f8f0;
-            border: 2px dashed #28a745;
-            border-radius: 10px;
-            padding: 20px;
-            margin: 20px 0;
-            text-align: left;
-        }
-
-        .public-key-display h3 {
-            color: #155724;
-            margin-bottom: 15px;
-            text-align: center;
-            font-size: 1.2em;
-        }
-
-        .public-key-text {
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            line-height: 1.5;
-            color: #155724;
-            word-break: break-all;
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #c3e6cb;
-        }
-
         .did-key-display {
             border: 1px solid #ffffff;
             border-radius: 4px;
@@ -902,12 +874,6 @@
         </div>
 
 
-        <!--
-        <div class="key-display" id="keyDisplay">
-            Click "Generate Key" to create a new private key
-        </div>
-        -->
-        
         <div class="mnemonic-display" id="mnemonicDisplay" style="display: none;">
             <h3>Secret Key Phrase</h3>
             <div class="mnemonic-text-container">
@@ -916,40 +882,15 @@
             </div>
         </div>
         
-        <!--
-        <div class="public-key-display" id="publicKeyDisplay" style="display: none;">
-            <h3>secp256k1 Public Key</h3>
-            <div class="public-key-text" id="publicKeyText"></div>
-        </div>
-        -->
-               
         <div class="key-generation-section" id="keyGenerationSection">
             <div class="button-group">
                 <button class="generate-btn" id="generateBtn">
                     GENERATE KEY
                 </button>
                 
-                <!--
-                <button class="copy-btn" id="copyBtn" disabled>
-                    Copy Key
-                </button>
-                -->
-                
                 <button class="copy-btn" id="copyMnemonicBtn" disabled>
                     COPY SEED PHRASE
                 </button>
-                
-                <!--
-                <button class="copy-btn" id="copyPublicKeyBtn" disabled>
-                    Copy Public Key
-                </button>
-                -->
-                
-                <!--
-                <button class="copy-btn" id="copyDidKeyBtn" disabled>
-                    Copy DID Key
-                </button>
-                -->
             </div>
             
             <div class="restore-section">
@@ -982,20 +923,6 @@
             </button>
         </div>
         
-        <!--
-        <div class="info">
-            <h3>About This Tool</h3>
-            <p>
-                This tool generates cryptographically secure 256-bit private keys using the Web Crypto API. 
-                The key is generated entirely in your browser and never transmitted over the network. 
-                Each key is unique and suitable for cryptographic operations. The tool also generates 
-                a corresponding BIP39 mnemonic phrase for easier backup and recovery, computes the 
-                secp256k1 public key for use in blockchain applications, and formats the public key 
-                as a DID key for decentralized identity use cases. You can also restore a private 
-                key from a valid BIP39 mnemonic phrase.
-            </p>
-        </div>
-        -->
         
         <div class="status"></div>
             </div>
@@ -1273,13 +1200,9 @@
             const keyDisplay = document.getElementById('keyDisplay');
             const mnemonicDisplay = document.getElementById('mnemonicDisplay');
             const mnemonicText = document.getElementById('mnemonicText');
-            const publicKeyDisplay = document.getElementById('publicKeyDisplay');
-            const publicKeyText = document.getElementById('publicKeyText');
             const didKeyDisplay = document.getElementById('didKeyDisplay');
             const didKeyText = document.getElementById('didKeyText');
-            const copyBtn = document.getElementById('copyBtn');
             const copyMnemonicBtn = document.getElementById('copyMnemonicBtn');
-            const copyPublicKeyBtn = document.getElementById('copyPublicKeyBtn');
             const copyDidKeyBtn = document.getElementById('copyDidKeyBtn');
             const generateBtn = document.getElementById('generateBtn');
             const status = getCurrentStatusElement();
@@ -1290,7 +1213,6 @@
                 if (generateBtn) generateBtn.textContent = 'Generating...';
                 if (keyDisplay) keyDisplay.textContent = 'Generating secure random key, mnemonic, and public key...';
                 if (mnemonicDisplay) mnemonicDisplay.style.display = 'none';
-                if (publicKeyDisplay) publicKeyDisplay.style.display = 'none';
                 if (status) status.innerHTML = '';
 
                 // Generate 256 bits (32 bytes) of random data
@@ -1319,26 +1241,20 @@
                 if (mnemonicText) mnemonicText.textContent = currentMnemonic;
                 if (mnemonicDisplay) mnemonicDisplay.style.display = 'block';
                 
-                // Display the public key
-                if (publicKeyText) publicKeyText.textContent = currentPublicKey;
-                if (publicKeyDisplay) publicKeyDisplay.style.display = 'block';
-                
                 // Display the DID key
                 if (didKeyText) didKeyText.textContent = currentDidKey;
                 if (didKeyDisplay) didKeyDisplay.style.display = 'block';
-                
+
                 // Enable copy buttons
-                if (copyBtn) copyBtn.disabled = false;
                 if (copyMnemonicBtn) copyMnemonicBtn.disabled = false;
-                if (copyPublicKeyBtn) copyPublicKeyBtn.disabled = false;
                 if (copyDidKeyBtn) copyDidKeyBtn.disabled = false;
-                
+
                 // Update submit button state if we're on the DID:PLC Entry tab
                 updateSubmitButtonState();
-                
+
                 // Update tab states to enable inactive tabs
                 updateTabStates();
-                
+
                 // Toggle key generation sections visibility
                 toggleKeyGenerationSections();
 
@@ -1354,7 +1270,6 @@
                 if (keyDisplay) keyDisplay.textContent = 'Error generating key. Please try again.';
                 if (keyDisplay) keyDisplay.classList.remove('has-key');
                 if (mnemonicDisplay) mnemonicDisplay.style.display = 'none';
-                if (publicKeyDisplay) publicKeyDisplay.style.display = 'none';
                 if (didKeyDisplay) didKeyDisplay.style.display = 'none';
             } finally {
                 if (generateBtn) generateBtn.disabled = false;
@@ -1412,30 +1327,6 @@
             }
         }
 
-        async function copyPublicKey() {
-            if (!currentPublicKey) return;
-
-            try {
-                await navigator.clipboard.writeText(currentPublicKey);
-                const status = getCurrentStatusElement();
-                if (status) {
-                    status.innerHTML = '<div class="status success">Public key copied to clipboard!</div>';
-                }
-                
-                // Clear status after 3 seconds
-                setTimeout(() => {
-                    if (status) {
-                        status.innerHTML = '';
-                    }
-                }, 3000);
-            } catch (error) {
-                console.error('Error copying public key to clipboard:', error);
-                const status = getCurrentStatusElement();
-                if (status) {
-                    status.innerHTML = '<div class="status error">Failed to copy public key to clipboard</div>';
-                }
-            }
-        }
 
         async function copyDidKey() {
             if (!currentDidKey) return;
@@ -1467,13 +1358,9 @@
             const keyDisplay = document.getElementById('keyDisplay');
             const mnemonicDisplay = document.getElementById('mnemonicDisplay');
             const mnemonicText = document.getElementById('mnemonicText');
-            const publicKeyDisplay = document.getElementById('publicKeyDisplay');
-            const publicKeyText = document.getElementById('publicKeyText');
             const didKeyDisplay = document.getElementById('didKeyDisplay');
             const didKeyText = document.getElementById('didKeyText');
-            const copyBtn = document.getElementById('copyBtn');
             const copyMnemonicBtn = document.getElementById('copyMnemonicBtn');
-            const copyPublicKeyBtn = document.getElementById('copyPublicKeyBtn');
             const copyDidKeyBtn = document.getElementById('copyDidKeyBtn');
             const restoreBtn = document.getElementById('restoreBtn');
             const status = getCurrentStatusElement();
@@ -1527,18 +1414,12 @@
                 if (mnemonicText) mnemonicText.textContent = currentMnemonic;
                 if (mnemonicDisplay) mnemonicDisplay.style.display = 'block';
                 
-                // Display the public key
-                if (publicKeyText) publicKeyText.textContent = currentPublicKey;
-                if (publicKeyDisplay) publicKeyDisplay.style.display = 'block';
-                
                 // Display the DID key
                 if (didKeyText) didKeyText.textContent = currentDidKey;
                 if (didKeyDisplay) didKeyDisplay.style.display = 'block';
 
                 // Enable copy buttons
-                if (copyBtn) copyBtn.disabled = false;
                 if (copyMnemonicBtn) copyMnemonicBtn.disabled = false;
-                if (copyPublicKeyBtn) copyPublicKeyBtn.disabled = false;
                 if (copyDidKeyBtn) copyDidKeyBtn.disabled = false;
                 
                 // Update submit button state if we're on the DID:PLC Entry tab
@@ -1558,7 +1439,6 @@
                 if (keyDisplay) keyDisplay.textContent = 'Error restoring key. Please check your mnemonic phrase.';
                 if (keyDisplay) keyDisplay.classList.remove('has-key');
                 if (mnemonicDisplay) mnemonicDisplay.style.display = 'none';
-                if (publicKeyDisplay) publicKeyDisplay.style.display = 'none';
                 if (didKeyDisplay) didKeyDisplay.style.display = 'none';
             } finally {
                 if (restoreBtn) restoreBtn.disabled = false;
@@ -2670,7 +2550,6 @@
         window.generateKey = generateKey;
         window.copyKey = copyKey;
         window.copyMnemonic = copyMnemonic;
-        window.copyPublicKey = copyPublicKey;
         window.copyDidKey = copyDidKey;
         window.restoreFromMnemonic = restoreFromMnemonic;
         window.clearInput = clearInput;
@@ -2681,17 +2560,13 @@
 
         // Add event listeners
         const generateBtn = document.getElementById('generateBtn');
-        const copyBtn = document.getElementById('copyBtn');
         const copyMnemonicBtn = document.getElementById('copyMnemonicBtn');
-        const copyPublicKeyBtn = document.getElementById('copyPublicKeyBtn');
         const copyDidKeyBtn = document.getElementById('copyDidKeyBtn');
         const restoreBtn = document.getElementById('restoreBtn');
         const clearBtn = document.getElementById('clearBtn');
         
         if (generateBtn) generateBtn.addEventListener('click', generateKey);
-        if (copyBtn) copyBtn.addEventListener('click', copyKey);
         if (copyMnemonicBtn) copyMnemonicBtn.addEventListener('click', copyMnemonic);
-        if (copyPublicKeyBtn) copyPublicKeyBtn.addEventListener('click', copyPublicKey);
         if (copyDidKeyBtn) copyDidKeyBtn.addEventListener('click', copyDidKey);
         if (restoreBtn) restoreBtn.addEventListener('click', restoreFromMnemonic);
         if (clearBtn) clearBtn.addEventListener('click', clearInput);
