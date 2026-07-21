@@ -1693,56 +1693,19 @@
                     privateKeyBytes[i / 2] = parseInt(privateKeyHex.slice(i, i + 2), 16);
                 }
 
-                // Sign the hashed message using @noble/secp256k1
-                const signature = await secp256k1.sign(messageHashHex, privateKeyBytes);
+                // Sign the hashed message using @noble/secp256k1, asking for the
+                // compact (r||s, 64-byte) format directly instead of DER. The
+                // previous approach signed with DER output and hand-parsed it back
+                // apart, which stripped a leading zero-padding byte from r but not
+                // from s — correct whenever s's DER encoding didn't need padding,
+                // but throwing (or worse, silently wrong) whenever it did, which
+                // happens for roughly half of all signatures depending on the
+                // random per-signature nonce. { der: false } sidesteps all of that
+                // by having the library hand back an already-correct 64-byte value.
+                const signatureArray = await secp256k1.sign(messageHashHex, privateKeyBytes, { der: false });
 
-                // Convert signature to compact format (64 bytes)
-                let signatureArray;
-                if (signature instanceof Uint8Array) {
-                    if (signature.length >= 68 && signature[0] === 0x30) {
-                        // Parse DER structure
-                        let offset = 2;
-
-                        // Parse r value
-                        if (signature[offset] !== 0x02) {
-                            throw new Error('Invalid DER format: expected r value marker');
-                        }
-                        offset++;
-                        const rLength = signature[offset];
-                        offset++;
-                        const rBytes = signature.slice(offset, offset + rLength);
-                        offset += rLength;
-
-                        // Parse s value
-                        if (signature[offset] !== 0x02) {
-                            throw new Error('Invalid DER format: expected s value marker');
-                        }
-                        offset++;
-                        const sLength = signature[offset];
-                        offset++;
-                        const sBytes = signature.slice(offset, offset + sLength);
-
-                        // Remove leading zero byte from r if present
-                        const rCompact = rBytes[0] === 0 ? rBytes.slice(1) : rBytes;
-
-                        // Create compact signature (64 bytes)
-                        signatureArray = new Uint8Array(64);
-                        // Pad r and s to exactly 32 bytes each (pad with leading zeros if needed)
-                        const rPadded = new Uint8Array(32);
-                        rPadded.set(rCompact, 32 - rCompact.length);
-                        const sPadded = new Uint8Array(32);
-                        sPadded.set(sBytes, 32 - sBytes.length);
-                        signatureArray.set(rPadded, 0);
-                        signatureArray.set(sPadded, 32);
-
-                        console.log('rCompact length:', rCompact.length, 'rPadded length:', rPadded.length);
-                        console.log('sBytes length:', sBytes.length, 'sPadded length:', sPadded.length);
-                        console.log('signatureArray length:', signatureArray.length);
-                    } else {
-                        throw new Error('Unexpected DER signature format');
-                    }
-                } else {
-                    throw new Error('Signature is not Uint8Array');
+                if (!(signatureArray instanceof Uint8Array) || signatureArray.length !== 64) {
+                    throw new Error(`Unexpected signature format: expected 64-byte Uint8Array, got ${signatureArray && signatureArray.length}`);
                 }
 
                 console.log('Signature array before encoding (hex):', Array.from(signatureArray).map(b => b.toString(16).padStart(2, '0')).join(''));
@@ -3706,33 +3669,32 @@
                     }
                 };
                 
-                // Sign the update
+                // Sign the update, but DO NOT submit it yet. The service-auth JWT
+                // that createAccount needs is signed with the rotation key, and the
+                // PDS verifies that JWT by resolving the DID document and checking
+                // whatever key is currently listed under #atproto. If we submit this
+                // update first, #atproto flips to the PDS's key before createAccount
+                // ever runs, so a JWT signed with the rotation key no longer matches
+                // what the PDS resolves — that's what was causing
+                // "invalid authorization token" / "cryptographic signature invalid".
+                // Submitting this after createAccount succeeds keeps the DID doc
+                // showing the rotation key for #atproto at the moment it matters.
                 const signedUpdate = await signDidPlcOperation(updateOperation, currentKey);
-                
+
                 // Verify the signed update
                 const verificationResult = await verifyDidPlcOperation(signedUpdate);
                 if (!verificationResult.success || !verificationResult.keysMatch) {
                     throw new Error('Failed to verify signed update operation');
                 }
-                
-                // Submit the update to plc.directory before calling createAccount,
-                // so the PDS sees the already-updated DID document (with its signing key).
-                if (status) {
-                    status.innerHTML = '<div class="status success">Submitting DID update to plc.directory...</div>';
-                }
-                const updateSubmitResult = await submitDidPlcOperation(signedUpdate, didPlcId);
-                if (!updateSubmitResult.success) {
-                    throw new Error('Failed to submit DID update to plc.directory');
-                }
-                console.log('DID update submitted to plc.directory');
 
-                // Step 4: Call createAccount with the updated DID
+                // Step 4: Call createAccount BEFORE submitting the DID update above,
+                // while the DID doc still shows the rotation key under #atproto.
                 if (status) {
                     status.innerHTML = '<div class="status success">Creating account on PDS...</div>';
                 }
-                
-                console.log('Creating account with signed DID:PLC update');
-                
+
+                console.log('Creating account with rotation key still as #atproto');
+
                 const accountResult = await createAccountWithSignedOperation(
                     data.pdsEndpoint,
                     data.handle,
@@ -3743,25 +3705,39 @@
                     data.inviteCode,
                     currentKey
                 );
-                
+
                 console.log('Account creation result:', accountResult);
-                
-                if (accountResult.success) {
-                    // Update the DID:PLC field in the form
-                    const didField = document.getElementById('account-did');
-                    const didValueField = document.getElementById('account-did-value');
-                    if (didField) {
-                        didField.innerHTML = `<span style="color: #ffffff;">${didPlcId}</span>`;
-                    }
-                    if (didValueField) {
-                        didValueField.value = didPlcId;
-                    }
-                    
-                    if (status) {
-                        status.innerHTML = '<div class="status success">Account created successfully!</div>';
-                    }
-                } else {
+
+                if (!accountResult.success) {
                     throw new Error('Account creation failed');
+                }
+
+                // Step 5: NOW submit the DID update, handing #atproto over to the
+                // PDS's reserved signing key. Only safe to do after the account
+                // above actually exists.
+                if (status) {
+                    status.innerHTML = '<div class="status success">Submitting DID update to plc.directory...</div>';
+                }
+                const updateSubmitResult = await submitDidPlcOperation(signedUpdate, didPlcId);
+                if (!updateSubmitResult.success) {
+                    // The account itself was created successfully at this point —
+                    // don't repeat account creation. Retry just this update submission.
+                    throw new Error('Account was created, but handing signing over to the PDS failed (DID update not submitted). Do not recreate the account — retry submitting the DID update.');
+                }
+                console.log('DID update submitted to plc.directory');
+
+                // Update the DID:PLC field in the form
+                const didField = document.getElementById('account-did');
+                const didValueField = document.getElementById('account-did-value');
+                if (didField) {
+                    didField.innerHTML = `<span style="color: #ffffff;">${didPlcId}</span>`;
+                }
+                if (didValueField) {
+                    didValueField.value = didPlcId;
+                }
+
+                if (status) {
+                    status.innerHTML = '<div class="status success">Account created successfully!</div>';
                 }
             } catch (error) {
                 console.error('Error creating account:', error);
