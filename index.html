@@ -866,7 +866,7 @@
         
  
         <div class="did-key-display" id="didKeyDisplay" style="display: none;">
-            <h3>DID (ATProto ID)</h3>
+            <h3>Key</h3>
             <div class="did-key-text-container">
                 <div class="did-key-text" id="didKeyText"></div>
                 <button class="copy-icon" id="copyDidKeyBtn" title="Copy DID:Key to clipboard">📋</button>
@@ -885,7 +885,7 @@
         <div class="key-generation-section" id="keyGenerationSection">
             <div class="button-group">
                 <button class="generate-btn" id="generateBtn">
-                    GENERATE KEY
+                    GENERATE NEW KEY
                 </button>
                 
                 <button class="copy-btn" id="copyMnemonicBtn" disabled>
@@ -1116,7 +1116,7 @@
     "multiformats/bases/base32": "https://cdn.jsdelivr.net/npm/multiformats@13.4.0/bases/base32/+esm",
     "multiformats/bases/base58": "https://cdn.jsdelivr.net/npm/multiformats@13.4.0/bases/base58/+esm",
     "web-bip39": "https://cdn.jsdelivr.net/npm/web-bip39@0.0.3/+esm",
-    "web-bip39/wordlists/english": "https://cdn.jsdelivr.net/npm/web-bip39@0.0.3/wordlists/english/+esm"
+    "web-bip39/wordlists/english.js": "https://cdn.jsdelivr.net/npm/web-bip39@0.0.3/wordlists/english/+esm"
   },
   "integrity": {
     "https://cdn.jsdelivr.net/npm/@noble/secp256k1@1.7.1/+esm": "sha384-ctF+yeUqAx/BuCR1QMviAGExEtYktU/hLf0RaqE+6V5Hbccfz9I3wUyWuQjepyov",
@@ -1143,7 +1143,7 @@
         import { base32 } from 'multiformats/bases/base32';
         import { base58btc } from 'multiformats/bases/base58';
         import { generateMnemonic, validateMnemonic, mnemonicToEntropy, entropyToMnemonic } from 'web-bip39';
-        import wordlist from 'web-bip39/wordlists/english';
+        import wordlist from 'web-bip39/wordlists/english.js';
 
         let currentKey = null;
         let currentMnemonic = null;
@@ -1922,15 +1922,21 @@
                 const result = await response.json();
                 console.log('Account creation successful:', result);
 
-                // After successful account creation, submit the update to plc.directory
-                console.log('Submitting update to plc.directory after account creation...');
-                const updateSubmitResult = await submitDidPlcOperation(signedUpdate, didPlcId);
-
-                if (!updateSubmitResult.success) {
-                    console.warn('Warning: Failed to submit update to plc.directory, but account was created successfully');
-                    console.warn('You may need to manually submit the update later');
+                // Activate the account - when createAccount is called with an existing DID,
+                // the account starts in a deactivated state and must be explicitly activated.
+                console.log('Activating account...');
+                const activateEndpoint = `${pdsEndpoint}/xrpc/com.atproto.server.activateAccount`;
+                const activateResponse = await fetch(activateEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${result.accessJwt}`
+                    }
+                });
+                if (!activateResponse.ok) {
+                    const activateError = await activateResponse.text();
+                    console.warn('Warning: Failed to activate account:', activateError);
                 } else {
-                    console.log('Update successfully submitted to plc.directory');
+                    console.log('Account activated successfully');
                 }
 
                 return { success: true, result: result };
@@ -3685,12 +3691,12 @@
                 
                 const pdsVerificationMethod = reserveResult.result.signingKey;
                 console.log('PDS verification method:', pdsVerificationMethod);
-                
+
                 // Step 3: Create an update with the PDS verification method
                 if (status) {
                     status.innerHTML = '<div class="status success">Creating update operation with PDS verification method...</div>';
                 }
-                
+
                 // Start with a copy of the initial operation and only update the fields we need to change
                 const updateOperation = {
                     ...initialOperation,
@@ -3709,12 +3715,18 @@
                     throw new Error('Failed to verify signed update operation');
                 }
                 
-                // Don't submit the update to plc.directory yet - we'll send it with createAccount
-                // so the PDS can verify the JWT using the current verification method (our rotation key)
-                // and then apply the update to change it to the PDS's key
-                console.log('Skipping update submission to plc.directory - will send with createAccount');
-                
-                // Step 4: Call createAccount with the signed DID:PLC update
+                // Submit the update to plc.directory before calling createAccount,
+                // so the PDS sees the already-updated DID document (with its signing key).
+                if (status) {
+                    status.innerHTML = '<div class="status success">Submitting DID update to plc.directory...</div>';
+                }
+                const updateSubmitResult = await submitDidPlcOperation(signedUpdate, didPlcId);
+                if (!updateSubmitResult.success) {
+                    throw new Error('Failed to submit DID update to plc.directory');
+                }
+                console.log('DID update submitted to plc.directory');
+
+                // Step 4: Call createAccount with the updated DID
                 if (status) {
                     status.innerHTML = '<div class="status success">Creating account on PDS...</div>';
                 }
