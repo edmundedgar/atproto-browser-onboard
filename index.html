@@ -1526,6 +1526,31 @@
             }
         }
 
+        // Ask the PDS what it actually thinks our account's DID document should
+        // look like, once the account exists. Unlike reserveSigningKey (a
+        // single-use reservation that's cleared the moment createAccount
+        // succeeds, so calling it again later returns a different, wrong key),
+        // this reads the account's real, current signing key straight out of
+        // the PDS - safe to call any number of times, always correct, and
+        // works even while the account is still deactivated.
+        async function getRecommendedDidCredentials(pdsEndpoint, accessJwt) {
+            console.log('=== Getting Recommended DID Credentials ===');
+            const endpoint = `${pdsEndpoint}/xrpc/com.atproto.identity.getRecommendedDidCredentials`;
+            const response = await fetch(endpoint, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessJwt}`
+                }
+            });
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to get recommended DID credentials: ${response.status} ${response.statusText}\n${errorText}`);
+            }
+            const result = await response.json();
+            console.log('Recommended DID credentials:', result);
+            return result;
+        }
+
         // Create initial DID:PLC operation with rotation key
         // We include all the fields that createDidPlcEntry uses (including alsoKnownAs)
         function createDidPlcInitialOperation(data, rotationKey) {
@@ -1827,15 +1852,19 @@
             }
         }
 
-        // Create an account on the PDS with a signed DID:PLC update
-        async function createAccountWithSignedOperation(pdsEndpoint, handle, email, password, didPlcId, signedUpdate, inviteCode, privateKeyHex) {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
+        // Create an account on the PDS for a DID we already control. Submits
+        // only handle/email/password/did/inviteCode - never touches PLC
+        // operations itself, so it can't trigger any PDS-side rotation-key
+        // requirement on plc operation submission (that lives in a separate
+        // endpoint, com.atproto.identity.submitPlcOperation, which this tool
+        // never calls - we submit PLC operations straight to plc.directory).
+        async function createAccountForExistingDid(pdsEndpoint, handle, email, password, didPlcId, inviteCode, privateKeyHex) {                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
             try {
-                console.log('=== Creating Account with Signed Update ===');
+                console.log('=== Creating Account ===');
                 console.log('PDS Endpoint:', pdsEndpoint);
                 console.log('Handle:', handle);
                 console.log('Email:', email);
                 console.log('DID:PLC ID:', didPlcId);
-                console.log('Signed Update:', signedUpdate);
 
                 const endpoint = `${pdsEndpoint}/xrpc/com.atproto.server.createAccount`;
                 console.log('Creating account at endpoint:', endpoint);
@@ -3685,55 +3714,10 @@
                     console.log('DID:PLC ID already exists:', didPlcId);
                 }
                 
-                // Step 2: Call reserveKey with the DID:PLC ID
-                if (status) {
-                    status.innerHTML = '<div class="status success">Reserving signing key on PDS...</div>';
-                }
-                
-                console.log('Reserving signing key for DID:', didPlcId);
-                const reserveResult = await reserveSigningKey(data.pdsEndpoint, didPlcId);
-                
-                if (!reserveResult.success || !reserveResult.result || !reserveResult.result.signingKey) {
-                    throw new Error('Failed to reserve signing key on PDS');
-                }
-                
-                const pdsVerificationMethod = reserveResult.result.signingKey;
-                console.log('PDS verification method:', pdsVerificationMethod);
-
-                // Step 3: Create an update with the PDS verification method
-                if (status) {
-                    status.innerHTML = '<div class="status success">Creating update operation with PDS verification method...</div>';
-                }
-
-                // Start with a copy of the initial operation and only update the fields we need to change
-                const updateOperation = {
-                    ...initialOperation,
-                    prev: await getLastOperationCid(didPlcId),
-                    verificationMethods: {
-                        atproto: pdsVerificationMethod
-                    }
-                };
-                
-                // Sign the update, but DO NOT submit it yet. The service-auth JWT
-                // that createAccount needs is signed with the rotation key, and the
-                // PDS verifies that JWT by resolving the DID document and checking
-                // whatever key is currently listed under #atproto. If we submit this
-                // update first, #atproto flips to the PDS's key before createAccount
-                // ever runs, so a JWT signed with the rotation key no longer matches
-                // what the PDS resolves — that's what was causing
-                // "invalid authorization token" / "cryptographic signature invalid".
-                // Submitting this after createAccount succeeds keeps the DID doc
-                // showing the rotation key for #atproto at the moment it matters.
-                const signedUpdate = await signDidPlcOperation(updateOperation, currentKey);
-
-                // Verify the signed update
-                const verificationResult = await verifyDidPlcOperation(signedUpdate);
-                if (!verificationResult.success || !verificationResult.keysMatch) {
-                    throw new Error('Failed to verify signed update operation');
-                }
-
-                // Step 4: Call createAccount BEFORE submitting the DID update above,
-                // while the DID doc still shows the rotation key under #atproto.
+                // Step 2: Call createAccount while the DID doc still shows the
+                // rotation key under #atproto - createAccount's service-auth JWT
+                // is signed with the rotation key, and the PDS verifies it by
+                // resolving whatever key #atproto currently points to.
                 if (status) {
                     status.innerHTML = '<div class="status success">Creating account on PDS...</div>';
                 }
@@ -3747,13 +3731,12 @@
                 let accountResult = await tryLoginToExistingAccount(data.pdsEndpoint, data.handle, data.password);
 
                 if (!accountResult.success) {
-                    accountResult = await createAccountWithSignedOperation(
+                    accountResult = await createAccountForExistingDid(
                         data.pdsEndpoint,
                         data.handle,
                         data.email,
                         data.password,
                         didPlcId,
-                        signedUpdate,
                         data.inviteCode,
                         currentKey
                     );
@@ -3765,22 +3748,55 @@
                     throw new Error('Account creation failed');
                 }
 
-                // Step 5: NOW submit the DID update, handing #atproto over to the
-                // PDS's reserved signing key. Only safe to do after the account
-                // above actually exists.
+                // Step 3: Now that the account exists, ask the PDS what signing
+                // key it actually holds for it - this replaces reserveSigningKey,
+                // which only works before the account exists and returns a
+                // different, wrong key once its original reservation has been
+                // consumed (which happens as soon as createAccount succeeds, so
+                // it can't be used to recover from an interrupted run either).
+                if (status) {
+                    status.innerHTML = '<div class="status success">Getting recommended DID credentials from PDS...</div>';
+                }
+                const recommended = await getRecommendedDidCredentials(data.pdsEndpoint, accountResult.result.accessJwt);
+                const pdsVerificationMethod = recommended?.verificationMethods?.atproto;
+                if (!pdsVerificationMethod) {
+                    throw new Error('PDS did not return a recommended #atproto verification method');
+                }
+                console.log('PDS verification method:', pdsVerificationMethod);
+
+                // Step 4: Build and sign the DID update. Note we deliberately
+                // keep initialOperation's rotationKeys (our own key only) rather
+                // than using recommended.rotationKeys, which suggests including
+                // the PDS's own rotation key - that's the opposite of what
+                // self-custody wants; the PDS never gets a rotation key, only
+                // the signing (#atproto) key it needs to serve day-to-day writes.
+                if (status) {
+                    status.innerHTML = '<div class="status success">Creating update operation with PDS verification method...</div>';
+                }
+                const updateOperation = {
+                    ...initialOperation,
+                    prev: await getLastOperationCid(didPlcId),
+                    verificationMethods: {
+                        atproto: pdsVerificationMethod
+                    }
+                };
+                const signedUpdate = await signDidPlcOperation(updateOperation, currentKey);
+                const verificationResult = await verifyDidPlcOperation(signedUpdate);
+                if (!verificationResult.success || !verificationResult.keysMatch) {
+                    throw new Error('Failed to verify signed update operation');
+                }
+
+                // Step 5: Submit the update, handing #atproto over to the PDS's
+                // real signing key. Skip if a previous attempt already did this -
+                // getRecommendedDidCredentials always reflects the account's
+                // actual current key, so on a resumed run pdsVerificationMethod
+                // above already equals whatever's published, making this check
+                // reliable (unlike the old reserveSigningKey-based version).
                 if (status) {
                     status.innerHTML = '<div class="status success">Submitting DID update to plc.directory...</div>';
                 }
-                // Check against our own rotation key, not pdsVerificationMethod:
-                // reserveSigningKey above returns a *fresh* reservation once the
-                // original one has been cleared (which happens as soon as
-                // createAccount succeeds), so on a resumed run pdsVerificationMethod
-                // is a different, unused key and would never match what's already
-                // published. #atproto only ever changes away from our own rotation
-                // key via this exact submission, so that's the reliable signal.
                 const currentDoc = await fetchDidPlcRecord(didPlcId).catch(() => null);
-                const alreadySubmitted = currentDoc?.didDocument?.verificationMethods?.atproto
-                    && currentDoc.didDocument.verificationMethods.atproto !== currentDidKey;
+                const alreadySubmitted = currentDoc?.didDocument?.verificationMethods?.atproto === pdsVerificationMethod;
                 if (alreadySubmitted) {
                     console.log('DID update was already submitted in a previous attempt, skipping');
                 } else {
