@@ -1945,12 +1945,78 @@
                 }
             });
             if (!activateResponse.ok) {
-                const activateError = await activateResponse.text();
-                console.warn('Warning: Failed to activate account:', activateError);
-                return false;
+                const activateErrorText = await activateResponse.text();
+                console.warn('Warning: Failed to activate account:', activateErrorText);
+                return { success: false, error: activateErrorText };
             }
             console.log('Account activated successfully');
-            return true;
+            return { success: true, error: null };
+        }
+
+        // Some PDSes (the stock/unpatched reference implementation) refuse to
+        // activate a self-custodied account unless their own rotation key is
+        // present in the DID's rotationKeys. Detects that specific failure so
+        // we know it's safe to work around, rather than treating any
+        // activation failure the same way.
+        function isRotationKeyCheckFailure(activateErrorText) {
+            return !!activateErrorText && activateErrorText.includes('Server rotation key not included in PLC DID data');
+        }
+
+        // Build, sign and submit a PLC operation that only changes
+        // rotationKeys, leaving everything else (verification methods,
+        // handle, PDS endpoint) exactly as currently published.
+        async function submitRotationKeysUpdate(didPlcId, newRotationKeys, privateKeyHex) {
+            const currentDoc = await fetchDidPlcRecord(didPlcId);
+            const op = {
+                type: 'plc_operation',
+                prev: await getLastOperationCid(didPlcId),
+                rotationKeys: newRotationKeys,
+                verificationMethods: currentDoc.didDocument.verificationMethods,
+                alsoKnownAs: currentDoc.didDocument.alsoKnownAs,
+                services: currentDoc.didDocument.services
+            };
+            const signedOp = await signDidPlcOperation(op, privateKeyHex);
+            return submitDidPlcOperation(signedOp, didPlcId);
+        }
+
+        // Work around a PDS that requires its own rotation key to activate:
+        // temporarily add it (after our own key, so it's never the senior key
+        // for recovery purposes), retry activation, then remove it again
+        // regardless of whether the retry succeeded, so it's left in place for
+        // as little time as possible. This is a deliberate, permanent trade-off
+        // - once a key has ever been a valid rotation key for a did:plc, that
+        // fact stays in the DID's history forever, even after removal - but
+        // still leaves the account far more self-custodied than leaving the
+        // PDS's key in place permanently, which is the alternative on a PDS
+        // that enforces this check.
+        async function activateWithTemporaryPdsRotationKey(pdsEndpoint, accessJwt, didPlcId, currentDidKey, pdsRotationKey, privateKeyHex) {
+            console.log('PDS requires its own rotation key to activate - adding it temporarily');
+
+            const docNow = await fetchDidPlcRecord(didPlcId);
+            const alreadyHasPdsKey = docNow.didDocument.rotationKeys?.includes(pdsRotationKey);
+            if (!alreadyHasPdsKey) {
+                const addResult = await submitRotationKeysUpdate(didPlcId, [currentDidKey, pdsRotationKey], privateKeyHex);
+                if (!addResult.success) {
+                    throw new Error('Failed to temporarily add the PDS rotation key');
+                }
+                console.log('Temporarily added PDS rotation key (lower priority than our own)');
+            }
+
+            const retryResult = await activateAccountAfterDidUpdate(pdsEndpoint, accessJwt);
+
+            // Remove it again regardless of whether activation just succeeded -
+            // no reason to leave it there any longer than necessary either way.
+            const docAfter = await fetchDidPlcRecord(didPlcId);
+            if (docAfter.didDocument.rotationKeys?.includes(pdsRotationKey)) {
+                const removeResult = await submitRotationKeysUpdate(didPlcId, [currentDidKey], privateKeyHex);
+                if (!removeResult.success) {
+                    console.warn('Failed to remove the temporary PDS rotation key - it is still present on the DID and should be removed manually');
+                } else {
+                    console.log('Removed temporary PDS rotation key');
+                }
+            }
+
+            return retryResult;
         }
 
         // Check whether an account from a previous, interrupted run of this
@@ -3815,7 +3881,25 @@
                 if (status) {
                     status.innerHTML = '<div class="status success">Activating account...</div>';
                 }
-                await activateAccountAfterDidUpdate(data.pdsEndpoint, accountResult.result.accessJwt);
+                let activateResult = await activateAccountAfterDidUpdate(data.pdsEndpoint, accountResult.result.accessJwt);
+
+                if (!activateResult.success && isRotationKeyCheckFailure(activateResult.error)) {
+                    if (status) {
+                        status.innerHTML = '<div class="status success">Activating account (this PDS needs its own key temporarily)...</div>';
+                    }
+                    const pdsRotationKey = recommended?.rotationKeys?.find((k) => k !== currentDidKey);
+                    if (!pdsRotationKey) {
+                        throw new Error('Activation failed and could not determine the PDS\'s rotation key to work around it');
+                    }
+                    activateResult = await activateWithTemporaryPdsRotationKey(
+                        data.pdsEndpoint,
+                        accountResult.result.accessJwt,
+                        didPlcId,
+                        currentDidKey,
+                        pdsRotationKey,
+                        currentKey
+                    );
+                }
 
                 // Update the DID:PLC field in the form
                 const didField = document.getElementById('account-did');
