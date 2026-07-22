@@ -1924,6 +1924,28 @@
             return true;
         }
 
+        // Check whether an account from a previous, interrupted run of this
+        // flow already exists on the PDS, by trying to log into it. Used to
+        // resume after createAccount succeeded but a later step (or the
+        // client) failed before finishing - createSession works even for a
+        // still-deactivated account, so this doubles as session recovery when
+        // the original createAccount response was never received.
+        async function tryLoginToExistingAccount(pdsEndpoint, handle, password) {
+            console.log('Checking whether an account already exists for this handle...');
+            const response = await fetch(`${pdsEndpoint}/xrpc/com.atproto.server.createSession`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ identifier: handle, password: password })
+            });
+            if (!response.ok) {
+                console.log('No existing account found (or credentials did not match) - proceeding to create one');
+                return { success: false };
+            }
+            const result = await response.json();
+            console.log('Found an existing account for this handle, reusing it:', result.did);
+            return { success: true, result: result };
+        }
+
         // Create an account on the PDS
         async function createAccount(pdsEndpoint, handle, email, password, recoveryKey, inviteCode) {
             try {
@@ -2264,7 +2286,9 @@
             try {
                 const response = await fetch(url);
                 if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    const err = new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    err.status = response.status;
+                    throw err;
                 }
                 const auditLog = await response.json();
 
@@ -3627,7 +3651,11 @@
                 // Generate DID:PLC ID from the signed operation
                 const didPlcId = await generateDidPlcId(signedInitialOperation);
                 
-                // Check if DID already exists before submitting
+                // Check if DID already exists before submitting. Only treat a
+                // genuine 404 as "doesn't exist yet" - any other failure (e.g.
+                // plc.directory being briefly unreachable) should stop the flow
+                // rather than risk re-submitting the genesis operation for a DID
+                // that may already exist for a different reason.
                 let didExists = false;
                 try {
                     const existingRecord = await fetchDidPlcRecord(didPlcId);
@@ -3636,8 +3664,11 @@
                         didExists = true;
                     }
                 } catch (error) {
-                    // DID doesn't exist yet, which is expected for a new DID
-                    console.log('DID:PLC record does not exist yet, will create it');
+                    if (error.status === 404) {
+                        console.log('DID:PLC record does not exist yet, will create it');
+                    } else {
+                        throw new Error(`Could not check whether DID:PLC record already exists: ${error.message}`);
+                    }
                 }
                 
                 if (!didExists) {
@@ -3709,16 +3740,24 @@
 
                 console.log('Creating account with rotation key still as #atproto');
 
-                const accountResult = await createAccountWithSignedOperation(
-                    data.pdsEndpoint,
-                    data.handle,
-                    data.email,
-                    data.password,
-                    didPlcId,
-                    signedUpdate,
-                    data.inviteCode,
-                    currentKey
-                );
+                // If a previous attempt already got this far (e.g. the PDS was
+                // unreachable on a later step, or its createAccount response
+                // never made it back), reuse that account instead of trying to
+                // create a duplicate.
+                let accountResult = await tryLoginToExistingAccount(data.pdsEndpoint, data.handle, data.password);
+
+                if (!accountResult.success) {
+                    accountResult = await createAccountWithSignedOperation(
+                        data.pdsEndpoint,
+                        data.handle,
+                        data.email,
+                        data.password,
+                        didPlcId,
+                        signedUpdate,
+                        data.inviteCode,
+                        currentKey
+                    );
+                }
 
                 console.log('Account creation result:', accountResult);
 
@@ -3732,13 +3771,27 @@
                 if (status) {
                     status.innerHTML = '<div class="status success">Submitting DID update to plc.directory...</div>';
                 }
-                const updateSubmitResult = await submitDidPlcOperation(signedUpdate, didPlcId);
-                if (!updateSubmitResult.success) {
-                    // The account itself was created successfully at this point —
-                    // don't repeat account creation. Retry just this update submission.
-                    throw new Error('Account was created, but handing signing over to the PDS failed (DID update not submitted). Do not recreate the account — retry submitting the DID update.');
+                // Check against our own rotation key, not pdsVerificationMethod:
+                // reserveSigningKey above returns a *fresh* reservation once the
+                // original one has been cleared (which happens as soon as
+                // createAccount succeeds), so on a resumed run pdsVerificationMethod
+                // is a different, unused key and would never match what's already
+                // published. #atproto only ever changes away from our own rotation
+                // key via this exact submission, so that's the reliable signal.
+                const currentDoc = await fetchDidPlcRecord(didPlcId).catch(() => null);
+                const alreadySubmitted = currentDoc?.didDocument?.verificationMethods?.atproto
+                    && currentDoc.didDocument.verificationMethods.atproto !== currentDidKey;
+                if (alreadySubmitted) {
+                    console.log('DID update was already submitted in a previous attempt, skipping');
+                } else {
+                    const updateSubmitResult = await submitDidPlcOperation(signedUpdate, didPlcId);
+                    if (!updateSubmitResult.success) {
+                        // The account itself was created successfully at this point —
+                        // don't repeat account creation. Retry just this update submission.
+                        throw new Error('Account was created, but handing signing over to the PDS failed (DID update not submitted). Do not recreate the account — retry submitting the DID update.');
+                    }
+                    console.log('DID update submitted to plc.directory');
                 }
-                console.log('DID update submitted to plc.directory');
 
                 // Step 6: NOW activate the account — the DID doc finally shows
                 // the PDS's key, so activateAccount's check against the actor's
