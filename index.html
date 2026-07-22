@@ -1885,22 +1885,11 @@
                 const result = await response.json();
                 console.log('Account creation successful:', result);
 
-                // Activate the account - when createAccount is called with an existing DID,
-                // the account starts in a deactivated state and must be explicitly activated.
-                console.log('Activating account...');
-                const activateEndpoint = `${pdsEndpoint}/xrpc/com.atproto.server.activateAccount`;
-                const activateResponse = await fetch(activateEndpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${result.accessJwt}`
-                    }
-                });
-                if (!activateResponse.ok) {
-                    const activateError = await activateResponse.text();
-                    console.warn('Warning: Failed to activate account:', activateError);
-                } else {
-                    console.log('Account activated successfully');
-                }
+                // NOTE: activation happens later, after the DID update below is
+                // submitted — see activateAccountAfterDidUpdate. createAccount
+                // with an existing DID leaves the account deactivated, and
+                // activateAccount checks the DID doc against the actor's real
+                // signing key, which isn't published yet at this point.
 
                 return { success: true, result: result };
 
@@ -1908,6 +1897,30 @@
                 console.error('Error creating account:', error);
                 throw error;
             }
+        }
+
+        // Activate an account created with an existing DID. Must only be called
+        // after the DID update handing #atproto to the PDS's reserved key has
+        // been submitted — activateAccount checks the published DID doc against
+        // the actor's real signing key, so calling this any earlier will always
+        // fail with a signing-key mismatch, even though the account itself was
+        // created successfully.
+        async function activateAccountAfterDidUpdate(pdsEndpoint, accessJwt) {
+            console.log('Activating account...');
+            const activateEndpoint = `${pdsEndpoint}/xrpc/com.atproto.server.activateAccount`;
+            const activateResponse = await fetch(activateEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessJwt}`
+                }
+            });
+            if (!activateResponse.ok) {
+                const activateError = await activateResponse.text();
+                console.warn('Warning: Failed to activate account:', activateError);
+                return false;
+            }
+            console.log('Account activated successfully');
+            return true;
         }
 
         // Create an account on the PDS
@@ -3725,6 +3738,14 @@
                     throw new Error('Account was created, but handing signing over to the PDS failed (DID update not submitted). Do not recreate the account — retry submitting the DID update.');
                 }
                 console.log('DID update submitted to plc.directory');
+
+                // Step 6: NOW activate the account — the DID doc finally shows
+                // the PDS's key, so activateAccount's check against the actor's
+                // real signing key can actually pass.
+                if (status) {
+                    status.innerHTML = '<div class="status success">Activating account...</div>';
+                }
+                await activateAccountAfterDidUpdate(data.pdsEndpoint, accountResult.result.accessJwt);
 
                 // Update the DID:PLC field in the form
                 const didField = document.getElementById('account-did');
