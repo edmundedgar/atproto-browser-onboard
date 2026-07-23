@@ -336,6 +336,15 @@
             margin: 20px 0;
         }
 
+        .confirm-seed-section {
+            display: flex;
+            margin: 0 0 16px;
+        }
+        .confirm-seed-section .generate-btn {
+            text-align: center;
+            line-height: 1.4;
+        }
+
         .info {
             background: var(--panel-raised);
             border: 1px solid var(--hairline);
@@ -864,6 +873,12 @@
             /* The desktop side padding (20px) eats a much bigger share of a
                narrow phone screen - shrink it so the card uses the space. */
             body { padding: 24px 8px; }
+            /* This button's text is long enough to already be most of the
+               way to full width on a phone - close the gap. */
+            .confirm-seed-section .generate-btn { width: 100%; }
+            /* rows="3" wraps a 24-word phrase onto more lines than that on a
+               narrow screen, so it doesn't fit without scrolling - ~50% taller. */
+            .mnemonic-input-container textarea { min-height: 130px; }
         }
     </style>
 </head>
@@ -909,7 +924,11 @@
             </div>
             <div class="mnemonic-text" id="mnemonicText"></div>
         </div>
-        
+
+        <div class="confirm-seed-section" id="confirmSeedSection" style="display: none;">
+            <button class="generate-btn" id="confirmSeedBtn">I have written down this seed phrase</button>
+        </div>
+
         <div class="key-generation-section" id="keyGenerationSection">
             <div class="button-group">
                 <button class="generate-btn" id="generateBtn">
@@ -1178,6 +1197,10 @@
         let currentMnemonic = null;
         let currentPublicKey = null;
         let currentDidKey = null;
+        // Gates the Account/Custom tabs on a freshly generated key until the
+        // user confirms they've written the seed phrase down. Restoring an
+        // existing key skips this - there's nothing new to lose track of.
+        let seedPhraseConfirmed = true;
 
 
         // Generate secp256k1 public key from private key
@@ -2053,15 +2076,39 @@
         // client) failed before finishing - createSession works even for a
         // still-deactivated account, so this doubles as session recovery when
         // the original createAccount response was never received.
+        // Unauthenticated existence check - distinguishes "nothing here yet"
+        // from "something's here" without needing the account's password,
+        // and tells us whose account it is so we don't try to log into (or
+        // recreate) a handle that belongs to someone else.
+        async function checkExistingRepo(pdsEndpoint, handle) {
+            const response = await fetch(`${pdsEndpoint}/xrpc/com.atproto.repo.describeRepo?repo=${encodeURIComponent(handle)}`);
+            if (response.ok) {
+                const result = await response.json();
+                return { exists: true, did: result.did };
+            }
+            const errorBody = await response.json().catch(() => ({}));
+            if (errorBody.error === 'RepoNotFound') {
+                return { exists: false };
+            }
+            if (errorBody.error === 'RepoDeactivated') {
+                // A mid-creation resume (activateAccount never ran) looks
+                // like this - the PDS won't reveal the DID for a deactivated
+                // repo via this lookup, so ownership is confirmed by the
+                // password check instead.
+                return { exists: true, did: null };
+            }
+            throw new Error(`Could not check for an existing account: ${errorBody.message || response.statusText}`);
+        }
+
         async function tryLoginToExistingAccount(pdsEndpoint, handle, password) {
-            console.log('Checking whether an account already exists for this handle...');
+            console.log('Logging into the existing account for this handle...');
             const response = await fetch(`${pdsEndpoint}/xrpc/com.atproto.server.createSession`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ identifier: handle, password: password })
             });
             if (!response.ok) {
-                console.log('No existing account found (or credentials did not match) - proceeding to create one');
+                console.log('Login failed - wrong password for this account');
                 return { success: false };
             }
             const result = await response.json();
@@ -2777,6 +2824,12 @@
                 // Update submit button state if we're on the DID:PLC Entry tab
                 updateSubmitButtonState();
 
+                // A freshly generated key needs its seed phrase confirmed
+                // written down before the other tabs unlock.
+                seedPhraseConfirmed = false;
+                const confirmSeedSection = document.getElementById('confirmSeedSection');
+                if (confirmSeedSection) confirmSeedSection.style.display = 'block';
+
                 // Update tab states to enable inactive tabs
                 updateTabStates();
 
@@ -2946,13 +2999,17 @@
                 // Enable copy buttons
                 if (copyMnemonicBtn) copyMnemonicBtn.disabled = false;
                 if (copyDidKeyBtn) copyDidKeyBtn.disabled = false;
-                
+
                 // Update submit button state if we're on the DID:PLC Entry tab
                 updateSubmitButtonState();
-                
+
+                // Restoring an existing key skips the write-it-down
+                // confirmation - there's nothing new to lose track of.
+                seedPhraseConfirmed = true;
+
                 // Update tab states to enable inactive tabs
                 updateTabStates();
-                
+
                 // Toggle key generation sections visibility
                 toggleKeyGenerationSections();
 
@@ -3067,6 +3124,15 @@
         const clearKeyBtn = document.getElementById('clearKeyBtn');
         if (clearKeyBtn) clearKeyBtn.addEventListener('click', clearCurrentKey);
 
+        // Add event listener for the "written it down" confirmation
+        const confirmSeedBtn = document.getElementById('confirmSeedBtn');
+        if (confirmSeedBtn) confirmSeedBtn.addEventListener('click', () => {
+            seedPhraseConfirmed = true;
+            const confirmSeedSection = document.getElementById('confirmSeedSection');
+            if (confirmSeedSection) confirmSeedSection.style.display = 'none';
+            updateTabStates();
+        });
+
         // Tab switching functionality
         function switchTab(tabName) {
             // Check if tab is inactive and trying to switch to it
@@ -3109,12 +3175,14 @@
         toggleKeyGenerationSections();
 
         // Function to update tab states based on whether a key is available
+        // and, for a freshly generated key, whether its seed phrase has been
+        // confirmed written down.
         function updateTabStates() {
-            const hasKey = currentKey !== null;
+            const unlocked = currentKey !== null && seedPhraseConfirmed;
             const createAccountTab = document.getElementById('createaccount-tab');
             const didplcTab = document.getElementById('didplc-tab');
-            
-            if (hasKey) {
+
+            if (unlocked) {
                 // Remove inactive class if key is available
                 if (createAccountTab) createAccountTab.classList.remove('inactive');
                 if (didplcTab) didplcTab.classList.remove('inactive');
@@ -3152,9 +3220,12 @@
             // Hide displays
             const didKeyDisplay = document.getElementById('didKeyDisplay');
             const mnemonicDisplay = document.getElementById('mnemonicDisplay');
-            
+            const confirmSeedSection = document.getElementById('confirmSeedSection');
+
             if (didKeyDisplay) didKeyDisplay.style.display = 'none';
             if (mnemonicDisplay) mnemonicDisplay.style.display = 'none';
+            if (confirmSeedSection) confirmSeedSection.style.display = 'none';
+            seedPhraseConfirmed = true;
             
             // Clear mnemonic input
             const mnemonicInput = document.getElementById('mnemonicInput');
@@ -4153,13 +4224,23 @@
 
                 console.log('Creating account with rotation key still as #atproto');
 
-                // If a previous attempt already got this far (e.g. the PDS was
-                // unreachable on a later step, or its createAccount response
-                // never made it back), reuse that account instead of trying to
-                // create a duplicate.
-                let accountResult = await tryLoginToExistingAccount(data.pdsEndpoint, data.handle, data.password);
+                // Check (without needing a password) whether this handle is
+                // already taken on this PDS, and if so, by us or someone
+                // else - a previous attempt may have already gotten this far
+                // (e.g. the PDS was unreachable on a later step), in which
+                // case we should reuse that account rather than create a
+                // duplicate.
+                const existingRepo = await checkExistingRepo(data.pdsEndpoint, data.handle);
+                let accountResult;
 
-                if (!accountResult.success) {
+                if (existingRepo.exists && (existingRepo.did === null || existingRepo.did === didPlcId)) {
+                    accountResult = await tryLoginToExistingAccount(data.pdsEndpoint, data.handle, data.password);
+                    if (!accountResult.success) {
+                        throw new Error(`An account already exists for this handle with this key, but that password didn't work. Double-check it, or use ${data.pdsEndpoint}'s password reset if you've forgotten it.`);
+                    }
+                } else if (existingRepo.exists) {
+                    throw new Error('This handle is already in use by a different account.');
+                } else {
                     accountResult = await createAccountForExistingDid(
                         data.pdsEndpoint,
                         data.handle,
