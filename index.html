@@ -6,6 +6,44 @@
     <title>ATProto Self-Sovereign Account Creator</title>
     <link rel="icon" href="data:,">
     <style>
+        :root {
+            --bg: #15161b;
+            --panel: #1b1d24;
+            --panel-raised: #21232b;
+            --text: #e7e4dc;
+            --text-dim: #8d8f9b;
+            --hairline: #303240;
+            --amber: #d4a24c;
+            --amber-bright: #eab766;
+            --ok: #9cbf8e;
+            --bad: #c07b6e;
+            --shadow: rgba(0, 0, 0, 0.5);
+        }
+        :root[data-theme="light"] {
+            --bg: #f3f1ea;
+            --panel: #fbfaf5;
+            --panel-raised: #ffffff;
+            --text: #23232a;
+            --text-dim: #6c6c78;
+            --hairline: #dcd8ca;
+            --amber: #9c6d1f;
+            --amber-bright: #7d5717;
+            --shadow: rgba(30, 25, 10, 0.1);
+        }
+        @media (prefers-color-scheme: light) {
+            :root:not([data-theme="dark"]) {
+                --bg: #f3f1ea;
+                --panel: #fbfaf5;
+                --panel-raised: #ffffff;
+                --text: #23232a;
+                --text-dim: #6c6c78;
+                --hairline: #dcd8ca;
+                --amber: #9c6d1f;
+                --amber-bright: #7d5717;
+                --shadow: rgba(30, 25, 10, 0.1);
+            }
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -13,138 +51,112 @@
         }
 
         body {
-            font-family: 'Courier New', 'Consolas', 'Monaco', monospace;
-            background: #0a0a0a;
-            background-image: 
-                radial-gradient(circle at 20% 50%, rgba(0, 255, 136, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 80% 80%, rgba(0, 162, 255, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 40% 20%, rgba(138, 43, 226, 0.1) 0%, transparent 50%);
+            font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 20px;
+            color: var(--text);
+            line-height: 1.6;
         }
 
         .container {
-            padding: 40px;
-            max-width: 1200px;
+            padding: 0;
+            max-width: 700px;
             width: 100%;
-            text-align: center;
+            text-align: left;
+            background: var(--panel);
+            border: 1px solid var(--hairline);
+            border-radius: 8px;
+            box-shadow: 0 30px 70px var(--shadow);
         }
 
-        h1 {
-            color: #ffffff;
-            margin-bottom: 10px;
-            font-size: 2.5em;
-            font-weight: 700;
-            
-            letter-spacing: 2px;
+        .path {
+            font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+            font-size: 13px;
+            color: var(--text-dim);
+            padding: 44px 48px 26px;
         }
-
-        .subtitle {
-            color: #a0a0a0;
-            margin-bottom: 30px;
-            font-size: 1.1em;
-            font-weight: 400;
-        }
+        .path .amber { color: var(--amber); }
 
         .key-display {
-            border: 1px solid #ffffff;
-            border-radius: 4px;
-            padding: 20px;
-            margin: 20px 0;
+            border: 1px solid var(--hairline);
+            border-radius: 6px;
+            padding: 16px 18px;
+            margin: 0 0 16px;
             word-break: break-all;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            line-height: 1.5;
-            min-height: 100px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #ffffff;
-            
+            font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+            font-size: 12.5px;
+            line-height: 1.7;
+            color: var(--text-dim);
+            background: var(--panel-raised);
         }
 
         .key-display.has-key {
-            background: #0f1f1a;
-            border-color: #ffffff;
-            color: #ffffff;
-            
+            color: var(--amber);
         }
 
         .generate-btn {
-            background: #0a0a0a;
-            color: #ffffff;
-            border: 1px solid #ffffff;
-            padding: 15px 30px;
-            font-size: 1.1em;
-            border-radius: 4px;
+            appearance: none;
+            border: 1px solid var(--text);
+            background: var(--text);
+            color: var(--bg);
+            font-weight: 600;
+            font-size: 14px;
+            padding: 12px 24px;
+            border-radius: 6px;
             cursor: pointer;
-            transition: all 0.3s ease;
-            margin: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            
+            transition: opacity 0.15s ease;
         }
 
         .generate-btn:hover {
-            background: #ffffff;
-            color: #0a0a0a;
-            
-            transform: translateY(-2px);
+            opacity: 0.82;
         }
 
         .generate-btn:active {
-            transform: translateY(0);
+            opacity: 0.7;
         }
 
         .copy-btn {
-            background: #0a0a0a;
-            color: #00a2ff;
-            border: 1px solid #00a2ff;
-            padding: 10px 20px;
-            font-size: 0.9em;
-            border-radius: 4px;
+            appearance: none;
+            border: 1px solid var(--hairline);
+            background: transparent;
+            color: var(--text-dim);
+            font-size: 12px;
+            padding: 9px 16px;
+            border-radius: 6px;
             cursor: pointer;
-            transition: all 0.3s ease;
-            margin: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            
+            transition: color 0.15s ease, border-color 0.15s ease;
         }
 
         .copy-btn:hover {
-            background: #00a2ff;
-            color: #0a0a0a;
-            
-            transform: translateY(-1px);
+            color: var(--amber);
+            border-color: var(--text-dim);
         }
 
         .copy-btn:disabled {
-            background: #6c757d;
+            opacity: 0.4;
             cursor: not-allowed;
-            transform: none;
         }
 
         .mnemonic-display {
-            border: 1px solid #ffffff;
-            border-radius: 4px;
-            padding: 20px;
-            margin: 20px 0;
-            text-align: left;
-            
+            border: 1px solid var(--hairline);
+            border-radius: 6px;
+            padding: 16px 18px;
+            margin: 16px 0;
+            background: var(--panel-raised);
         }
 
         .mnemonic-display h3 {
-            color: #ffffff;
-            margin-bottom: 15px;
-            text-align: center;
-            font-size: 1.2em;
-            
-            letter-spacing: 2px;
+            color: var(--text-dim);
+            margin-bottom: 10px;
+            font-family: ui-monospace, monospace;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: none;
+            letter-spacing: normal;
         }
 
         .mnemonic-text-container {
@@ -154,35 +166,30 @@
         }
 
         .mnemonic-text {
-            font-family: 'Courier New', monospace;
-            font-size: 16px;
+            font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+            font-size: 13px;
             line-height: 1.8;
-            color: #ffffff;
+            color: var(--amber);
             word-break: break-word;
-            background: #0a0a0a;
-            padding: 15px;
-            padding-right: 45px; /* Make room for the copy icon */
-            border-radius: 4px;
-            border: 1px solid #ffffff;
-            
+            padding-right: 40px;
         }
 
         .did-key-display {
-            border: 1px solid #ffffff;
-            border-radius: 4px;
-            padding: 20px;
-            margin: 20px 0;
-            text-align: left;
-            
+            border: 1px solid var(--hairline);
+            border-radius: 6px;
+            padding: 16px 18px;
+            margin: 16px 0;
+            background: var(--panel-raised);
         }
 
         .did-key-display h3 {
-            color: #ffffff;
-            margin-bottom: 15px;
-            text-align: center;
-            font-size: 1.2em;
-            
-            letter-spacing: 2px;
+            color: var(--text-dim);
+            margin-bottom: 10px;
+            font-family: ui-monospace, monospace;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: none;
+            letter-spacing: normal;
         }
 
         .did-key-text-container {
@@ -192,152 +199,128 @@
         }
 
         .did-key-text {
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            line-height: 1.5;
-            color: #ffffff;
+            font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+            font-size: 12.5px;
+            line-height: 1.7;
+            color: var(--amber);
             word-break: break-all;
-            background: #0a0a0a;
-            padding: 15px;
-            padding-right: 45px; /* Make room for the copy icon */
-            border-radius: 4px;
-            border: 1px solid #ffffff;
-            
+            padding-right: 40px;
         }
 
         .copy-icon {
             position: absolute;
-            top: 50%;
-            right: 10px;
-            transform: translateY(-50%);
+            top: 4px;
+            right: 0;
             background: none;
             border: none;
-            color: #ffffff;
-            font-size: 16px;
+            color: var(--text-dim);
+            font-size: 14px;
             cursor: pointer;
             padding: 5px;
-            border-radius: 3px;
-            transition: background-color 0.2s;
+            border-radius: 4px;
+            transition: color 0.15s ease;
         }
 
         .copy-icon:hover {
-            background: rgba(0, 255, 136, 0.1);
+            color: var(--amber);
         }
 
         .button-group {
             display: flex;
             flex-wrap: wrap;
-            justify-content: center;
             gap: 10px;
-            margin: 20px 0;
+            margin: 0 0 20px;
         }
 
         .restore-section {
-            border: 1px solid #00a2ff;
-            border-radius: 4px;
-            padding: 20px;
-            margin: 20px 0;
-            text-align: center;
-            
+            border: 1px solid var(--hairline);
+            border-radius: 6px;
+            padding: 22px 24px;
+            margin: 20px 0 0;
+            background: var(--panel-raised);
         }
 
         .restore-section h3 {
-            color: #00a2ff;
-            margin-bottom: 10px;
-            font-size: 1.2em;
-            
-            letter-spacing: 2px;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+            font-family: ui-monospace, monospace;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: none;
+            letter-spacing: normal;
         }
 
         .restore-subtitle {
-            color: #a0a0a0;
-            margin-bottom: 15px;
-            font-size: 0.9em;
+            color: var(--text-dim);
+            margin-bottom: 14px;
+            font-size: 13px;
         }
 
         .mnemonic-input-container {
-            margin: 15px 0;
+            margin: 0 0 14px;
         }
 
         .mnemonic-input-container textarea {
             width: 100%;
-            max-width: 600px;
-            padding: 15px;
-            border: 1px solid #00a2ff;
-            border-radius: 4px;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
+            padding: 11px 13px;
+            border: 1px solid var(--hairline);
+            border-radius: 6px;
+            font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+            font-size: 13px;
             line-height: 1.5;
             resize: vertical;
-            background: #0a0a0a;
-            color: #00a2ff;
-            
+            background: var(--panel);
+            color: var(--text);
         }
 
         .mnemonic-input-container textarea:focus {
             outline: none;
-            border-color: #ffffff;
-            
+            border-color: var(--amber);
         }
 
         .restore-button-group {
             display: flex;
             flex-wrap: wrap;
-            justify-content: center;
             gap: 10px;
-            margin-top: 15px;
         }
 
         .restore-btn {
-            background: #0a0a0a;
-            color: #00a2ff;
-            border: 1px solid #00a2ff;
-            padding: 12px 24px;
-            font-size: 1em;
-            border-radius: 4px;
+            appearance: none;
+            border: 1px solid var(--hairline);
+            background: transparent;
+            color: var(--text-dim);
+            padding: 11px 20px;
+            font-size: 13.5px;
+            border-radius: 6px;
             cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            
+            transition: color 0.15s ease, border-color 0.15s ease;
         }
 
         .restore-btn:hover {
-            background: #00a2ff;
-            color: #0a0a0a;
-            
-            transform: translateY(-1px);
+            color: var(--text);
+            border-color: var(--text-dim);
         }
 
         .restore-btn:disabled {
-            background: #1a1a1a;
-            color: #555;
-            border-color: #555;
+            opacity: 0.4;
             cursor: not-allowed;
-            
         }
 
         .clear-btn {
-            background: #0a0a0a;
-            color: #ff4444;
-            border: 1px solid #ff4444;
-            padding: 12px 24px;
-            font-size: 1em;
-            border-radius: 4px;
+            appearance: none;
+            border: 1px solid var(--hairline);
+            background: transparent;
+            color: var(--text-dim);
+            padding: 11px 20px;
+            font-size: 13.5px;
+            border-radius: 6px;
             cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            
+            transition: color 0.15s ease, border-color 0.15s ease;
         }
 
         .clear-btn:hover {
-            background: #ff4444;
-            color: #0a0a0a;
-            
-            transform: translateY(-1px);
+            color: var(--bad);
+            border-color: var(--bad);
         }
 
         .key-generation-section {
@@ -346,99 +329,94 @@
 
         .clear-key-section {
             display: flex;
-            justify-content: center;
             margin: 20px 0;
         }
 
         .info {
-            background: #e3f2fd;
-            border-left: 4px solid #2196f3;
+            background: var(--panel-raised);
+            border: 1px solid var(--hairline);
+            border-left: 3px solid var(--amber);
             padding: 15px;
             margin: 20px 0;
-            border-radius: 5px;
+            border-radius: 6px;
             text-align: left;
         }
 
         .info h3 {
-            color: #1976d2;
+            color: var(--text);
             margin-bottom: 10px;
         }
 
         .info p {
-            color: #424242;
+            color: var(--text-dim);
             line-height: 1.6;
         }
 
         .status {
             margin-top: 15px;
-            padding: 10px;
-            border-radius: 5px;
+            padding: 11px 14px;
+            border-radius: 6px;
             font-weight: 500;
+            font-size: 13.5px;
         }
 
         .status.success {
-            background: #0f1f1a;
-            color: #ffffff;
-            border: 1px solid #ffffff;
-            
+            background: var(--panel-raised);
+            color: var(--ok);
+            border: 1px solid var(--hairline);
         }
 
         .status.error {
-            background: #1f0f0f;
-            color: #ff4444;
-            border: 1px solid #ff4444;
-            
+            background: var(--panel-raised);
+            color: var(--bad);
+            border: 1px solid var(--hairline);
         }
 
         /* Tab Navigation Styles */
         .tab-navigation {
             display: flex;
-            justify-content: center;
-            margin: 30px 0 20px 0;
-            border-bottom: 2px solid #ffffff;
+            gap: 4px;
+            padding: 0 48px;
+            border-bottom: 1px solid var(--hairline);
         }
 
         .tab-btn {
-            background: #0a0a0a;
-            border: 1px solid #ffffff;
-            padding: 15px 30px;
-            font-size: 16px;
-            font-weight: 700;
-            color: #ffffff;
+            appearance: none;
+            background: transparent;
+            border: none;
+            font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+            padding: 12px 4px 14px;
+            margin-right: 26px;
+            font-size: 12.5px;
+            color: var(--text-dim);
             cursor: pointer;
-            border-bottom: 3px solid transparent;
-            transition: all 0.3s ease;
-            margin: 0 10px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            
+            border-bottom: 2px solid transparent;
+            transition: color 0.15s ease;
         }
+        .tab-btn::before { content: "# "; opacity: 0.5; }
 
         .tab-btn:hover {
-            color: #0a0a0a;
-            background: #ffffff;
-            
+            color: var(--text);
         }
 
         .tab-btn.active {
-            color: #0a0a0a;
-            background: #ffffff;
-            border-bottom-color: #ffffff;
-            
+            color: var(--text);
+            border-bottom-color: var(--amber);
         }
 
         .tab-btn.inactive {
-            color: #555;
-            border-color: #555;
+            color: var(--text-dim);
             cursor: not-allowed;
-            
-            opacity: 0.5;
+            opacity: 0.4;
         }
 
         .tab-btn.inactive:hover {
-            color: #555;
-            background: #0a0a0a;
-            
+            color: var(--text-dim);
+        }
+
+        .tab-btn:focus-visible {
+            outline: 2px solid var(--amber);
+            outline-offset: 2px;
         }
 
         .tab-content {
@@ -447,6 +425,7 @@
 
         .tab-pane {
             display: none;
+            padding: 32px 48px 48px;
         }
 
         .tab-pane.active {
@@ -455,70 +434,69 @@
 
         /* DID:PLC Form Styles */
         .plc-form-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
+            max-width: 100%;
+            margin: 0;
+            padding: 0;
         }
 
         .plc-form-container h2 {
-            color: #ffffff;
-            text-align: center;
-            margin-bottom: 10px;
-            font-size: 1.8em;
-            
-            letter-spacing: 2px;
+            color: var(--text);
+            text-align: left;
+            margin-bottom: 6px;
+            font-size: 1.1em;
+            font-weight: 600;
+            letter-spacing: normal;
         }
 
         .plc-subtitle {
-            text-align: center;
-            color: #a0a0a0;
-            margin-bottom: 30px;
-            font-size: 1.1em;
+            text-align: left;
+            color: var(--text-dim);
+            margin-bottom: 26px;
+            font-size: 13.5px;
+            max-width: 52ch;
         }
 
         .plc-form {
-            padding: 30px;
-            border-radius: 4px;
-            border: 1px solid #ffffff;
-            
+            padding: 0;
+            border-radius: 0;
+            border: none;
         }
 
         .form-group {
-            margin-bottom: 25px;
+            margin-bottom: 22px;
         }
 
         .form-group label {
             display: block;
-            font-weight: 700;
-            color: #ffffff;
+            font-weight: 500;
+            color: var(--text-dim);
             margin-bottom: 8px;
-            font-size: 1.1em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
+            font-size: 11.5px;
+            font-family: ui-monospace, monospace;
+            text-transform: none;
+            letter-spacing: normal;
         }
 
         .form-group input,
         .form-group textarea,
         .form-group select {
             width: 100%;
-            padding: 12px 15px;
-            border: 1px solid #ffffff;
-            border-radius: 4px;
-            font-size: 14px;
-            font-family: 'Courier New', monospace;
-            transition: all 0.3s ease;
+            padding: 11px 13px;
+            border: 1px solid var(--hairline);
+            border-radius: 6px;
+            font-size: 14.5px;
+            font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+            transition: border-color 0.15s ease;
             box-sizing: border-box;
-            background: #0a0a0a;
-            color: #ffffff;
-            
+            background: var(--panel);
+            color: var(--text);
         }
 
         .form-group input:focus,
         .form-group textarea:focus,
         .form-group select:focus {
             outline: none;
-            border-color: #00a2ff;
-            
+            border-color: var(--amber);
         }
 
         .did-input-group {
@@ -556,273 +534,262 @@
         }
 
         .fetch-btn {
-            background: #0a0a0a;
-            color: #ffffff;
-            border: 1px solid #ffffff;
-            padding: 12px 20px;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: 700;
+            appearance: none;
+            border: 1px solid var(--hairline);
+            background: transparent;
+            color: var(--text-dim);
+            padding: 11px 18px;
+            border-radius: 6px;
+            font-size: 13px;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: color 0.15s ease, border-color 0.15s ease;
             white-space: nowrap;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            
         }
 
         .fetch-btn:hover {
-            background: #ffffff;
-            color: #0a0a0a;
-            
-            transform: translateY(-1px);
+            color: var(--text);
+            border-color: var(--text-dim);
         }
 
         .fetch-btn:disabled {
-            background: #1a1a1a;
-            color: #555;
-            border-color: #555;
+            opacity: 0.4;
             cursor: not-allowed;
-            
         }
 
         .verify-btn {
-            background: #0a0a0a;
-            color: #00a2ff;
-            border: 1px solid #00a2ff;
-            padding: 12px 20px;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: 700;
+            appearance: none;
+            border: 1px solid var(--hairline);
+            background: transparent;
+            color: var(--text-dim);
+            padding: 11px 18px;
+            border-radius: 6px;
+            font-size: 13px;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: color 0.15s ease, border-color 0.15s ease;
             white-space: nowrap;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            
         }
 
         .verify-btn:hover {
-            background: #00a2ff;
-            color: #0a0a0a;
-            
-            transform: translateY(-1px);
+            color: var(--text);
+            border-color: var(--text-dim);
         }
 
         .verify-btn:disabled {
-            background: #1a1a1a;
-            color: #555;
-            border-color: #555;
+            opacity: 0.4;
             cursor: not-allowed;
-            
         }
 
         .verification-results {
             margin: 20px 0;
-            padding: 20px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            border: 1px solid #dee2e6;
+            padding: 18px 20px;
+            background: var(--panel-raised);
+            border-radius: 6px;
+            border: 1px solid var(--hairline);
         }
 
         .verification-results h4 {
             margin: 0 0 15px 0;
-            color: #495057;
-            font-size: 18px;
+            color: var(--text);
+            font-size: 15px;
+            font-weight: 600;
         }
 
         .verification-item {
-            background: white;
-            padding: 15px;
+            background: var(--panel);
+            padding: 14px 16px;
             border-radius: 6px;
-            border: 1px solid #e9ecef;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
+            border: 1px solid var(--hairline);
+            font-family: ui-monospace, monospace;
+            font-size: 13px;
             line-height: 1.6;
+            color: var(--text-dim);
         }
 
         .verification-item code {
-            background: #f1f3f4;
+            background: var(--panel-raised);
             padding: 2px 6px;
             border-radius: 3px;
-            font-family: 'Courier New', monospace;
-            color: #d63384;
+            font-family: ui-monospace, monospace;
+            color: var(--amber);
         }
-        
+
         .rotation-key-group {
             display: flex;
             gap: 10px;
             align-items: center;
             margin-bottom: 10px;
         }
-        
+
         .rotation-key-input {
             flex: 1;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
+            padding: 9px 12px;
+            border: 1px solid var(--hairline);
+            border-radius: 6px;
+            font-size: 13.5px;
+            background: var(--panel);
+            color: var(--text);
         }
-        
+
         .remove-rotation-key-btn {
-            background: #dc3545;
-            color: white;
-            border: none;
+            appearance: none;
+            background: transparent;
+            color: var(--text-dim);
+            border: 1px solid var(--hairline);
             padding: 8px 12px;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 12px;
+            transition: color 0.15s ease, border-color 0.15s ease;
         }
-        
+
         .remove-rotation-key-btn:hover {
-            background: #c82333;
+            color: var(--bad);
+            border-color: var(--bad);
         }
-        
+
         #add-rotation-key-btn {
-            background: #28a745;
-            color: white;
-            border: none;
+            appearance: none;
+            background: transparent;
+            color: var(--text-dim);
+            border: 1px solid var(--hairline);
             padding: 8px 16px;
-            border-radius: 4px;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
             margin-top: 5px;
+            transition: color 0.15s ease, border-color 0.15s ease;
         }
-        
+
         #add-rotation-key-btn:hover {
-            background: #218838;
+            color: var(--text);
+            border-color: var(--text-dim);
         }
-        
+
         .also-known-as-group {
             display: flex;
             gap: 10px;
             align-items: center;
             margin-bottom: 10px;
         }
-        
+
         .also-known-as-input {
             flex: 1;
-            padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-        
-        .remove-also-known-as-btn {
-            background: #dc3545;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-        
-        .remove-also-known-as-btn:hover {
-            background: #c82333;
-        }
-        
-        #add-also-known-as-btn {
-            background: #28a745;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            margin-top: 5px;
-        }
-        
-        #add-also-known-as-btn:hover {
-            background: #218838;
+            padding: 9px 12px;
+            border: 1px solid var(--hairline);
+            border-radius: 6px;
+            font-size: 13.5px;
+            background: var(--panel);
+            color: var(--text);
         }
 
-        .form-group input:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: #007bff;
-            
+        .remove-also-known-as-btn {
+            appearance: none;
+            background: transparent;
+            color: var(--text-dim);
+            border: 1px solid var(--hairline);
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: color 0.15s ease, border-color 0.15s ease;
+        }
+
+        .remove-also-known-as-btn:hover {
+            color: var(--bad);
+            border-color: var(--bad);
+        }
+
+        #add-also-known-as-btn {
+            appearance: none;
+            background: transparent;
+            color: var(--text-dim);
+            border: 1px solid var(--hairline);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-top: 5px;
+            transition: color 0.15s ease, border-color 0.15s ease;
+        }
+
+        #add-also-known-as-btn:hover {
+            color: var(--text);
+            border-color: var(--text-dim);
         }
 
         .form-group textarea {
             resize: vertical;
-            min-height: 80px;
+            min-height: 70px;
+            font-family: ui-monospace, monospace;
         }
 
         .form-help {
             display: block;
-            color: #6c757d;
-            font-size: 0.9em;
-            margin-top: 5px;
-            font-style: italic;
+            color: var(--text-dim);
+            font-size: 12.5px;
+            margin-top: 7px;
+            font-style: normal;
         }
 
         .form-button-group {
             display: flex;
-            gap: 15px;
-            justify-content: center;
-            margin-top: 30px;
+            gap: 12px;
+            margin-top: 26px;
+            flex-wrap: wrap;
         }
 
         .submit-btn {
-            background: #0a0a0a;
-            color: #ffffff;
-            border: 1px solid #ffffff;
-            padding: 15px 30px;
-            border-radius: 4px;
-            font-size: 16px;
-            font-weight: 700;
+            appearance: none;
+            border: 1px solid var(--text);
+            background: var(--text);
+            color: var(--bg);
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            
+            transition: opacity 0.15s ease;
         }
 
         .submit-btn:hover {
-            background: #ffffff;
-            color: #0a0a0a;
-            
-            transform: translateY(-2px);
+            opacity: 0.82;
         }
 
         .submit-btn:disabled {
-            background: #1a1a1a;
-            color: #555;
-            border-color: #555;
+            opacity: 0.4;
             cursor: not-allowed;
-            
-            opacity: 0.5;
         }
 
         .submit-btn:disabled:hover {
-            transform: none;
-            
+            opacity: 0.4;
         }
 
         .plc-result {
-            background: #e8f5e8;
-            border: 2px solid #28a745;
-            border-radius: 15px;
-            padding: 25px;
-            margin-top: 30px;
-            text-align: center;
+            background: var(--panel-raised);
+            border: 1px solid var(--hairline);
+            border-radius: 8px;
+            padding: 22px 24px;
+            margin-top: 26px;
+            text-align: left;
         }
 
         .plc-result h3 {
-            color: #155724;
-            margin-bottom: 15px;
+            color: var(--ok);
+            margin-bottom: 14px;
+            font-size: 14px;
+            font-weight: 600;
         }
 
         .plc-result-content {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #c3e6cb;
+            background: var(--panel);
+            padding: 16px 18px;
+            border-radius: 6px;
+            border: 1px solid var(--hairline);
             margin-bottom: 15px;
             text-align: left;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
+            font-family: ui-monospace, monospace;
+            font-size: 13px;
+            color: var(--text-dim);
             white-space: pre-wrap;
             word-break: break-all;
             max-height: 300px;
@@ -830,40 +797,58 @@
         }
 
         .plc-debug {
-            background: #fff3cd;
-            border: 2px solid #ffc107;
-            border-radius: 15px;
-            padding: 25px;
+            background: var(--panel-raised);
+            border: 1px solid var(--hairline);
+            border-radius: 8px;
+            padding: 22px 24px;
             margin-top: 20px;
-            text-align: center;
+            text-align: left;
         }
 
         .plc-debug h3 {
-            color: #856404;
-            margin-bottom: 15px;
+            color: var(--amber);
+            margin-bottom: 14px;
+            font-size: 14px;
+            font-weight: 600;
         }
 
         .plc-debug-content {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            border: 1px solid #ffeaa7;
+            background: var(--panel);
+            padding: 16px 18px;
+            border-radius: 6px;
+            border: 1px solid var(--hairline);
             margin-bottom: 15px;
             text-align: left;
-            font-family: 'Courier New', monospace;
+            font-family: ui-monospace, monospace;
             font-size: 12px;
+            color: var(--text-dim);
             white-space: pre-wrap;
             word-break: break-all;
             max-height: 400px;
             overflow-y: auto;
         }
+
+        .module {
+            border: 1px solid var(--hairline);
+            border-radius: 6px;
+            padding: 22px 24px;
+            margin-bottom: 20px;
+            background: var(--panel-raised);
+        }
+        .module > .form-group:last-child {
+            margin-bottom: 0;
+        }
+
+        @media (max-width: 640px) {
+            .path, .tab-pane { padding-left: 26px; padding-right: 26px; }
+            .tab-navigation { padding-left: 26px; padding-right: 26px; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>ATProto Self-Sovereign Account Creator</h1>
-        <p class="subtitle"></p>
-        
+        <div class="path">~/atproto <span class="amber">$</span> create identity</div>
+
         <!-- Tab Navigation -->
         <div class="tab-navigation">
             <button class="tab-btn active" id="keygen-tab" data-tab="keygen">
@@ -904,44 +889,44 @@
         <div class="key-generation-section" id="keyGenerationSection">
             <div class="button-group">
                 <button class="generate-btn" id="generateBtn">
-                    GENERATE NEW KEY
+                    Generate key
                 </button>
-                
+
                 <button class="copy-btn" id="copyMnemonicBtn" disabled>
-                    COPY SEED PHRASE
+                    Copy seed phrase
                 </button>
             </div>
-            
+
             <div class="restore-section">
-                <h3>KEY RECOVERY PROTOCOL</h3>
-                <p class="restore-subtitle">Input 24-word seed phrase to reconstruct cryptographic key</p>
-                
+                <h3>Restore from a phrase</h3>
+                <p class="restore-subtitle">Enter a 24-word seed phrase to restore a key you've used before</p>
+
                 <div class="mnemonic-input-container">
-                    <textarea 
-                        id="mnemonicInput" 
+                    <textarea
+                        id="mnemonicInput"
                         placeholder="Enter seed phrase..."
                         rows="3"
                     ></textarea>
                 </div>
-                
+
                 <div class="restore-button-group">
                     <button class="restore-btn" id="restoreBtn">
-                        RECONSTRUCT KEY
+                        Restore key
                     </button>
-                    
+
                     <button class="clear-btn" id="clearBtn">
-                        CLEAR
+                        Clear
                     </button>
                 </div>
             </div>
         </div>
-        
+
         <div class="clear-key-section" id="clearKeySection" style="display: none;">
             <button class="clear-btn" id="clearKeyBtn">
-                CLEAR CURRENT KEY
+                Clear current key
             </button>
         </div>
-        
+
         
         <div class="status"></div>
             </div>
@@ -953,70 +938,76 @@
                     <p class="plc-subtitle">Create a new ATProto account using your browser-controlled DID:PLC identity</p>
                     
                     <form id="createaccount-form" class="plc-form">
-                        <div class="form-group">
-                            <label for="pds-endpoint">PDS Endpoint</label>
-                            <input type="url" id="pds-endpoint" name="pdsEndpoint" placeholder="https://your-pds.example.com" value="https://pds.goat.navy" required>
-                            <small class="form-help">The URL of your Personal Data Server</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="account-handle">Handle</label>
-                            <div style="display: flex; gap: 8px; align-items: center;">
-                                <input type="text" id="account-handle-subdomain" name="handleSubdomain" placeholder="username" required style="flex: 1;">
-                                <span style="font-size: 16px;">@</span>
-                                <select id="account-handle-domain" name="handleDomain" required style="flex: 1;">
-                                    <option value="">Select domain...</option>
-                                </select>
+                        <div class="module">
+                            <div class="form-group">
+                                <label for="pds-endpoint">PDS Endpoint</label>
+                                <input type="url" id="pds-endpoint" name="pdsEndpoint" placeholder="https://your-pds.example.com" value="https://pds.goat.navy" required>
+                                <small class="form-help">The URL of your Personal Data Server</small>
                             </div>
-                            <input type="hidden" id="account-handle" name="handle">
-                            <small class="form-help">Your desired handle (username) for the account</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="account-email">Email</label>
-                            <input type="email" id="account-email" name="email" placeholder="user@example.com" required>
-                            <small class="form-help">Email address for account verification</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="account-password">Password</label>
-                            <input type="password" id="account-password" name="password" placeholder="Secure password" required>
-                            <small class="form-help">Password for account authentication</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="account-invite-code">Invite Code (Optional)</label>
-                            <input type="text" id="account-invite-code" name="inviteCode" placeholder="Enter invite code if required">
-                            <small class="form-help">Optional: Some PDS servers require an invite code for account creation</small>
+
+                            <div class="form-group">
+                                <label for="account-handle">Handle</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="text" id="account-handle-subdomain" name="handleSubdomain" placeholder="username" required style="flex: 1;">
+                                    <span style="font-size: 16px; color: var(--text-dim);">@</span>
+                                    <select id="account-handle-domain" name="handleDomain" required style="flex: 1;">
+                                        <option value="">Select domain...</option>
+                                    </select>
+                                </div>
+                                <input type="hidden" id="account-handle" name="handle">
+                                <small class="form-help">Your desired handle (username) for the account</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label>DID:PLC Identifier</label>
+                                <div id="account-did" style="font-size: 13px; font-family: ui-monospace, 'SF Mono', Consolas, monospace; color: var(--amber); padding: 8px 0;">
+                                    <span style="color: var(--text-dim);">did:plc:...</span>
+                                </div>
+                                <input type="hidden" id="account-did-value" name="did">
+                                <small class="form-help">Your browser-controlled DID:PLC identifier (auto-generated from the Key tab)</small>
+                            </div>
                         </div>
 
-                        <div class="form-group">
-                            <label for="social-import-username">Import Profile Picture &amp; Bio From (Optional)</label>
-                            <div class="social-import-group">
-                                <select id="social-import-platform" name="socialPlatform">
-                                    <option value="farcaster">Farcaster</option>
-                                    <option value="x">X (Twitter)</option>
-                                </select>
-                                <input type="text" id="social-import-username" name="socialUsername" placeholder="username">
+                        <div class="module">
+                            <div class="form-group">
+                                <label for="account-email">Email</label>
+                                <input type="email" id="account-email" name="email" placeholder="user@example.com" required>
+                                <small class="form-help">Email address for account verification</small>
                             </div>
-                            <small class="form-help" id="social-import-check-status">Optional: fetch your avatar and bio from Farcaster or X and use them for this account</small>
+
+                            <div class="form-group">
+                                <label for="account-password">Password</label>
+                                <input type="password" id="account-password" name="password" placeholder="Secure password" required>
+                                <small class="form-help">Password for account authentication</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="account-invite-code">Invite Code (Optional)</label>
+                                <input type="text" id="account-invite-code" name="inviteCode" placeholder="Enter invite code if required">
+                                <small class="form-help">Optional: Some PDS servers require an invite code for account creation</small>
+                            </div>
                         </div>
 
-                        <div class="form-group">
-                            <label>DID:PLC Identifier</label>
-                            <div id="account-did" style="font-size: 14px; font-family: 'Courier New', monospace; color: #ffffff; padding: 8px 0;">
-                                <span style="color: #888;">did:plc:...</span>
+                        <div class="module">
+                            <div class="form-group">
+                                <label for="social-import-username">Import Profile Picture &amp; Bio From (Optional)</label>
+                                <div class="social-import-group">
+                                    <select id="social-import-platform" name="socialPlatform">
+                                        <option value="farcaster">Farcaster</option>
+                                        <option value="x">X (Twitter)</option>
+                                    </select>
+                                    <input type="text" id="social-import-username" name="socialUsername" placeholder="username">
+                                </div>
+                                <small class="form-help" id="social-import-check-status">Optional: fetch your avatar and bio from Farcaster or X and use them for this account</small>
                             </div>
-                            <input type="hidden" id="account-did-value" name="did">
-                            <small class="form-help">Your browser-controlled DID:PLC identifier (auto-generated from DID:PLC Entry tab)</small>
                         </div>
-                        
+
                         <div class="form-button-group" id="setup-eth-group" style="display: none;">
                             <button type="button" class="submit-btn" id="setup-eth-btn">
                                 Set up .eth
                             </button>
                         </div>
-                        
+
                         <div class="form-button-group">
                             <button type="submit" class="submit-btn" id="submit-createaccount-btn">
                                 Create Account
@@ -2817,7 +2808,7 @@
                 if (didKeyDisplay) didKeyDisplay.style.display = 'none';
             } finally {
                 if (generateBtn) generateBtn.disabled = false;
-                if (generateBtn) generateBtn.textContent = 'Generate New Key';
+                if (generateBtn) generateBtn.textContent = 'Generate key';
             }
         }
 
@@ -2986,7 +2977,7 @@
                 if (didKeyDisplay) didKeyDisplay.style.display = 'none';
             } finally {
                 if (restoreBtn) restoreBtn.disabled = false;
-                if (restoreBtn) restoreBtn.textContent = 'Restore Private Key';
+                if (restoreBtn) restoreBtn.textContent = 'Restore key';
             }
         }
 
