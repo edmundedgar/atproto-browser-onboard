@@ -63,7 +63,7 @@ async function main() {
   await page.click('#submit-createaccount-btn')
 
   const status = await page.waitForFunction(() => {
-    const el = document.querySelector('#createaccount-pane .status, .tab-pane.active .status')
+    const el = document.getElementById('status-line')
     const text = el?.textContent || ''
     return /imported|import failed/i.test(text) ? text : null
   }, null, { timeout: 60000 }).then((h) => h.jsonValue())

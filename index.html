@@ -28,6 +28,8 @@
             --hairline: #dcd8ca;
             --amber: #9c6d1f;
             --amber-bright: #7d5717;
+            --ok: #2e6b3e;
+            --bad: #a8402e;
             --shadow: rgba(30, 25, 10, 0.1);
         }
         @media (prefers-color-scheme: light) {
@@ -40,6 +42,8 @@
                 --hairline: #dcd8ca;
                 --amber: #9c6d1f;
                 --amber-bright: #7d5717;
+                --ok: #2e6b3e;
+                --bad: #a8402e;
                 --shadow: rgba(30, 25, 10, 0.1);
             }
         }
@@ -55,9 +59,9 @@
             background: var(--bg);
             min-height: 100vh;
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             justify-content: center;
-            padding: 20px;
+            padding: 56px 20px;
             color: var(--text);
             line-height: 1.6;
         }
@@ -71,15 +75,31 @@
             border: 1px solid var(--hairline);
             border-radius: 8px;
             box-shadow: 0 30px 70px var(--shadow);
+            zoom: 1.25;
         }
 
+        .header-slot {
+            padding: 44px 48px 26px;
+            font-size: 14px;
+            line-height: 1.6;
+            min-height: 3.2em;
+        }
         .path {
             font-family: ui-monospace, 'SF Mono', Consolas, monospace;
-            font-size: 13px;
             color: var(--text-dim);
-            padding: 44px 48px 26px;
         }
         .path .amber { color: var(--amber); }
+        #status-line {
+            transition: opacity 0.8s ease;
+        }
+        .status-idle {
+            color: var(--text-dim);
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #status-line {
+                transition: none;
+            }
+        }
 
         .key-display {
             border: 1px solid var(--hairline);
@@ -88,7 +108,7 @@
             margin: 0 0 16px;
             word-break: break-all;
             font-family: ui-monospace, 'SF Mono', Consolas, monospace;
-            font-size: 12.5px;
+            font-size: 13.5px;
             line-height: 1.7;
             color: var(--text-dim);
             background: var(--panel-raised);
@@ -104,7 +124,7 @@
             background: var(--text);
             color: var(--bg);
             font-weight: 600;
-            font-size: 14px;
+            font-size: 15px;
             padding: 12px 24px;
             border-radius: 6px;
             cursor: pointer;
@@ -124,7 +144,7 @@
             border: 1px solid var(--hairline);
             background: transparent;
             color: var(--text-dim);
-            font-size: 12px;
+            font-size: 13px;
             padding: 9px 16px;
             border-radius: 6px;
             cursor: pointer;
@@ -145,76 +165,68 @@
             border: 1px solid var(--hairline);
             border-radius: 6px;
             padding: 16px 18px;
-            margin: 16px 0;
+            margin: 0 0 16px;
             background: var(--panel-raised);
         }
 
         .mnemonic-display h3 {
             color: var(--text-dim);
-            margin-bottom: 10px;
+            margin-bottom: 0;
             font-family: ui-monospace, monospace;
-            font-size: 11px;
+            font-size: 12px;
             font-weight: 500;
             text-transform: none;
             letter-spacing: normal;
         }
 
-        .mnemonic-text-container {
-            position: relative;
-            display: inline-block;
-            width: 100%;
-        }
-
         .mnemonic-text {
             font-family: ui-monospace, 'SF Mono', Consolas, monospace;
-            font-size: 13px;
+            font-size: 14px;
             line-height: 1.8;
             color: var(--amber);
             word-break: break-word;
-            padding-right: 40px;
         }
 
         .did-key-display {
             border: 1px solid var(--hairline);
             border-radius: 6px;
             padding: 16px 18px;
-            margin: 16px 0;
+            margin: 0 0 16px;
             background: var(--panel-raised);
         }
 
         .did-key-display h3 {
             color: var(--text-dim);
-            margin-bottom: 10px;
+            margin-bottom: 0;
             font-family: ui-monospace, monospace;
-            font-size: 11px;
+            font-size: 12px;
             font-weight: 500;
             text-transform: none;
             letter-spacing: normal;
         }
 
-        .did-key-text-container {
-            position: relative;
-            display: inline-block;
-            width: 100%;
-        }
-
         .did-key-text {
             font-family: ui-monospace, 'SF Mono', Consolas, monospace;
-            font-size: 12.5px;
+            font-size: 13.5px;
             line-height: 1.7;
             color: var(--amber);
             word-break: break-all;
-            padding-right: 40px;
+        }
+
+        .box-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 10px;
         }
 
         .copy-icon {
-            position: absolute;
-            top: 4px;
-            right: 0;
+            flex: 0 0 auto;
             background: none;
             border: none;
             color: var(--text-dim);
-            font-size: 14px;
+            font-size: 15px;
             cursor: pointer;
             padding: 5px;
             border-radius: 4px;
@@ -233,27 +245,19 @@
         }
 
         .restore-section {
-            border: 1px solid var(--hairline);
-            border-radius: 6px;
-            padding: 22px 24px;
-            margin: 20px 0 0;
-            background: var(--panel-raised);
+            border-top: 1px solid var(--hairline);
+            padding-top: 26px;
+            margin: 30px 0 0;
         }
 
         .restore-section h3 {
             color: var(--text-dim);
-            margin-bottom: 4px;
+            margin-bottom: 12px;
             font-family: ui-monospace, monospace;
             font-size: 12px;
             font-weight: 500;
             text-transform: none;
             letter-spacing: normal;
-        }
-
-        .restore-subtitle {
-            color: var(--text-dim);
-            margin-bottom: 14px;
-            font-size: 13px;
         }
 
         .mnemonic-input-container {
@@ -266,7 +270,7 @@
             border: 1px solid var(--hairline);
             border-radius: 6px;
             font-family: ui-monospace, 'SF Mono', Consolas, monospace;
-            font-size: 13px;
+            font-size: 14px;
             line-height: 1.5;
             resize: vertical;
             background: var(--panel);
@@ -290,7 +294,7 @@
             background: transparent;
             color: var(--text-dim);
             padding: 11px 20px;
-            font-size: 13.5px;
+            font-size: 14.5px;
             border-radius: 6px;
             cursor: pointer;
             transition: color 0.15s ease, border-color 0.15s ease;
@@ -312,7 +316,7 @@
             background: transparent;
             color: var(--text-dim);
             padding: 11px 20px;
-            font-size: 13.5px;
+            font-size: 14.5px;
             border-radius: 6px;
             cursor: pointer;
             transition: color 0.15s ease, border-color 0.15s ease;
@@ -353,23 +357,25 @@
         }
 
         .status {
-            margin-top: 15px;
-            padding: 11px 14px;
-            border-radius: 6px;
+            display: inline;
+            margin: 0;
+            padding: 0;
+            border-radius: 0;
             font-weight: 500;
-            font-size: 13.5px;
+            font-size: inherit;
+            font-family: inherit;
         }
 
         .status.success {
-            background: var(--panel-raised);
+            background: none;
             color: var(--ok);
-            border: 1px solid var(--hairline);
+            border: none;
         }
 
         .status.error {
-            background: var(--panel-raised);
+            background: none;
             color: var(--bad);
-            border: 1px solid var(--hairline);
+            border: none;
         }
 
         /* Tab Navigation Styles */
@@ -387,7 +393,7 @@
             font-family: ui-monospace, 'SF Mono', Consolas, monospace;
             padding: 12px 4px 14px;
             margin-right: 26px;
-            font-size: 12.5px;
+            font-size: 13.5px;
             color: var(--text-dim);
             cursor: pointer;
             border-bottom: 2px solid transparent;
@@ -452,7 +458,7 @@
             text-align: left;
             color: var(--text-dim);
             margin-bottom: 26px;
-            font-size: 13.5px;
+            font-size: 14.5px;
             max-width: 52ch;
         }
 
@@ -471,7 +477,7 @@
             font-weight: 500;
             color: var(--text-dim);
             margin-bottom: 8px;
-            font-size: 11.5px;
+            font-size: 12.5px;
             font-family: ui-monospace, monospace;
             text-transform: none;
             letter-spacing: normal;
@@ -484,12 +490,21 @@
             padding: 11px 13px;
             border: 1px solid var(--hairline);
             border-radius: 6px;
-            font-size: 14.5px;
+            font-size: 15.5px;
             font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
             transition: border-color 0.15s ease;
             box-sizing: border-box;
             background: var(--panel);
             color: var(--text);
+        }
+
+        .form-group input::placeholder,
+        .form-group textarea::placeholder {
+            color: var(--text-dim);
+        }
+
+        .form-group select:invalid {
+            color: var(--text-dim);
         }
 
         .form-group input:focus,
@@ -514,13 +529,13 @@
             width: auto;
             flex: 0 0 auto;
             padding: 8px 10px;
-            font-size: 13px;
+            font-size: 14px;
         }
 
         .social-import-group input {
             flex: 1;
             padding: 8px 10px;
-            font-size: 13px;
+            font-size: 14px;
         }
 
         .did-input-group input {
@@ -540,7 +555,7 @@
             color: var(--text-dim);
             padding: 11px 18px;
             border-radius: 6px;
-            font-size: 13px;
+            font-size: 14px;
             cursor: pointer;
             transition: color 0.15s ease, border-color 0.15s ease;
             white-space: nowrap;
@@ -563,7 +578,7 @@
             color: var(--text-dim);
             padding: 11px 18px;
             border-radius: 6px;
-            font-size: 13px;
+            font-size: 14px;
             cursor: pointer;
             transition: color 0.15s ease, border-color 0.15s ease;
             white-space: nowrap;
@@ -600,7 +615,7 @@
             border-radius: 6px;
             border: 1px solid var(--hairline);
             font-family: ui-monospace, monospace;
-            font-size: 13px;
+            font-size: 14px;
             line-height: 1.6;
             color: var(--text-dim);
         }
@@ -625,7 +640,7 @@
             padding: 9px 12px;
             border: 1px solid var(--hairline);
             border-radius: 6px;
-            font-size: 13.5px;
+            font-size: 14.5px;
             background: var(--panel);
             color: var(--text);
         }
@@ -638,7 +653,7 @@
             padding: 8px 12px;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 13px;
             transition: color 0.15s ease, border-color 0.15s ease;
         }
 
@@ -655,7 +670,7 @@
             padding: 8px 16px;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 13px;
+            font-size: 14px;
             margin-top: 5px;
             transition: color 0.15s ease, border-color 0.15s ease;
         }
@@ -677,7 +692,7 @@
             padding: 9px 12px;
             border: 1px solid var(--hairline);
             border-radius: 6px;
-            font-size: 13.5px;
+            font-size: 14.5px;
             background: var(--panel);
             color: var(--text);
         }
@@ -690,7 +705,7 @@
             padding: 8px 12px;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 13px;
             transition: color 0.15s ease, border-color 0.15s ease;
         }
 
@@ -707,7 +722,7 @@
             padding: 8px 16px;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 13px;
+            font-size: 14px;
             margin-top: 5px;
             transition: color 0.15s ease, border-color 0.15s ease;
         }
@@ -726,7 +741,7 @@
         .form-help {
             display: block;
             color: var(--text-dim);
-            font-size: 12.5px;
+            font-size: 13.5px;
             margin-top: 7px;
             font-style: normal;
         }
@@ -745,7 +760,7 @@
             color: var(--bg);
             padding: 12px 24px;
             border-radius: 6px;
-            font-size: 14px;
+            font-size: 15px;
             font-weight: 600;
             cursor: pointer;
             transition: opacity 0.15s ease;
@@ -776,7 +791,7 @@
         .plc-result h3 {
             color: var(--ok);
             margin-bottom: 14px;
-            font-size: 14px;
+            font-size: 15px;
             font-weight: 600;
         }
 
@@ -788,7 +803,7 @@
             margin-bottom: 15px;
             text-align: left;
             font-family: ui-monospace, monospace;
-            font-size: 13px;
+            font-size: 14px;
             color: var(--text-dim);
             white-space: pre-wrap;
             word-break: break-all;
@@ -808,7 +823,7 @@
         .plc-debug h3 {
             color: var(--amber);
             margin-bottom: 14px;
-            font-size: 14px;
+            font-size: 15px;
             font-weight: 600;
         }
 
@@ -820,7 +835,7 @@
             margin-bottom: 15px;
             text-align: left;
             font-family: ui-monospace, monospace;
-            font-size: 12px;
+            font-size: 13px;
             color: var(--text-dim);
             white-space: pre-wrap;
             word-break: break-all;
@@ -840,14 +855,23 @@
         }
 
         @media (max-width: 640px) {
-            .path, .tab-pane { padding-left: 26px; padding-right: 26px; }
+            .header-slot, .tab-pane { padding-left: 26px; padding-right: 26px; }
             .tab-navigation { padding-left: 26px; padding-right: 26px; }
+            /* The 1.25 zoom is sized for spacious desktop viewing; on a
+               narrow screen it just makes everything cramped, so drop back
+               to the unscaled baseline instead of fighting it field-by-field. */
+            .container { zoom: 1; }
+            /* The desktop side padding (20px) eats a much bigger share of a
+               narrow phone screen - shrink it so the card uses the space. */
+            body { padding: 24px 8px; }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="path">~/atproto <span class="amber">$</span> create identity</div>
+        <div class="header-slot">
+            <div class="path">~/atproto <span class="amber">$</span> <span id="status-line">self-sovereign identity</span></div>
+        </div>
 
         <!-- Tab Navigation -->
         <div class="tab-navigation">
@@ -867,23 +891,23 @@
             <!-- Key Generation Tab -->
             <div class="tab-pane active" id="keygen-pane">
 
-        <div class="key-display" id="keyDisplay">No key generated yet</div>
+        <div class="key-display" id="keyDisplay" style="display: none;">No key generated yet</div>
 
         <div class="did-key-display" id="didKeyDisplay" style="display: none;">
-            <h3>Key</h3>
-            <div class="did-key-text-container">
-                <div class="did-key-text" id="didKeyText"></div>
+            <div class="box-header">
+                <h3>Key</h3>
                 <button class="copy-icon" id="copyDidKeyBtn" title="Copy DID:Key to clipboard">📋</button>
             </div>
+            <div class="did-key-text" id="didKeyText"></div>
         </div>
 
 
         <div class="mnemonic-display" id="mnemonicDisplay" style="display: none;">
-            <h3>Secret Key Phrase</h3>
-            <div class="mnemonic-text-container">
-                <div class="mnemonic-text" id="mnemonicText"></div>
+            <div class="box-header">
+                <h3>Secret Key Phrase</h3>
                 <button class="copy-icon" id="copyMnemonicBtn" title="Copy mnemonic to clipboard">📋</button>
             </div>
+            <div class="mnemonic-text" id="mnemonicText"></div>
         </div>
         
         <div class="key-generation-section" id="keyGenerationSection">
@@ -891,15 +915,10 @@
                 <button class="generate-btn" id="generateBtn">
                     Generate key
                 </button>
-
-                <button class="copy-btn" id="copyMnemonicBtn" disabled>
-                    Copy seed phrase
-                </button>
             </div>
 
             <div class="restore-section">
                 <h3>Restore from a phrase</h3>
-                <p class="restore-subtitle">Enter a 24-word seed phrase to restore a key you've used before</p>
 
                 <div class="mnemonic-input-container">
                     <textarea
@@ -928,25 +947,21 @@
         </div>
 
         
-        <div class="status"></div>
+        <div class="status" style="display: none;"></div>
             </div>
             
             <!-- Create Account Tab -->
             <div class="tab-pane" id="createaccount-pane">
                 <div class="plc-form-container">
-                    <h2>Create New Account</h2>
-                    <p class="plc-subtitle">Create a new ATProto account using your browser-controlled DID:PLC identity</p>
-                    
                     <form id="createaccount-form" class="plc-form">
                         <div class="module">
                             <div class="form-group">
-                                <label for="pds-endpoint">PDS Endpoint</label>
+                                <label for="pds-endpoint">hosting server</label>
                                 <input type="url" id="pds-endpoint" name="pdsEndpoint" placeholder="https://your-pds.example.com" value="https://pds.goat.navy" required>
-                                <small class="form-help">The URL of your Personal Data Server</small>
                             </div>
 
                             <div class="form-group">
-                                <label for="account-handle">Handle</label>
+                                <label for="account-handle">handle</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="text" id="account-handle-subdomain" name="handleSubdomain" placeholder="username" required style="flex: 1;">
                                     <span style="font-size: 16px; color: var(--text-dim);">@</span>
@@ -955,42 +970,30 @@
                                     </select>
                                 </div>
                                 <input type="hidden" id="account-handle" name="handle">
-                                <small class="form-help">Your desired handle (username) for the account</small>
-                            </div>
-
-                            <div class="form-group">
-                                <label>DID:PLC Identifier</label>
-                                <div id="account-did" style="font-size: 13px; font-family: ui-monospace, 'SF Mono', Consolas, monospace; color: var(--amber); padding: 8px 0;">
-                                    <span style="color: var(--text-dim);">did:plc:...</span>
-                                </div>
                                 <input type="hidden" id="account-did-value" name="did">
-                                <small class="form-help">Your browser-controlled DID:PLC identifier (auto-generated from the Key tab)</small>
                             </div>
                         </div>
 
                         <div class="module">
                             <div class="form-group">
-                                <label for="account-email">Email</label>
+                                <label for="account-email">email</label>
                                 <input type="email" id="account-email" name="email" placeholder="user@example.com" required>
-                                <small class="form-help">Email address for account verification</small>
                             </div>
 
                             <div class="form-group">
-                                <label for="account-password">Password</label>
+                                <label for="account-password">password</label>
                                 <input type="password" id="account-password" name="password" placeholder="Secure password" required>
-                                <small class="form-help">Password for account authentication</small>
                             </div>
 
                             <div class="form-group">
-                                <label for="account-invite-code">Invite Code (Optional)</label>
+                                <label for="account-invite-code">invite code <span style="opacity: .6;">(optional)</span></label>
                                 <input type="text" id="account-invite-code" name="inviteCode" placeholder="Enter invite code if required">
-                                <small class="form-help">Optional: Some PDS servers require an invite code for account creation</small>
                             </div>
                         </div>
 
                         <div class="module">
                             <div class="form-group">
-                                <label for="social-import-username">Import Profile Picture &amp; Bio From (Optional)</label>
+                                <label for="social-import-username">picture &amp; bio from <span style="opacity: .6;">(optional)</span></label>
                                 <div class="social-import-group">
                                     <select id="social-import-platform" name="socialPlatform">
                                         <option value="farcaster">Farcaster</option>
@@ -998,7 +1001,7 @@
                                     </select>
                                     <input type="text" id="social-import-username" name="socialUsername" placeholder="username">
                                 </div>
-                                <small class="form-help" id="social-import-check-status">Optional: fetch your avatar and bio from Farcaster or X and use them for this account</small>
+                                <small class="form-help" id="social-import-check-status">Fetches your existing picture and bio.</small>
                             </div>
                         </div>
 
@@ -1010,10 +1013,10 @@
 
                         <div class="form-button-group">
                             <button type="submit" class="submit-btn" id="submit-createaccount-btn">
-                                Create Account
+                                Create account
                             </button>
                             <button type="button" class="clear-btn" id="clear-createaccount-btn">
-                                Clear Form
+                                Clear form
                             </button>
                         </div>
                     </form>
@@ -1027,7 +1030,7 @@
                     </div>
                 </div>
                 
-                <div class="status"></div>
+                <div class="status" style="display: none;"></div>
             </div>
             
             <!-- DID:PLC Entry Tab -->
@@ -1037,6 +1040,7 @@
                     <p class="plc-subtitle">Create a DID:PLC entry with all required fields for decentralized identity</p>
                     
                     <form id="didplc-form" class="plc-form">
+                        <div class="module">
                         <div class="form-group">
                             <label for="plc-did">DID Identifier</label>
                             <input type="text" id="plc-did" name="did" placeholder="did:plc:example" required>
@@ -1097,7 +1101,8 @@
                             <input type="text" id="plc-previous-update" name="previousUpdate" placeholder="Previous update operation CID (if applicable)">
                             <small class="form-help">Optional: CID of the previous update operation for operation history</small>
                         </div>
-                        
+                        </div>
+
                         <div class="form-button-group">
                             <button type="submit" class="submit-btn" id="submit-plc-btn">
                                 Create DID:PLC Entry
@@ -1535,7 +1540,7 @@
                 if (!response.ok) {
                     const errorText = await response.text();
                     console.error('Reservation failed:', errorText);
-                    throw new Error(`Failed to reserve signing key: ${response.status} ${response.statusText}\n${errorText}`);
+                    throw new Error(`couldn't reserve key: ${response.status} ${response.statusText}\n${errorText}`);
                 }
 
                 const result = await response.json();
@@ -1959,7 +1964,7 @@
         // fail with a signing-key mismatch, even though the account itself was
         // created successfully.
         async function activateAccountAfterDidUpdate(pdsEndpoint, accessJwt) {
-            console.log('Activating account...');
+            console.log('activating account...');
             const activateEndpoint = `${pdsEndpoint}/xrpc/com.atproto.server.activateAccount`;
             const activateResponse = await fetch(activateEndpoint, {
                 method: 'POST',
@@ -2627,21 +2632,6 @@
             };
         }
 
-        function formatBootstrapSummary(summary) {
-            if (!summary) return '';
-            const parts = [];
-            if (summary.followTotal) parts.push(`${summary.followed}/${summary.followTotal} follows`);
-            if (summary.blockTotal) parts.push(`${summary.blocked}/${summary.blockTotal} blocklists`);
-            if (summary.feedTotal) parts.push(`${summary.feedsAdded}/${summary.feedTotal} feeds`);
-            const statusClass = summary.failures.length ? 'status error' : 'status success';
-            let html = `<div class="${statusClass}">Bootstrap: ${parts.join(', ') || 'nothing to do'}</div>`;
-            if (summary.failures.length) {
-                const items = summary.failures.map((f) => `<li>${f.item}: ${f.error}</li>`).join('');
-                html += `<div class="status error"><ul>${items}</ul></div>`;
-            }
-            return html;
-        }
-
         async function fetchFarcasterProfile(username) {
             const apiKey = window.SOCIAL_IMPORT_CONFIG?.neynarApiKey || 'NEYNAR_API_DOCS';
             const response = await fetch(`https://api.neynar.com/v2/farcaster/user/by_username?username=${encodeURIComponent(username)}`, {
@@ -2794,15 +2784,15 @@
                 toggleKeyGenerationSections();
 
                 if (status) {
-                    status.innerHTML = '<div class="status success">Key, mnemonic, public key, and DID key generated successfully!</div>';
+                    status.innerHTML = '<div class="status success">keypair created</div>';
                 }
 
             } catch (error) {
                 console.error('Error generating key:', error);
                 if (status) {
-                    status.innerHTML = '<div class="status error">Error generating key. Please try again.</div>';
+                    status.innerHTML = `<div class="status error">couldn't generate a key — try again</div>`;
                 }
-                if (keyDisplay) keyDisplay.textContent = 'Error generating key. Please try again.';
+                if (keyDisplay) keyDisplay.textContent = `couldn't generate a key — try again`;
                 if (keyDisplay) keyDisplay.classList.remove('has-key');
                 if (mnemonicDisplay) mnemonicDisplay.style.display = 'none';
                 if (didKeyDisplay) didKeyDisplay.style.display = 'none';
@@ -2819,7 +2809,7 @@
                 await navigator.clipboard.writeText(currentKey);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status success">Key copied to clipboard!</div>';
+                    status.innerHTML = '<div class="status success">copied</div>';
                 }
                 
                 // Clear status after 3 seconds
@@ -2832,7 +2822,7 @@
                 console.error('Error copying to clipboard:', error);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status error">Failed to copy to clipboard</div>';
+                    status.innerHTML = '<div class="status error">copy failed</div>';
                 }
             }
         }
@@ -2844,7 +2834,7 @@
                 await navigator.clipboard.writeText(currentMnemonic);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status success">Mnemonic copied to clipboard!</div>';
+                    status.innerHTML = '<div class="status success">copied</div>';
                 }
                 
                 // Clear status after 3 seconds
@@ -2857,7 +2847,7 @@
                 console.error('Error copying mnemonic to clipboard:', error);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status error">Failed to copy mnemonic to clipboard</div>';
+                    status.innerHTML = '<div class="status error">copy failed</div>';
                 }
             }
         }
@@ -2870,7 +2860,7 @@
                 await navigator.clipboard.writeText(currentDidKey);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status success">DID key copied to clipboard!</div>';
+                    status.innerHTML = '<div class="status success">copied</div>';
                 }
                 
                 // Clear status after 3 seconds
@@ -2883,7 +2873,7 @@
                 console.error('Error copying DID key to clipboard:', error);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status error">Failed to copy DID key to clipboard</div>';
+                    status.innerHTML = '<div class="status error">copy failed</div>';
                 }
             }
         }
@@ -2904,7 +2894,7 @@
 
             if (!inputMnemonic) {
                 if (status) {
-                    status.innerHTML = '<div class="status error">Please enter a mnemonic phrase</div>';
+                    status.innerHTML = '<div class="status error">enter a seed phrase first</div>';
                 }
                 return;
             }
@@ -2966,7 +2956,7 @@
                 // Toggle key generation sections visibility
                 toggleKeyGenerationSections();
 
-                if (status) status.innerHTML = '<div class="status success">Private key, mnemonic, public key, and DID key restored successfully!</div>';
+                if (status) status.innerHTML = '<div class="status success">keypair restored</div>';
 
             } catch (error) {
                 console.error('Error restoring from mnemonic:', error);
@@ -2991,21 +2981,63 @@
 
         // Helper function to get the status element for the current active tab
         function getCurrentStatusElement() {
-            const activeTab = document.querySelector('.tab-pane.active');
-            if (activeTab) {
-                const statusElement = activeTab.querySelector('.status');
-                if (statusElement) {
-                    return statusElement;
-                }
-            }
-            // Fallback: try to find any status element if active tab detection fails
-            const fallbackStatus = document.querySelector('.status');
-            if (fallbackStatus) {
-                return fallbackStatus;
+            // Status now lives once, in the header, after the "~/atproto $"
+            // prompt - not per-tab - so every call site shares the same slot.
+            const statusLine = document.getElementById('status-line');
+            if (statusLine) {
+                return statusLine;
             }
             console.warn('No status element found');
             return null;
         }
+
+        // "Idle" content (e.g. the live DID:PLC id) sits in the same header
+        // slot as temporary status messages. setHeaderIdleContent updates
+        // what that idle state is; the observer below restores it once a
+        // temporary status has faded, instead of leaving the line blank or
+        // reverting to the original placeholder text.
+        let headerIdleContent = document.getElementById('status-line')?.innerHTML || '';
+        let showingTemporaryStatus = false;
+
+        function setHeaderIdleContent(html) {
+            headerIdleContent = html;
+            if (showingTemporaryStatus) return;
+            const statusLineEl = document.getElementById('status-line');
+            if (!statusLineEl) return;
+            statusLineEl.dataset.idleWrite = '1';
+            statusLineEl.innerHTML = html;
+        }
+
+        // Fades the status line out ~10s after it's updated, then restores
+        // whatever idle content is current. A MutationObserver means every
+        // getCurrentStatusElement() call site gets this for free, without
+        // each one having to trigger it itself.
+        (function watchStatusLine() {
+            const statusLineEl = document.getElementById('status-line');
+            if (!statusLineEl) return;
+            let fadeTimeout;
+            const observer = new MutationObserver(() => {
+                // Our own restore of idle content shouldn't be treated as a
+                // fresh temporary status - skip it and clear the marker.
+                if (statusLineEl.dataset.idleWrite) {
+                    delete statusLineEl.dataset.idleWrite;
+                    return;
+                }
+                showingTemporaryStatus = true;
+                clearTimeout(fadeTimeout);
+                statusLineEl.style.opacity = '1';
+                fadeTimeout = setTimeout(() => {
+                    statusLineEl.style.opacity = '0';
+                    setTimeout(() => {
+                        statusLineEl.dataset.idleWrite = '1';
+                        statusLineEl.innerHTML = headerIdleContent;
+                        statusLineEl.style.opacity = '1';
+                        showingTemporaryStatus = false;
+                    }, 800);
+                }, 10000);
+            });
+            observer.observe(statusLineEl, { childList: true, subtree: true, characterData: true });
+        })();
         // Make functions globally accessible for onclick handlers
         window.generateKey = generateKey;
         window.copyKey = copyKey;
@@ -3177,7 +3209,7 @@
             try {
                 await navigator.clipboard.writeText(JSON.stringify(currentPlcEntry, null, 2));
                 const status = getCurrentStatusElement();
-                status.innerHTML = '<div class="status success">DID:PLC entry copied to clipboard!</div>';
+                status.innerHTML = '<div class="status success">copied</div>';
                 
                 // Clear status after 3 seconds
                 setTimeout(() => {
@@ -3188,7 +3220,7 @@
             } catch (error) {
                 console.error('Error copying DID:PLC entry to clipboard:', error);
                 const status = getCurrentStatusElement();
-                status.innerHTML = '<div class="status error">Failed to copy DID:PLC entry to clipboard</div>';
+                status.innerHTML = '<div class="status error">copy failed</div>';
             }
         }
 
@@ -3472,7 +3504,7 @@
             // Check if a private key has been generated or loaded
             if (!currentKey) {
                 if (status) {
-                    status.innerHTML = '<div class="status error">No private key available! Please generate a new key or restore one from a mnemonic in the "Generate Key" tab first.</div>';
+                    status.innerHTML = '<div class="status error">no key loaded — generate or restore one on the key tab first</div>';
                 }
                 return;
             }
@@ -3519,7 +3551,7 @@
                 
                 if (status) {
                     if (verificationResult.success && verificationResult.keysMatch) {
-                        status.innerHTML = '<div class="status success">DID:PLC entry created, signed, and verified successfully! Submitting to plc.directory...</div>';
+                        status.innerHTML = '<div class="status success">entry verified — submitting...</div>';
                         
                         // Submit to plc.directory after successful verification
                         try {
@@ -3528,22 +3560,22 @@
                             console.log('Submission result:', submitResult);
                             
                             if (submitResult.success) {
-                                status.innerHTML = '<div class="status success">DID:PLC entry created, verified, and submitted to plc.directory successfully!</div>';
+                                status.innerHTML = '<div class="status success">entry submitted</div>';
                             } else {
-                                status.innerHTML = '<div class="status error">DID:PLC entry verified but submission to plc.directory failed. Check console for details.</div>';
+                                status.innerHTML = '<div class="status error">verified but submission failed — see console</div>';
                             }
                         } catch (submitError) {
                             console.error('Error submitting to plc.directory:', submitError);
-                            status.innerHTML = '<div class="status error">DID:PLC entry verified but submission to plc.directory failed. Check console for details.</div>';
+                            status.innerHTML = '<div class="status error">verified but submission failed — see console</div>';
                         }
                     } else {
-                        status.innerHTML = '<div class="status error">DID:PLC entry signed but verification failed. Check console for details.</div>';
+                        status.innerHTML = '<div class="status error">signed but verification failed — see console</div>';
                     }
                 }
             } catch (error) {
                 console.error('Error creating DID:PLC entry:', error);
                 if (status) {
-                    status.innerHTML = '<div class="status error">Error creating DID:PLC entry. Please check your input.</div>';
+                    status.innerHTML = `<div class="status error">couldn't create entry — check your input</div>`;
                 }
             }
         });
@@ -3889,7 +3921,7 @@
             if (!currentKey) {
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status error">No private key available! Please generate a new key or restore one from a mnemonic in the "Generate Key" tab first.</div>';
+                    status.innerHTML = '<div class="status error">no key loaded — generate or restore one on the key tab first</div>';
                 }
                 return;
             }
@@ -3906,7 +3938,7 @@
             if (!subdomain || !domain) {
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status error">Please enter both a subdomain and select a domain for the handle.</div>';
+                    status.innerHTML = '<div class="status error">enter a handle and choose a domain</div>';
                 }
                 return;
             }
@@ -3942,7 +3974,7 @@
                 console.error('Error calculating DID for .eth setup:', error);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = `<div class="status error">Error calculating DID: ${error.message}</div>`;
+                    status.innerHTML = `<div class="status error">couldn't calculate DID: ${error.message}</div>`;
                 }
             }
         }
@@ -3971,53 +4003,44 @@
             
             // Need at least subdomain, domain, and PDS endpoint to calculate DID
             if (!subdomain || !domain || !pdsEndpoint) {
-                const didField = document.getElementById('account-did');
                 const didValueField = document.getElementById('account-did-value');
-                if (didField) {
-                    didField.innerHTML = '<span style="color: #888;">did:plc:...</span>';
-                }
                 if (didValueField) {
                     didValueField.value = '';
                 }
+                setHeaderIdleContent('<span class="status-idle">did:plc:...</span>');
                 return;
             }
-            
+
             try {
                 // Combine subdomain and domain into full handle
                 const handle = domain.startsWith('.') ? `${subdomain}${domain}` : `${subdomain}.${domain}`;
-                
+
                 // Create initial DID:PLC operation
                 const initialOperation = createDidPlcInitialOperation({
                     ...data,
                     handle: handle,
                     pdsEndpoint: pdsEndpoint
                 }, currentDidKey);
-                
+
                 // Sign the operation
                 const signedInitialOperation = await signDidPlcOperation(initialOperation, currentKey);
-                
+
                 // Generate DID:PLC ID from the signed operation
                 const didPlcId = await generateDidPlcId(signedInitialOperation);
-                
+
                 // Update the display
-                const didField = document.getElementById('account-did');
                 const didValueField = document.getElementById('account-did-value');
-                if (didField) {
-                    didField.innerHTML = `<span style="color: #ffffff;">${didPlcId}</span>`;
-                }
                 if (didValueField) {
                     didValueField.value = didPlcId;
                 }
+                setHeaderIdleContent(`<span class="status-idle">${didPlcId}</span>`);
             } catch (error) {
                 console.error('Error calculating DID for display:', error);
-                const didField = document.getElementById('account-did');
                 const didValueField = document.getElementById('account-did-value');
-                if (didField) {
-                    didField.innerHTML = '<span style="color: #ff6b6b;">Error calculating DID</span>';
-                }
                 if (didValueField) {
                     didValueField.value = '';
                 }
+                setHeaderIdleContent('<span class="status-idle">could not calculate DID</span>');
             }
         }
         
@@ -4055,7 +4078,7 @@
             // Check if a private key has been generated or loaded
             if (!currentKey) {
                 if (status) {
-                    status.innerHTML = '<div class="status error">No private key available! Please generate a new key or restore one from a mnemonic in the "Generate Key" tab first.</div>';
+                    status.innerHTML = '<div class="status error">no key loaded — generate or restore one on the key tab first</div>';
                 }
                 return;
             }
@@ -4068,7 +4091,7 @@
             const domain = data.handleDomain?.trim() || '';
             if (!subdomain || !domain) {
                 if (status) {
-                    status.innerHTML = '<div class="status error">Please enter both a subdomain and select a domain for the handle.</div>';
+                    status.innerHTML = '<div class="status error">enter a handle and choose a domain</div>';
                 }
                 return;
             }
@@ -4084,7 +4107,7 @@
             try {
                 // Step 1: Create initial DID:PLC record with our rotation key as verificationMethod
                 if (status) {
-                    status.innerHTML = '<div class="status success">Creating initial DID:PLC record...</div>';
+                    status.innerHTML = '<div class="status success">creating DID record...</div>';
                 }
                 
                 console.log('Creating initial DID:PLC record with rotation key:', currentDidKey);
@@ -4137,7 +4160,7 @@
                 // is signed with the rotation key, and the PDS verifies it by
                 // resolving whatever key #atproto currently points to.
                 if (status) {
-                    status.innerHTML = '<div class="status success">Creating account on PDS...</div>';
+                    status.innerHTML = '<div class="status success">creating account...</div>';
                 }
 
                 console.log('Creating account with rotation key still as #atproto');
@@ -4173,7 +4196,7 @@
                 // consumed (which happens as soon as createAccount succeeds, so
                 // it can't be used to recover from an interrupted run either).
                 if (status) {
-                    status.innerHTML = '<div class="status success">Getting recommended DID credentials from PDS...</div>';
+                    status.innerHTML = '<div class="status success">fetching signing key...</div>';
                 }
                 const recommended = await getRecommendedDidCredentials(data.pdsEndpoint, accountResult.result.accessJwt);
                 const pdsVerificationMethod = recommended?.verificationMethods?.atproto;
@@ -4189,7 +4212,7 @@
                 // self-custody wants; the PDS never gets a rotation key, only
                 // the signing (#atproto) key it needs to serve day-to-day writes.
                 if (status) {
-                    status.innerHTML = '<div class="status success">Creating update operation with PDS verification method...</div>';
+                    status.innerHTML = '<div class="status success">preparing DID update...</div>';
                 }
                 const updateOperation = {
                     ...initialOperation,
@@ -4211,7 +4234,7 @@
                 // above already equals whatever's published, making this check
                 // reliable (unlike the old reserveSigningKey-based version).
                 if (status) {
-                    status.innerHTML = '<div class="status success">Submitting DID update to plc.directory...</div>';
+                    status.innerHTML = '<div class="status success">submitting DID update...</div>';
                 }
                 const currentDoc = await fetchDidPlcRecord(didPlcId).catch(() => null);
                 const alreadySubmitted = currentDoc?.didDocument?.verificationMethods?.atproto === pdsVerificationMethod;
@@ -4231,13 +4254,13 @@
                 // the PDS's key, so activateAccount's check against the actor's
                 // real signing key can actually pass.
                 if (status) {
-                    status.innerHTML = '<div class="status success">Activating account...</div>';
+                    status.innerHTML = '<div class="status success">activating account...</div>';
                 }
                 let activateResult = await activateAccountAfterDidUpdate(data.pdsEndpoint, accountResult.result.accessJwt);
 
                 if (!activateResult.success && isRotationKeyCheckFailure(activateResult.error)) {
                     if (status) {
-                        status.innerHTML = '<div class="status success">Activating account (this PDS needs its own key temporarily)...</div>';
+                        status.innerHTML = '<div class="status success">activating account (temporary workaround)...</div>';
                     }
                     const pdsRotationKey = recommended?.rotationKeys?.find((k) => k !== currentDidKey);
                     if (!pdsRotationKey) {
@@ -4254,55 +4277,62 @@
                 }
 
                 // Update the DID:PLC field in the form
-                const didField = document.getElementById('account-did');
                 const didValueField = document.getElementById('account-did-value');
-                if (didField) {
-                    didField.innerHTML = `<span style="color: #ffffff;">${didPlcId}</span>`;
-                }
                 if (didValueField) {
                     didValueField.value = didPlcId;
                 }
+                setHeaderIdleContent(`<span class="status-idle">${didPlcId}</span>`);
 
                 if (status) {
-                    status.innerHTML = '<div class="status success">Account created successfully!</div>';
+                    status.innerHTML = '<div class="status success">account created</div>';
                 }
 
                 // Runs after the account is already fully created and activated,
                 // so failures here must not surface as account-creation errors -
-                // hence its own try/catch instead of joining the one above.
+                // hence its own try/catch instead of joining the one above. Both
+                // steps fold into a single final status line rather than piling
+                // up separate messages, since the header only has room for a
+                // line or two - full failure detail still goes to the console.
+                let bootstrapNote = '';
                 try {
                     const bootstrapSummary = await runBootstrap(data.pdsEndpoint, accountResult.result.accessJwt, didPlcId);
-                    if (status && bootstrapSummary) {
-                        status.innerHTML += formatBootstrapSummary(bootstrapSummary);
+                    if (bootstrapSummary) {
+                        const parts = [];
+                        if (bootstrapSummary.followTotal) parts.push(`${bootstrapSummary.followed}/${bootstrapSummary.followTotal} follows`);
+                        if (bootstrapSummary.blockTotal) parts.push(`${bootstrapSummary.blocked}/${bootstrapSummary.blockTotal} blocklists`);
+                        if (bootstrapSummary.feedTotal) parts.push(`${bootstrapSummary.feedsAdded}/${bootstrapSummary.feedTotal} feeds`);
+                        bootstrapNote = parts.join(', ');
+                        if (bootstrapSummary.failures.length) {
+                            console.warn('Bootstrap failures:', bootstrapSummary.failures);
+                        }
                     }
                 } catch (error) {
                     console.error('Error bootstrapping account:', error);
-                    if (status) {
-                        status.innerHTML += `<div class="status error">Bootstrap failed: ${error.message}</div>`;
-                    }
+                    bootstrapNote = 'bootstrap failed';
                 }
 
-                // Runs after the account is already fully created and activated,
-                // so failures here must not surface as account-creation errors -
-                // same reasoning as the bootstrap step above.
                 const socialUsername = data.socialUsername?.trim();
+                let importNote = '';
                 if (socialUsername) {
                     try {
                         await importSocialProfile(data.pdsEndpoint, accountResult.result.accessJwt, didPlcId, data.socialPlatform, socialUsername);
-                        if (status) {
-                            status.innerHTML += '<div class="status success">Profile picture and bio imported!</div>';
-                        }
+                        importNote = 'profile imported';
                     } catch (error) {
                         console.error('Error importing social profile:', error);
-                        if (status) {
-                            status.innerHTML += `<div class="status error">Profile import failed: ${error.message}</div>`;
-                        }
+                        importNote = 'profile import failed';
                     }
+                }
+
+                if (status) {
+                    const extras = [bootstrapNote, importNote].filter(Boolean).join(' · ');
+                    status.innerHTML = extras
+                        ? `<div class="status success">account created — ${extras}</div>`
+                        : '<div class="status success">account created</div>';
                 }
             } catch (error) {
                 console.error('Error creating account:', error);
                 if (status) {
-                    status.innerHTML = `<div class="status error">Error creating account: ${error.message}</div>`;
+                    status.innerHTML = `<div class="status error">couldn't create account: ${error.message}</div>`;
                 }
             }
         });
@@ -4556,19 +4586,19 @@
             const didPlc = didInput.value.trim();
             
             if (!didPlc) {
-                status.innerHTML = '<div class="status error">Please enter a DID:PLC address first</div>';
+                status.innerHTML = '<div class="status error">enter a DID first</div>';
                 return;
             }
 
             if (!didPlc.startsWith('did:plc:')) {
-                status.innerHTML = '<div class="status error">Please enter a valid DID:PLC address (must start with "did:plc:")</div>';
+                status.innerHTML = '<div class="status error">DID must start with did:plc:</div>';
                 return;
             }
 
             // Show loading state
             if (fetchBtn) fetchBtn.disabled = true;
             if (fetchBtn) fetchBtn.textContent = 'Fetching...';
-            if (status) status.innerHTML = '<div class="status success">Fetching DID:PLC record from plc.directory...</div>';
+            if (status) status.innerHTML = '<div class="status success">fetching record...</div>';
 
             try {
                 const { didDocument, auditLog } = await fetchDidPlcRecord(didPlc);
@@ -4580,9 +4610,9 @@
                 debugDiv.style.display = 'block';
                 
                 if (populateFormFromDidDocument(didDocument)) {
-                    status.innerHTML = '<div class="status success">DID:PLC record fetched and form populated successfully!</div>';
+                    status.innerHTML = '<div class="status success">record loaded</div>';
                 } else {
-                    status.innerHTML = '<div class="status error">Record fetched but some fields could not be populated</div>';
+                    status.innerHTML = `<div class="status error">record fetched but some fields didn't populate</div>`;
                 }
                 
                 // Extract rotation keys from the fetched DID document
@@ -4612,11 +4642,11 @@
                 const keyMatches = checkKeyMatchesRotationKeys(rotationKeyStrings);
                 
                 if (!keyMatches) {
-                    if (status) status.innerHTML = '<div class="status error">WARNING: The loaded private key does NOT match any rotation keys in this DID:PLC record. Updates cannot be signed with this key.</div>';
+                    if (status) status.innerHTML = `<div class="status error">loaded key doesn't match this DID's rotation keys — can't sign updates</div>`;
                     if (submitBtn) submitBtn.disabled = true;
                     if (submitBtn) submitBtn.title = 'Load a matching rotation key to enable updates';
                 } else {
-                    if (status) status.innerHTML = '<div class="status success">DID:PLC record fetched and form populated successfully! Key matches rotation keys.</div>';
+                    if (status) status.innerHTML = '<div class="status success">record loaded — key matches</div>';
                     if (submitBtn) submitBtn.disabled = false;
                     if (submitBtn) submitBtn.title = '';
                 }
@@ -4627,7 +4657,7 @@
                 
             } catch (error) {
                 console.error('Error fetching DID:PLC record:', error);
-                status.innerHTML = `<div class="status error">Failed to fetch DID:PLC record: ${error.message}</div>`;
+                status.innerHTML = `<div class="status error">couldn't fetch record: ${error.message}</div>`;
                 
                 // Hide debug section on error
                 document.getElementById('plc-debug').style.display = 'none';
@@ -4646,19 +4676,19 @@
             const didPlc = didInput.value.trim();
             
             if (!didPlc) {
-                status.innerHTML = '<div class="status error">Please enter a DID:PLC address first</div>';
+                status.innerHTML = '<div class="status error">enter a DID first</div>';
                 return;
             }
 
             if (!didPlc.startsWith('did:plc:')) {
-                status.innerHTML = '<div class="status error">Please enter a valid DID:PLC address (must start with "did:plc:")</div>';
+                status.innerHTML = '<div class="status error">DID must start with did:plc:</div>';
                 return;
             }
 
             // Show loading state
             if (verifyBtn) verifyBtn.disabled = true;
             if (verifyBtn) verifyBtn.textContent = 'Verifying...';
-            if (status) status.innerHTML = '<div class="status success">Verifying DID:PLC creation record...</div>';
+            if (status) status.innerHTML = '<div class="status success">verifying creation record...</div>';
 
             try {
                 console.log('=== Verifying DID:PLC Creation ===');
@@ -4734,7 +4764,7 @@
                 
             } catch (error) {
                 console.error('Error verifying DID:PLC creation:', error);
-                status.innerHTML = `<div class="status error">Failed to verify DID:PLC creation: ${error.message}</div>`;
+                status.innerHTML = `<div class="status error">couldn't verify creation: ${error.message}</div>`;
             } finally {
                 // Reset button state
                 if (verifyBtn) verifyBtn.disabled = false;
@@ -4752,24 +4782,24 @@
             const pdsEndpoint = pdsInput.value.trim();
             
             if (!didPlc) {
-                status.innerHTML = '<div class="status error">Please enter a DID:PLC address first</div>';
+                status.innerHTML = '<div class="status error">enter a DID first</div>';
                 return;
             }
 
             if (!didPlc.startsWith('did:plc:')) {
-                status.innerHTML = '<div class="status error">Please enter a valid DID:PLC address (must start with "did:plc:")</div>';
+                status.innerHTML = '<div class="status error">DID must start with did:plc:</div>';
                 return;
             }
 
             if (!pdsEndpoint) {
-                status.innerHTML = '<div class="status error">Please enter a PDS endpoint</div>';
+                status.innerHTML = '<div class="status error">enter a PDS endpoint</div>';
                 return;
             }
 
             // Show loading state
             if (reserveBtn) reserveBtn.disabled = true;
             if (reserveBtn) reserveBtn.textContent = 'Reserving...';
-            if (status) status.innerHTML = '<div class="status success">Reserving signing key on PDS...</div>';
+            if (status) status.innerHTML = '<div class="status success">reserving signing key...</div>';
 
             try {
                 console.log('=== Reserving Signing Key ===');
@@ -4782,14 +4812,14 @@
                 if (reserveResult.success && reserveResult.result && reserveResult.result.signingKey) {
                     // Update the ATProto verification method field with the returned key
                     document.getElementById('plc-atproto-verification-method').value = reserveResult.result.signingKey;
-                    status.innerHTML = '<div class="status success">Signing key reserved successfully! Key updated in form.</div>';
+                    status.innerHTML = '<div class="status success">signing key reserved</div>';
                 } else {
-                    status.innerHTML = '<div class="status error">Key reservation succeeded but no signing key returned</div>';
+                    status.innerHTML = '<div class="status error">reserved but no key returned</div>';
                 }
                 
             } catch (error) {
                 console.error('Error reserving signing key:', error);
-                status.innerHTML = `<div class="status error">Failed to reserve signing key: ${error.message}</div>`;
+                status.innerHTML = `<div class="status error">couldn't reserve key: ${error.message}</div>`;
             } finally {
                 // Reset button state
                 if (reserveBtn) reserveBtn.disabled = false;
@@ -4804,7 +4834,7 @@
             try {
                 await navigator.clipboard.writeText(debugContent.textContent);
                 const status = getCurrentStatusElement();
-                status.innerHTML = '<div class="status success">Raw DID document copied to clipboard!</div>';
+                status.innerHTML = '<div class="status success">copied</div>';
                 
                 // Clear status after 3 seconds
                 setTimeout(() => {
@@ -4815,7 +4845,7 @@
             } catch (error) {
                 console.error('Error copying raw DID document to clipboard:', error);
                 const status = getCurrentStatusElement();
-                status.innerHTML = '<div class="status error">Failed to copy raw DID document to clipboard</div>';
+                status.innerHTML = '<div class="status error">copy failed</div>';
             }
         }
 

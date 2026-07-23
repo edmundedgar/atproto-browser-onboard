@@ -48,12 +48,16 @@ async function fillForm(page, inviteCode) {
   await page.fill('#account-invite-code', inviteCode)
 }
 
+// Progress messages ("creating DID record...") use the same .status.success
+// class as the true final state, so only .status.error is a reliable
+// class-based signal - success still needs to match the actual final phrase.
 async function waitForStatus(page) {
   return page.waitForFunction(() => {
-    const el = document.querySelector('#createaccount-pane .status, .tab-pane.active .status')
+    const el = document.getElementById('status-line')
     if (!el) return null
+    if (el.querySelector('.status.error')) return el.textContent || ''
     const text = el.textContent || ''
-    if (/successfully|error/i.test(text)) return text
+    if (/account created/i.test(text)) return text
     return null
   }, null, { timeout: 30000 }).then((h) => h.jsonValue())
 }
@@ -97,7 +101,7 @@ async function main() {
 
   await browser.close()
 
-  if (!/successfully/i.test(status2)) {
+  if (!/Account created/i.test(status2)) {
     console.error('FAIL: retry did not succeed')
     process.exit(1)
   }

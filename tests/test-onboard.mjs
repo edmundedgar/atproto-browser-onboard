@@ -73,10 +73,11 @@ async function main() {
   await page.click('#submit-createaccount-btn')
 
   const status = await page.waitForFunction(() => {
-    const el = document.querySelector('#createaccount-pane .status, .tab-pane.active .status')
+    const el = document.getElementById('status-line')
     if (!el) return null
+    if (el.querySelector('.status.error')) return el.textContent || ''
     const text = el.textContent || ''
-    if (/successfully|error/i.test(text)) return text
+    if (/account created/i.test(text)) return text
     return null
   }, null, { timeout: 30000 }).then((h) => h.jsonValue())
 
@@ -85,7 +86,7 @@ async function main() {
 
   await browser.close()
 
-  if (!/successfully/i.test(status)) {
+  if (!/Account created/i.test(status)) {
     process.exit(1)
   }
 }

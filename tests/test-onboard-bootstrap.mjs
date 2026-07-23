@@ -62,12 +62,16 @@ async function main() {
 
   await page.click('#submit-createaccount-btn')
 
+  // "Account created successfully!" is the transient message shown right
+  // after activation, before bootstrap/import run - wait specifically for
+  // the final combined message (with its em-dash extras) so this doesn't
+  // resolve early on that transient text.
   const status = await page.waitForFunction(() => {
-    const el = document.querySelector('#createaccount-pane .status, .tab-pane.active .status')
+    const el = document.getElementById('status-line')
     if (!el) return null
     const text = el.textContent || ''
-    if (/error/i.test(text)) return text
-    if (/Bootstrap:/i.test(text)) return text
+    if (el.querySelector('.status.error')) return text
+    if (/Account created —/i.test(text)) return text
     return null
   }, null, { timeout: 60000 }).then((h) => h.jsonValue())
 
@@ -76,7 +80,7 @@ async function main() {
 
   await browser.close()
 
-  if (!/successfully/i.test(status)) {
+  if (!/Account created/i.test(status)) {
     process.exit(1)
   }
 }
