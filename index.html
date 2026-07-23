@@ -957,7 +957,7 @@
                         <div class="module">
                             <div class="form-group">
                                 <label for="pds-endpoint">hosting server</label>
-                                <input type="url" id="pds-endpoint" name="pdsEndpoint" placeholder="https://your-pds.example.com" value="https://pds.goat.navy" required>
+                                <input type="text" id="pds-endpoint" name="pdsEndpoint" placeholder="pds.example.com" value="https://pds.goat.navy" required>
                             </div>
 
                             <div class="form-group">
@@ -3633,96 +3633,71 @@
         if (copyPlcDebugBtn) copyPlcDebugBtn.addEventListener('click', copyPlcDebug);
 
         // Update domain select dropdown with availableUserDomains from PDS
+        // Guards against overlapping calls (e.g. debounced input firing just
+        // before blur) clobbering each other's result - only the most recent
+        // call is allowed to actually write to the select.
+        let domainSelectRequestId = 0;
+
         async function updateDomainSelect(pdsEndpoint) {
             const domainSelect = document.getElementById('account-handle-domain');
             if (!domainSelect) return;
-            
-            // Store current selection
+
+            const requestId = ++domainSelectRequestId;
             const currentSelection = domainSelect.value;
-            
-            // Clear existing options except the first placeholder
+
             domainSelect.innerHTML = '<option value="">Select domain...</option>';
-            
+
             if (!pdsEndpoint || !pdsEndpoint.trim()) {
                 return;
             }
-            
+
+            let availableDomains = [];
+            let placeholderText = null;
             try {
                 const serverInfo = await getPdsServerInfo(pdsEndpoint.trim());
-                const availableDomains = serverInfo.availableUserDomains || [];
-                
+                availableDomains = serverInfo.availableUserDomains || [];
                 if (availableDomains.length === 0) {
-                    const option = document.createElement('option');
-                    option.value = '';
-                    option.textContent = 'No domains available';
-                    option.disabled = true;
-                    domainSelect.appendChild(option);
-                    // Still add .eth.link even if no other domains available
-                    const ethLinkOption = document.createElement('option');
-                    ethLinkOption.value = '.eth.link';
-                    ethLinkOption.textContent = '.eth.link';
-                    domainSelect.appendChild(ethLinkOption);
-                    
-                    // Restore selection if it was .eth.link
-                    if (currentSelection === '.eth.link') {
-                        domainSelect.value = '.eth.link';
-                    }
-                    
-                    // Trigger change event to update UI state (if function is defined)
-                    if (typeof handleDomainChange === 'function') {
-                        handleDomainChange();
-                    }
-                    return;
+                    placeholderText = 'No domains available';
                 }
-                
-                // Add each available domain as an option
+                console.log('Updated domain select with domains:', availableDomains);
+            } catch (error) {
+                console.error('Error fetching available domains:', error);
+                placeholderText = 'Error loading domains';
+            }
+
+            // A newer call has started since ours began - its result should
+            // win, so leave the select alone.
+            if (requestId !== domainSelectRequestId) return;
+
+            // Replace (not append to) the initial placeholder option, so an
+            // error/empty state doesn't leave two value="" options behind.
+            const firstOption = domainSelect.firstElementChild;
+            if (placeholderText) {
+                firstOption.textContent = placeholderText;
+                firstOption.disabled = true;
+            } else {
                 availableDomains.forEach(domain => {
                     const option = document.createElement('option');
                     option.value = domain;
                     option.textContent = domain;
                     domainSelect.appendChild(option);
                 });
-                
-                // Always add .eth.link as an option (even if not in availableUserDomains)
-                const ethLinkOption = document.createElement('option');
-                ethLinkOption.value = '.eth.link';
-                ethLinkOption.textContent = '.eth.link';
-                domainSelect.appendChild(ethLinkOption);
-                
-                // Restore selection if it was .eth.link
-                if (currentSelection === '.eth.link') {
-                    domainSelect.value = '.eth.link';
-                }
-                
-                // Trigger change event to update UI state (if function is defined)
-                if (typeof handleDomainChange === 'function') {
-                    handleDomainChange();
-                }
-                
-                console.log('Updated domain select with domains:', availableDomains);
-            } catch (error) {
-                console.error('Error fetching available domains:', error);
-                const option = document.createElement('option');
-                option.value = '';
-                option.textContent = 'Error loading domains';
-                option.disabled = true;
-                domainSelect.appendChild(option);
-                
-                // Always add .eth.link even on error
-                const ethLinkOption = document.createElement('option');
-                ethLinkOption.value = '.eth.link';
-                ethLinkOption.textContent = '.eth.link';
-                domainSelect.appendChild(ethLinkOption);
-                
-                // Restore selection if it was .eth.link
-                if (currentSelection === '.eth.link') {
-                    domainSelect.value = '.eth.link';
-                }
-                
-                // Trigger change event to update UI state (if function is defined)
-                if (typeof handleDomainChange === 'function') {
-                    handleDomainChange();
-                }
+            }
+
+            // Always add .eth.link as an option, even on error/no-domains.
+            const ethLinkOption = document.createElement('option');
+            ethLinkOption.value = '.eth.link';
+            ethLinkOption.textContent = '.eth.link';
+            domainSelect.appendChild(ethLinkOption);
+
+            // Restore selection if it was .eth.link
+            if (currentSelection === '.eth.link') {
+                domainSelect.value = '.eth.link';
+            }
+
+            // Trigger change event to update UI state (if function is defined)
+            if (typeof handleDomainChange === 'function') {
+                handleDomainChange();
             }
         }
         
@@ -3734,21 +3709,23 @@
                 // Debounce the update to avoid too many requests
                 clearTimeout(updateTimeout);
                 updateTimeout = setTimeout(() => {
-                    updateDomainSelect(this.value);
+                    updateDomainSelect(normalizePdsEndpoint(this.value));
                     updateDidDisplay();
                 }, 500);
             });
-            
-            // Also update on blur (when user leaves the field)
+
+            // Also update on blur (when user leaves the field). The scheme
+            // is normalized only for this internal lookup - never written
+            // back into the field, so the user never sees https:// appear.
             pdsEndpointInput.addEventListener('blur', function() {
                 clearTimeout(updateTimeout);
-                updateDomainSelect(this.value);
+                updateDomainSelect(normalizePdsEndpoint(this.value));
                 updateDidDisplay();
             });
-            
+
             // Check if PDS endpoint already has a value on page load
             if (pdsEndpointInput.value && pdsEndpointInput.value.trim()) {
-                updateDomainSelect(pdsEndpointInput.value.trim());
+                updateDomainSelect(normalizePdsEndpoint(pdsEndpointInput.value));
             }
         }
         
@@ -3985,21 +3962,29 @@
         }
         
         // Function to calculate and update DID display
+        // The scheme is optional in the hosting-server field - default to
+        // https rather than making the user type it.
+        function normalizePdsEndpoint(value) {
+            const trimmed = (value || '').trim();
+            if (!trimmed || /^https?:\/\//i.test(trimmed)) return trimmed;
+            return `https://${trimmed}`;
+        }
+
         async function updateDidDisplay() {
             // Only update if we have a private key
             if (!currentKey || !currentDidKey) {
                 return;
             }
-            
+
             const form = document.getElementById('createaccount-form');
             if (!form) return;
-            
+
             const formData = new FormData(form);
             const data = Object.fromEntries(formData.entries());
-            
+
             const subdomain = data.handleSubdomain?.trim() || '';
             const domain = data.handleDomain?.trim() || '';
-            const pdsEndpoint = data.pdsEndpoint?.trim() || '';
+            const pdsEndpoint = normalizePdsEndpoint(data.pdsEndpoint);
             
             // Need at least subdomain, domain, and PDS endpoint to calculate DID
             if (!subdomain || !domain || !pdsEndpoint) {
@@ -4072,9 +4057,9 @@
         if (createaccountForm) {
             createaccountForm.addEventListener('submit', async function(event) {
             event.preventDefault();
-            
+
             const status = getCurrentStatusElement();
-            
+
             // Check if a private key has been generated or loaded
             if (!currentKey) {
                 if (status) {
@@ -4082,10 +4067,13 @@
                 }
                 return;
             }
-            
+
             const formData = new FormData(this);
             const data = Object.fromEntries(formData.entries());
-            
+            // The scheme is optional in the field itself - the user never
+            // has to see or type https://, it's only added here for actual use.
+            data.pdsEndpoint = normalizePdsEndpoint(data.pdsEndpoint);
+
             // Combine subdomain and domain into full handle
             const subdomain = data.handleSubdomain?.trim() || '';
             const domain = data.handleDomain?.trim() || '';
