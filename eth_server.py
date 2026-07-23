@@ -401,6 +401,16 @@ async def serve_eth():
     return FileResponse("eth.html")
 
 
+@app.get("/bootstrap-config.js")
+async def serve_bootstrap_config():
+    return FileResponse("bootstrap-config.js", media_type="application/javascript")
+
+
+@app.get("/social-import-config.js")
+async def serve_social_import_config():
+    return FileResponse("social-import-config.js", media_type="application/javascript")
+
+
 @app.get("/atproto-did/{domain}")
 async def get_atproto_did(domain: str) -> JSONResponse:
     """

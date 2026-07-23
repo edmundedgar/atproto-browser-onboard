@@ -527,6 +527,24 @@
             align-items: stretch;
         }
 
+        .social-import-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .social-import-group select {
+            width: auto;
+            flex: 0 0 auto;
+            padding: 8px 10px;
+            font-size: 13px;
+        }
+
+        .social-import-group input {
+            flex: 1;
+            padding: 8px 10px;
+            font-size: 13px;
+        }
+
         .did-input-group input {
             flex: 1;
         }
@@ -971,7 +989,19 @@
                             <input type="text" id="account-invite-code" name="inviteCode" placeholder="Enter invite code if required">
                             <small class="form-help">Optional: Some PDS servers require an invite code for account creation</small>
                         </div>
-                        
+
+                        <div class="form-group">
+                            <label for="social-import-username">Import Profile Picture &amp; Bio From (Optional)</label>
+                            <div class="social-import-group">
+                                <select id="social-import-platform" name="socialPlatform">
+                                    <option value="farcaster">Farcaster</option>
+                                    <option value="x">X (Twitter)</option>
+                                </select>
+                                <input type="text" id="social-import-username" name="socialUsername" placeholder="username">
+                            </div>
+                            <small class="form-help" id="social-import-check-status">Optional: fetch your avatar and bio from Farcaster or X and use them for this account</small>
+                        </div>
+
                         <div class="form-group">
                             <label>DID:PLC Identifier</label>
                             <div id="account-did" style="font-size: 14px; font-family: 'Courier New', monospace; color: #ffffff; padding: 8px 0;">
@@ -1132,6 +1162,8 @@
 }
 </script>
 
+    <script src="bootstrap-config.js"></script>
+    <script src="social-import-config.js"></script>
     <script type="module">
         // ==== BEGIN LOGIC ====
         // No DOM access. Edit this block in index.html (canonical source);
@@ -2417,6 +2449,292 @@
             }
         }
 
+        const APPVIEW_URL = 'https://public.api.bsky.app';
+
+        async function appViewGet(nsid, params) {
+            const query = new URLSearchParams(params).toString();
+            const response = await fetch(`${APPVIEW_URL}/xrpc/${nsid}?${query}`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+            }
+            return response.json();
+        }
+
+        async function resolveActorDid(actor) {
+            if (actor.startsWith('did:')) return actor;
+            const profile = await appViewGet('app.bsky.actor.getProfile', { actor });
+            return profile.did;
+        }
+
+        async function getListMembers(listUri) {
+            const dids = [];
+            let cursor;
+            do {
+                const params = cursor ? { list: listUri, limit: '100', cursor } : { list: listUri, limit: '100' };
+                const page = await appViewGet('app.bsky.graph.getList', params);
+                dids.push(...page.items.map((item) => item.subject.did));
+                cursor = page.cursor;
+            } while (cursor);
+            return dids;
+        }
+
+        async function getStarterPack(uri) {
+            const result = await appViewGet('app.bsky.graph.getStarterPack', { starterPack: uri });
+            const listUri = result.starterPack?.list?.uri;
+            const feeds = (result.starterPack?.record?.feeds || []).map((feed) => feed.uri);
+            if (!listUri) throw new Error('Starter pack has no list');
+            return { listUri, feeds };
+        }
+
+        async function createRecord(pdsEndpoint, accessJwt, did, collection, record) {
+            const response = await fetch(`${pdsEndpoint}/xrpc/com.atproto.repo.createRecord`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessJwt}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ repo: did, collection, record })
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+            }
+            return response.json();
+        }
+
+        async function followAccount(pdsEndpoint, accessJwt, did, subjectDid) {
+            return createRecord(pdsEndpoint, accessJwt, did, 'app.bsky.graph.follow', {
+                $type: 'app.bsky.graph.follow',
+                subject: subjectDid,
+                createdAt: new Date().toISOString()
+            });
+        }
+
+        async function subscribeToBlocklist(pdsEndpoint, accessJwt, did, listUri) {
+            return createRecord(pdsEndpoint, accessJwt, did, 'app.bsky.graph.listblock', {
+                $type: 'app.bsky.graph.listblock',
+                subject: listUri,
+                createdAt: new Date().toISOString()
+            });
+        }
+
+        async function addSavedFeeds(pdsEndpoint, accessJwt, feedUris) {
+            const getResponse = await fetch(`${pdsEndpoint}/xrpc/app.bsky.actor.getPreferences`, {
+                headers: { 'Authorization': `Bearer ${accessJwt}` }
+            });
+            if (!getResponse.ok) {
+                throw new Error(`HTTP ${getResponse.status}: ${await getResponse.text()}`);
+            }
+            const { preferences } = await getResponse.json();
+            let savedFeedsPref = preferences.find((pref) => pref.$type === 'app.bsky.actor.defs#savedFeedsPrefV2');
+            if (!savedFeedsPref) {
+                savedFeedsPref = { $type: 'app.bsky.actor.defs#savedFeedsPrefV2', items: [] };
+                preferences.push(savedFeedsPref);
+            }
+            const existing = new Set(savedFeedsPref.items.map((item) => item.value));
+            for (const uri of feedUris) {
+                if (existing.has(uri)) continue;
+                // "following" isn't a feed generator - it's the built-in
+                // reverse-chronological timeline, referenced by this literal
+                // value instead of an AT-URI.
+                const type = uri === 'following' ? 'timeline' : 'feed';
+                savedFeedsPref.items.push({ id: crypto.randomUUID(), type, value: uri, pinned: true });
+            }
+            const putResponse = await fetch(`${pdsEndpoint}/xrpc/app.bsky.actor.putPreferences`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessJwt}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ preferences })
+            });
+            if (!putResponse.ok) {
+                throw new Error(`HTTP ${putResponse.status}: ${await putResponse.text()}`);
+            }
+        }
+
+        // Resolves window.BOOTSTRAP_CONFIG's starter packs/lists/follows into a
+        // flat set of DIDs to follow and feeds to save, writes the records, and
+        // reports what succeeded/failed. Best-effort: one bad entry (a stale
+        // feed URI, an unresolvable handle) doesn't stop the rest.
+        async function runBootstrap(pdsEndpoint, accessJwt, did) {
+            const config = window.BOOTSTRAP_CONFIG || {};
+            const follows = config.follows || [];
+            const feeds = [...(config.feeds || [])];
+            const blocklists = config.blocklists || [];
+            const lists = [...(config.lists || [])];
+            const starterpacks = config.starterpacks || [];
+
+            if (!follows.length && !feeds.length && !blocklists.length && !lists.length && !starterpacks.length) {
+                return null;
+            }
+
+            const failures = [];
+
+            for (const uri of starterpacks) {
+                try {
+                    const { listUri, feeds: packFeeds } = await getStarterPack(uri);
+                    lists.push(listUri);
+                    feeds.push(...packFeeds);
+                } catch (error) {
+                    failures.push({ item: `starter pack ${uri}`, error: error.message });
+                }
+            }
+
+            const followDids = new Set();
+            for (const actor of follows) {
+                try {
+                    followDids.add(await resolveActorDid(actor));
+                } catch (error) {
+                    failures.push({ item: `follow ${actor}`, error: error.message });
+                }
+            }
+            for (const listUri of lists) {
+                try {
+                    (await getListMembers(listUri)).forEach((memberDid) => followDids.add(memberDid));
+                } catch (error) {
+                    failures.push({ item: `list ${listUri}`, error: error.message });
+                }
+            }
+            followDids.delete(did);
+
+            let followed = 0;
+            for (const subjectDid of followDids) {
+                try {
+                    await followAccount(pdsEndpoint, accessJwt, did, subjectDid);
+                    followed++;
+                } catch (error) {
+                    failures.push({ item: `follow ${subjectDid}`, error: error.message });
+                }
+            }
+
+            let blocked = 0;
+            for (const listUri of blocklists) {
+                try {
+                    await subscribeToBlocklist(pdsEndpoint, accessJwt, did, listUri);
+                    blocked++;
+                } catch (error) {
+                    failures.push({ item: `blocklist ${listUri}`, error: error.message });
+                }
+            }
+
+            const uniqueFeeds = [...new Set(feeds)];
+            let feedsAdded = 0;
+            if (uniqueFeeds.length) {
+                try {
+                    await addSavedFeeds(pdsEndpoint, accessJwt, uniqueFeeds);
+                    feedsAdded = uniqueFeeds.length;
+                } catch (error) {
+                    failures.push({ item: 'saved feeds', error: error.message });
+                }
+            }
+
+            return {
+                followed, followTotal: followDids.size,
+                blocked, blockTotal: blocklists.length,
+                feedsAdded, feedTotal: uniqueFeeds.length,
+                failures
+            };
+        }
+
+        function formatBootstrapSummary(summary) {
+            if (!summary) return '';
+            const parts = [];
+            if (summary.followTotal) parts.push(`${summary.followed}/${summary.followTotal} follows`);
+            if (summary.blockTotal) parts.push(`${summary.blocked}/${summary.blockTotal} blocklists`);
+            if (summary.feedTotal) parts.push(`${summary.feedsAdded}/${summary.feedTotal} feeds`);
+            const statusClass = summary.failures.length ? 'status error' : 'status success';
+            let html = `<div class="${statusClass}">Bootstrap: ${parts.join(', ') || 'nothing to do'}</div>`;
+            if (summary.failures.length) {
+                const items = summary.failures.map((f) => `<li>${f.item}: ${f.error}</li>`).join('');
+                html += `<div class="status error"><ul>${items}</ul></div>`;
+            }
+            return html;
+        }
+
+        async function fetchFarcasterProfile(username) {
+            const apiKey = window.SOCIAL_IMPORT_CONFIG?.neynarApiKey || 'NEYNAR_API_DOCS';
+            const response = await fetch(`https://api.neynar.com/v2/farcaster/user/by_username?username=${encodeURIComponent(username)}`, {
+                headers: { 'x-api-key': apiKey }
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+            }
+            const { user } = await response.json();
+            return { avatarUrl: user.pfp_url, bio: user.profile?.bio?.text || '' };
+        }
+
+        // X serves the profile's picture and bio as server-rendered og:image /
+        // og:description meta tags (for link-preview unfurling), and - unlike
+        // most of the site - answers cross-origin fetches for the page. This is
+        // undocumented behavior, not a stable API, so it could stop working.
+        async function fetchTwitterProfile(username) {
+            const handle = username.replace(/^@/, '');
+            const response = await fetch(`https://x.com/${encodeURIComponent(handle)}`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+            const avatarUrl = doc.querySelector('meta[property="og:image"]')?.content;
+            const bio = doc.querySelector('meta[property="og:description"]')?.content || '';
+            if (!avatarUrl) {
+                throw new Error('Could not find a profile for that X handle');
+            }
+            return { avatarUrl, bio };
+        }
+
+        async function fetchSocialProfile(platform, username) {
+            if (platform === 'farcaster') return fetchFarcasterProfile(username);
+            if (platform === 'x') return fetchTwitterProfile(username);
+            throw new Error(`Unknown platform: ${platform}`);
+        }
+
+        async function uploadAvatarBlob(pdsEndpoint, accessJwt, avatarUrl) {
+            const imageResponse = await fetch(avatarUrl);
+            if (!imageResponse.ok) {
+                throw new Error(`Failed to fetch avatar image: HTTP ${imageResponse.status}`);
+            }
+            const blob = await imageResponse.blob();
+            const uploadResponse = await fetch(`${pdsEndpoint}/xrpc/com.atproto.repo.uploadBlob`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessJwt}`,
+                    'Content-Type': blob.type || 'application/octet-stream'
+                },
+                body: blob
+            });
+            if (!uploadResponse.ok) {
+                throw new Error(`HTTP ${uploadResponse.status}: ${await uploadResponse.text()}`);
+            }
+            return (await uploadResponse.json()).blob;
+        }
+
+        // Fetches avatar+bio from the given platform and writes them into the
+        // account's app.bsky.actor.profile record, preserving any other fields
+        // (displayName, banner, etc.) already set on it.
+        async function importSocialProfile(pdsEndpoint, accessJwt, did, platform, username) {
+            const { avatarUrl, bio } = await fetchSocialProfile(platform, username);
+            const avatarBlob = await uploadAvatarBlob(pdsEndpoint, accessJwt, avatarUrl);
+
+            const getResponse = await fetch(`${pdsEndpoint}/xrpc/com.atproto.repo.getRecord?${new URLSearchParams({ repo: did, collection: 'app.bsky.actor.profile', rkey: 'self' })}`, {
+                headers: { 'Authorization': `Bearer ${accessJwt}` }
+            });
+            const existing = getResponse.ok ? (await getResponse.json()).value : {};
+
+            const record = { ...existing, $type: 'app.bsky.actor.profile', avatar: avatarBlob, description: bio };
+            const putResponse = await fetch(`${pdsEndpoint}/xrpc/com.atproto.repo.putRecord`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessJwt}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ repo: did, collection: 'app.bsky.actor.profile', rkey: 'self', record })
+            });
+            if (!putResponse.ok) {
+                throw new Error(`HTTP ${putResponse.status}: ${await putResponse.text()}`);
+            }
+            return putResponse.json();
+        }
+
         // ==== END LOGIC ====
 
         // === UI layer — DOM access below, not extracted to logic.js ===
@@ -3240,6 +3558,49 @@
         });
         }
 
+        // Live-check the social import fields as the user types: fetches the
+        // profile (without writing anything) and reports found/not-found so
+        // typos surface before account creation instead of after.
+        const socialImportPlatform = document.getElementById('social-import-platform');
+        const socialImportUsername = document.getElementById('social-import-username');
+        const socialImportCheckStatus = document.getElementById('social-import-check-status');
+        const socialImportDefaultHelp = socialImportCheckStatus?.textContent || '';
+        let socialImportCheckTimeout;
+        let socialImportCheckSeq = 0;
+
+        async function checkSocialImport() {
+            if (!socialImportCheckStatus) return;
+            const username = socialImportUsername.value.trim();
+            if (!username) {
+                socialImportCheckStatus.textContent = socialImportDefaultHelp;
+                socialImportCheckStatus.style.color = '';
+                return;
+            }
+            const seq = ++socialImportCheckSeq;
+            socialImportCheckStatus.textContent = 'Checking...';
+            socialImportCheckStatus.style.color = '#a0a0a0';
+            try {
+                const profile = await fetchSocialProfile(socialImportPlatform.value, username);
+                if (seq !== socialImportCheckSeq) return;
+                socialImportCheckStatus.textContent = `Found: ${profile.bio || '(no bio set)'}`;
+                socialImportCheckStatus.style.color = '#00ff88';
+            } catch (error) {
+                if (seq !== socialImportCheckSeq) return;
+                socialImportCheckStatus.textContent = `Not found: ${error.message}`;
+                socialImportCheckStatus.style.color = '#ff4444';
+            }
+        }
+
+        if (socialImportUsername) {
+            socialImportUsername.addEventListener('input', () => {
+                clearTimeout(socialImportCheckTimeout);
+                socialImportCheckTimeout = setTimeout(checkSocialImport, 600);
+            });
+        }
+        if (socialImportPlatform) {
+            socialImportPlatform.addEventListener('change', checkSocialImport);
+        }
+
         const clearPlcBtn = document.getElementById('clear-plc-btn');
         const copyPlcResultBtn = document.getElementById('copy-plc-result-btn');
         const copyPlcDebugBtn = document.getElementById('copy-plc-debug-btn');
@@ -3913,6 +4274,39 @@
 
                 if (status) {
                     status.innerHTML = '<div class="status success">Account created successfully!</div>';
+                }
+
+                // Runs after the account is already fully created and activated,
+                // so failures here must not surface as account-creation errors -
+                // hence its own try/catch instead of joining the one above.
+                try {
+                    const bootstrapSummary = await runBootstrap(data.pdsEndpoint, accountResult.result.accessJwt, didPlcId);
+                    if (status && bootstrapSummary) {
+                        status.innerHTML += formatBootstrapSummary(bootstrapSummary);
+                    }
+                } catch (error) {
+                    console.error('Error bootstrapping account:', error);
+                    if (status) {
+                        status.innerHTML += `<div class="status error">Bootstrap failed: ${error.message}</div>`;
+                    }
+                }
+
+                // Runs after the account is already fully created and activated,
+                // so failures here must not surface as account-creation errors -
+                // same reasoning as the bootstrap step above.
+                const socialUsername = data.socialUsername?.trim();
+                if (socialUsername) {
+                    try {
+                        await importSocialProfile(data.pdsEndpoint, accountResult.result.accessJwt, didPlcId, data.socialPlatform, socialUsername);
+                        if (status) {
+                            status.innerHTML += '<div class="status success">Profile picture and bio imported!</div>';
+                        }
+                    } catch (error) {
+                        console.error('Error importing social profile:', error);
+                        if (status) {
+                            status.innerHTML += `<div class="status error">Profile import failed: ${error.message}</div>`;
+                        }
+                    }
                 }
             } catch (error) {
                 console.error('Error creating account:', error);
