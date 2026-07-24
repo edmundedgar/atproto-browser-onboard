@@ -9,66 +9,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign in to your old PDS</title>
     <link rel="icon" href="data:,">
-    <style>
-        :root {
-            --bg: #15161b; --panel: #1b1d24; --panel-raised: #21232b;
-            --text: #e7e4dc; --text-dim: #8d8f9b; --hairline: #303240;
-            --amber: #d4a24c; --amber-bright: #eab766;
-            --ok: #9cbf8e; --bad: #c07b6e; --shadow: rgba(0, 0, 0, 0.5);
-        }
-        :root[data-theme="light"] {
-            --bg: #f3f1ea; --panel: #fbfaf5; --panel-raised: #ffffff;
-            --text: #23232a; --text-dim: #6c6c78; --hairline: #dcd8ca;
-            --amber: #9c6d1f; --amber-bright: #7d5717;
-            --ok: #2e6b3e; --bad: #a8402e; --shadow: rgba(30, 25, 10, 0.1);
-        }
-        @media (prefers-color-scheme: light) {
-            :root:not([data-theme="dark"]) {
-                --bg: #f3f1ea; --panel: #fbfaf5; --panel-raised: #ffffff;
-                --text: #23232a; --text-dim: #6c6c78; --hairline: #dcd8ca;
-                --amber: #9c6d1f; --amber-bright: #7d5717;
-                --ok: #2e6b3e; --bad: #a8402e; --shadow: rgba(30, 25, 10, 0.1);
-            }
-        }
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
-            background: var(--bg); min-height: 100vh; display: flex;
-            align-items: flex-start; justify-content: center;
-            padding: 56px 20px; color: var(--text); line-height: 1.6;
-        }
-        .container {
-            max-width: 480px; width: 100%; background: var(--panel);
-            border: 1px solid var(--hairline); border-radius: 8px;
-            box-shadow: 0 30px 70px var(--shadow);
-        }
-        .header-slot { padding: 32px 32px 18px; font-size: 13px; }
-        .path { font-family: ui-monospace, 'SF Mono', Consolas, monospace; color: var(--text-dim); }
-        .path .amber { color: var(--amber); }
-        .content { padding: 0 32px 32px; }
-        .status {
-            margin: 0 0 16px; padding: 14px 16px; border-radius: 6px;
-            font-size: 13.5px; border: 1px solid var(--hairline);
-            background: var(--panel-raised); white-space: pre-line;
-        }
-        .status.error { color: var(--bad); }
-        .status.success { color: var(--ok); }
-        .status.loading { color: var(--text-dim); }
-        .field { margin-bottom: 16px; }
-        .field label { display: block; font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--text-dim); margin-bottom: 8px; }
-        .field input {
-            width: 100%; padding: 10px 12px; background: var(--panel-raised);
-            border: 1px solid var(--hairline); border-radius: 6px; color: var(--text);
-            font-family: ui-monospace, monospace; font-size: 14px;
-        }
-        button.primary {
-            appearance: none; border: 1px solid var(--text); background: var(--text);
-            color: var(--bg); font-weight: 600; font-size: 14px; padding: 12px 24px;
-            border-radius: 6px; cursor: pointer; transition: opacity 0.15s ease;
-        }
-        button.primary:hover { opacity: 0.82; }
-        button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
-    </style>
+    <link rel="stylesheet" href="oauth-popup.css">
 </head>
 <body>
     <div class="container">
