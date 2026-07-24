@@ -2624,9 +2624,8 @@
                 // Toggle key generation sections visibility
                 toggleKeyGenerationSections();
 
-                if (status) {
-                    status.innerHTML = '<div class="status success">keypair created</div>';
-                }
+                // No status message here - the header switching straight to
+                // showing the key is feedback enough for this screen.
 
             } catch (error) {
                 console.error('Error generating key:', error);
