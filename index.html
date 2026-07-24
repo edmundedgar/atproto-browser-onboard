@@ -4576,7 +4576,7 @@
                 if (didValueField) {
                     didValueField.value = didPlcId;
                 }
-                setHeaderIdleContent(`<span class="status-idle">${didPlcId}</span>`);
+                setHeaderIdleContent(renderKeyForHeader(didPlcId));
             } catch (error) {
                 console.error('Error calculating DID for display:', error);
                 const didValueField = document.getElementById('account-did-value');
@@ -4849,7 +4849,7 @@
                 if (didValueField) {
                     didValueField.value = didPlcId;
                 }
-                setHeaderIdleContent(`<span class="status-idle">${didPlcId}</span>`);
+                setHeaderIdleContent(renderKeyForHeader(didPlcId));
 
                 if (status) {
                     status.innerHTML = '<div class="status success">account created</div>';
