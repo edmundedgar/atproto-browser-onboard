@@ -393,6 +393,8 @@
             gap: 4px;
             padding: 0 48px;
             border-bottom: 1px solid var(--hairline);
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
         .tab-btn {
@@ -407,6 +409,8 @@
             cursor: pointer;
             border-bottom: 2px solid transparent;
             transition: color 0.15s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
         .tab-btn::before { content: "# "; opacity: 0.5; }
 
@@ -863,6 +867,107 @@
             margin-bottom: 0;
         }
 
+        .tag {
+            display: inline-block;
+            font-family: ui-monospace, monospace;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            border: 1px solid var(--hairline);
+            color: var(--text-dim);
+        }
+        .tag.ok { color: var(--ok); border-color: var(--ok); }
+
+        .step-list {
+            list-style: none;
+            font-family: ui-monospace, monospace;
+            font-size: 12.5px;
+            color: var(--text-dim);
+            margin: 0 0 12px;
+        }
+        .step-list li { padding: 3px 0; }
+        .step-list li.done { color: var(--ok); }
+        .step-list li.active { color: var(--text); }
+        .step-list li.failed { color: var(--bad); }
+
+        .progress {
+            height: 6px;
+            border-radius: 3px;
+            background: var(--bg);
+            border: 1px solid var(--hairline);
+            overflow: hidden;
+            margin: 0 0 12px;
+        }
+        .progress-bar { height: 100%; background: var(--amber); transition: width 0.2s ease; }
+
+        /* Multi-line, boxed status messages for the Migrate tab, distinct
+           from the shared single-line .status used elsewhere - migration has
+           several sequential sub-steps that need more than one line. */
+        .migrate-status-box {
+            margin: 0 0 16px;
+            padding: 14px 16px;
+            border-radius: 6px;
+            font-size: 13.5px;
+            border: 1px solid var(--hairline);
+            background: var(--bg);
+            white-space: pre-line;
+        }
+        .migrate-status-box.error { color: var(--bad); }
+        .migrate-status-box.success { color: var(--ok); }
+        .migrate-status-box.loading { color: var(--text-dim); }
+
+        .key-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--hairline);
+            outline: 2px solid transparent;
+            outline-offset: 2px;
+            border-radius: 4px;
+            transition: outline-color 0.5s ease;
+        }
+        .key-row:last-child { border-bottom: none; }
+        /* Briefly outlines a row right after it moves - two adjacent
+           did:key values look nearly identical at a glance, so a successful
+           reorder needs a visible confirmation beyond the position number
+           changing. */
+        .key-row.key-row-flash {
+            outline-color: var(--amber);
+            transition: none;
+        }
+        .key-row .key-position {
+            font-family: ui-monospace, monospace;
+            font-size: 11.5px;
+            color: var(--text-dim);
+            width: 1.4em;
+            flex-shrink: 0;
+        }
+        .key-row .key-value {
+            font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+            font-size: 12.5px;
+            color: var(--amber);
+            word-break: break-all;
+            flex: 1;
+        }
+        .key-row .key-actions {
+            display: flex;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+        .key-row .key-actions button {
+            appearance: none;
+            border: 1px solid var(--hairline);
+            background: transparent;
+            color: var(--text);
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .key-row .key-actions button:hover { border-color: var(--text-dim); }
+        .key-row .key-actions button:disabled { opacity: 0.3; cursor: not-allowed; }
+
         @media (max-width: 640px) {
             .header-slot, .tab-pane { padding-left: 26px; padding-right: 26px; }
             .tab-navigation { padding-left: 26px; padding-right: 26px; }
@@ -895,6 +1000,12 @@
             </button>
             <button class="tab-btn" id="createaccount-tab" data-tab="createaccount">
                 Account
+            </button>
+            <button class="tab-btn" id="control-tab" data-tab="control">
+                Control
+            </button>
+            <button class="tab-btn" id="migrate-tab" data-tab="migrate">
+                Migrate
             </button>
             <button class="tab-btn" id="didplc-tab" data-tab="didplc">
                 Custom
@@ -1146,6 +1257,38 @@
                         <button class="copy-btn" id="copy-plc-debug-btn">
                             Copy Raw Audit Log
                         </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Control Tab -->
+            <div class="tab-pane" id="control-pane">
+                <div class="plc-form-container" id="control-content">
+                    <div class="module">
+                        <div class="form-group">
+                            <label for="control-handle">handle</label>
+                            <input type="text" id="control-handle" placeholder="alice.example.com">
+                        </div>
+                        <div class="form-button-group">
+                            <button type="button" class="submit-btn" id="control-lookup-btn">Look up account</button>
+                        </div>
+                        <div id="control-lookup-status"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Migrate Tab -->
+            <div class="tab-pane" id="migrate-pane">
+                <div class="plc-form-container" id="migrate-content">
+                    <div class="module">
+                        <div class="form-group">
+                            <label for="migrate-old-handle">handle to migrate</label>
+                            <input type="text" id="migrate-old-handle" placeholder="alice.example.com">
+                        </div>
+                        <div class="form-button-group">
+                            <button type="button" class="submit-btn" id="migrate-lookup-btn">Look up account</button>
+                        </div>
+                        <div id="migrate-lookup-status"></div>
                     </div>
                 </div>
             </div>
@@ -2040,17 +2183,26 @@
         // still leaves the account far more self-custodied than leaving the
         // PDS's key in place permanently, which is the alternative on a PDS
         // that enforces this check.
+        // Adds/removes pdsRotationKey relative to whatever rotationKeys are
+        // *currently* published, rather than assuming a single-key genesis
+        // DID - the bring-your-own-DID account-creation flow only ever has
+        // one key at this point, but the Migrate tab's DID can already have
+        // two (the held key plus the old PDS's, deliberately kept until its
+        // own separate cleanup step), and hardcoding a 2-element array here
+        // would silently drop that second key. currentDidKey is only used
+        // as the fallback for a doc with no rotationKeys at all.
         async function activateWithTemporaryPdsRotationKey(pdsEndpoint, accessJwt, didPlcId, currentDidKey, pdsRotationKey, privateKeyHex) {
             console.log('PDS requires its own rotation key to activate - adding it temporarily');
 
             const docNow = await fetchDidPlcRecord(didPlcId);
-            const alreadyHasPdsKey = docNow.didDocument.rotationKeys?.includes(pdsRotationKey);
+            const baseKeys = docNow.didDocument.rotationKeys || [currentDidKey];
+            const alreadyHasPdsKey = baseKeys.includes(pdsRotationKey);
             if (!alreadyHasPdsKey) {
-                const addResult = await submitRotationKeysUpdate(didPlcId, [currentDidKey, pdsRotationKey], privateKeyHex);
+                const addResult = await submitRotationKeysUpdate(didPlcId, [...baseKeys, pdsRotationKey], privateKeyHex);
                 if (!addResult.success) {
                     throw new Error('Failed to temporarily add the PDS rotation key');
                 }
-                console.log('Temporarily added PDS rotation key (lower priority than our own)');
+                console.log('Temporarily added PDS rotation key (lower priority than existing keys)');
             }
 
             const retryResult = await activateAccountAfterDidUpdate(pdsEndpoint, accessJwt);
@@ -2059,7 +2211,8 @@
             // no reason to leave it there any longer than necessary either way.
             const docAfter = await fetchDidPlcRecord(didPlcId);
             if (docAfter.didDocument.rotationKeys?.includes(pdsRotationKey)) {
-                const removeResult = await submitRotationKeysUpdate(didPlcId, [currentDidKey], privateKeyHex);
+                const restoredKeys = docAfter.didDocument.rotationKeys.filter((k) => k !== pdsRotationKey);
+                const removeResult = await submitRotationKeysUpdate(didPlcId, restoredKeys, privateKeyHex);
                 if (!removeResult.success) {
                     console.warn('Failed to remove the temporary PDS rotation key - it is still present on the DID and should be removed manually');
                 } else {
@@ -2080,11 +2233,16 @@
         // from "something's here" without needing the account's password,
         // and tells us whose account it is so we don't try to log into (or
         // recreate) a handle that belongs to someone else.
-        async function checkExistingRepo(pdsEndpoint, handle) {
-            const response = await fetch(`${pdsEndpoint}/xrpc/com.atproto.repo.describeRepo?repo=${encodeURIComponent(handle)}`);
+        // repoIdentifier can be a handle or a DID - describeRepo's `repo`
+        // param accepts either, and querying by DID is what makes the
+        // Migrate tab's resume logic possible without persisting anything:
+        // it doesn't matter what handle was typed into a form field, only
+        // that the DID matches.
+        async function checkExistingRepo(pdsEndpoint, repoIdentifier) {
+            const response = await fetch(`${pdsEndpoint}/xrpc/com.atproto.repo.describeRepo?repo=${encodeURIComponent(repoIdentifier)}`);
             if (response.ok) {
                 const result = await response.json();
-                return { exists: true, did: result.did };
+                return { exists: true, did: result.did, handle: result.handle };
             }
             const errorBody = await response.json().catch(() => ({}));
             if (errorBody.error === 'RepoNotFound') {
@@ -2092,10 +2250,10 @@
             }
             if (errorBody.error === 'RepoDeactivated') {
                 // A mid-creation resume (activateAccount never ran) looks
-                // like this - the PDS won't reveal the DID for a deactivated
-                // repo via this lookup, so ownership is confirmed by the
-                // password check instead.
-                return { exists: true, did: null };
+                // like this - the PDS won't reveal the DID or handle for a
+                // deactivated repo via this lookup, so ownership is confirmed
+                // by the password check instead.
+                return { exists: true, did: null, handle: null };
             }
             throw new Error(`Could not check for an existing account: ${errorBody.message || response.statusText}`);
         }
@@ -2169,122 +2327,38 @@
         }
 
         // Sign a DID:PLC operation with the current key
+        // Signs with @noble/secp256k1's { der: false } compact (r||s, 64-byte)
+        // output directly, rather than hand-parsing DER. The previous version
+        // of this function parsed DER manually and stripped a leading
+        // zero-padding byte from r but not from s - correct whenever s's DER
+        // encoding didn't need padding, but throwing whenever it did, which
+        // happens for roughly half of all signatures depending on the random
+        // per-signature nonce (see the equivalent, already-fixed note on
+        // createServiceAuthToken).
         async function signDidPlcOperation(operation, privateKeyHex) {
-            try {
-                console.log('=== Signing DID:PLC Operation ===');
-                console.log('Operation to sign:', operation);
-                console.log('Private key (hex):', privateKeyHex);
+            const operationForSigning = { ...operation };
+            delete operationForSigning.sig;
 
-                // Create a copy without the signature for signing
-                const operationForSigning = { ...operation };
-                delete operationForSigning.sig;
+            const dagCborBytes = dagCborEncode(operationForSigning);
+            const messageHash = await crypto.subtle.digest('SHA-256', dagCborBytes);
+            const messageHashHex = Array.from(new Uint8Array(messageHash)).map(b => b.toString(16).padStart(2, '0')).join('');
 
-                console.log('Operation for signing (without sig):', operationForSigning);
-
-                // Serialize to DAG-CBOR
-                const dagCborBytes = dagCborEncode(operationForSigning);
-                console.log('DAG-CBOR bytes for signing:', Array.from(dagCborBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
-
-                // Hash the DAG-CBOR bytes with SHA-256 before signing
-                const messageHash = await crypto.subtle.digest('SHA-256', dagCborBytes);
-                const messageHashHex = Array.from(new Uint8Array(messageHash)).map(b => b.toString(16).padStart(2, '0')).join('');
-                console.log('Message hash (SHA-256):', messageHashHex);
-
-                // Convert hex private key to Uint8Array
-                const privateKeyBytes = new Uint8Array(32);
-                for (let i = 0; i < privateKeyHex.length; i += 2) {
-                    privateKeyBytes[i / 2] = parseInt(privateKeyHex.slice(i, i + 2), 16);
-                }
-
-                // Sign the hashed message using @noble/secp256k1
-                const signature = await secp256k1.sign(messageHashHex, privateKeyBytes);
-                console.log('Signature object:', signature);
-                console.log('Signature object type:', typeof signature);
-                console.log('Signature object constructor:', signature.constructor.name);
-                console.log('Signature object methods:', Object.getOwnPropertyNames(signature));
-                console.log('Signature object prototype methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(signature)));
-                console.log('Signature object keys:', Object.keys(signature));
-                console.log('Signature object values:', Object.values(signature));
-
-                // Check for common signature properties
-                console.log('Has toCompactRawBytes:', 'toCompactRawBytes' in signature);
-                console.log('Has toBytes:', 'toBytes' in signature);
-                console.log('Has toCompactHex:', 'toCompactHex' in signature);
-                console.log('Has r:', 'r' in signature);
-                console.log('Has s:', 's' in signature);
-                console.log('Has recovery:', 'recovery' in signature);
-
-                // Convert signature to base64url
-                let signatureArray;
-
-                if (signature instanceof Uint8Array) {
-                    // Signature is already a Uint8Array (DER format)
-                    console.log('Signature is Uint8Array, length:', signature.length);
-                    console.log('Signature bytes (hex):', Array.from(signature).map(b => b.toString(16).padStart(2, '0')).join(''));
-
-                    // Convert DER to compact format (64 bytes)
-                    if (signature.length >= 68 && signature[0] === 0x30) {
-                        // Parse DER structure dynamically
-                        let offset = 2; // Skip 0x30 [length]
-
-                        // Parse r value
-                        if (signature[offset] !== 0x02) {
-                            throw new Error('Invalid DER format: expected r value marker');
-                        }
-                        offset++; // Skip 0x02
-                        const rLength = signature[offset];
-                        offset++; // Skip r length
-                        const rBytes = signature.slice(offset, offset + rLength);
-                        offset += rLength;
-
-                        // Parse s value
-                        if (signature[offset] !== 0x02) {
-                            throw new Error('Invalid DER format: expected s value marker');
-                        }
-                        offset++; // Skip 0x02
-                        const sLength = signature[offset];
-                        offset++; // Skip s length
-                        const sBytes = signature.slice(offset, offset + sLength);
-
-                        // Remove leading zero byte from r if present
-                        const rCompact = rBytes[0] === 0 ? rBytes.slice(1) : rBytes;
-
-                        // Create compact signature (64 bytes)
-                        signatureArray = new Uint8Array(64);
-                        signatureArray.set(rCompact, 0);
-                        signatureArray.set(sBytes, 32);
-
-                        console.log('DER structure parsed:');
-                        console.log('- r length:', rLength, 'bytes');
-                        console.log('- s length:', sLength, 'bytes');
-                        console.log('- r compact length:', rCompact.length, 'bytes');
-                        console.log('- Converted to compact signature, length:', signatureArray.length);
-                        console.log('Compact signature (hex):', Array.from(signatureArray).map(b => b.toString(16).padStart(2, '0')).join(''));
-                    } else {
-                        throw new Error('Unexpected DER signature format');
-                    }
-                } else {
-                    throw new Error('Signature is not Uint8Array');
-                }
-                const signatureBase64 = btoa(String.fromCharCode(...signatureArray))
-                    .replace(/\+/g, '-')
-                    .replace(/\//g, '_')
-                    .replace(/=/g, '');
-
-                console.log('Generated signature (base64url):', signatureBase64);
-
-                // Add signature to operation
-                const signedOperation = { ...operation };
-                signedOperation.sig = signatureBase64;
-
-                console.log('Signed operation:', signedOperation);
-
-                return signedOperation;
-
-            } catch (error) {
-                console.error('Error signing DID:PLC operation:', error);
-                throw error;
+            const privateKeyBytes = new Uint8Array(32);
+            for (let i = 0; i < privateKeyHex.length; i += 2) {
+                privateKeyBytes[i / 2] = parseInt(privateKeyHex.slice(i, i + 2), 16);
             }
+
+            const signatureArray = await secp256k1.sign(messageHashHex, privateKeyBytes, { der: false });
+            if (!(signatureArray instanceof Uint8Array) || signatureArray.length !== 64) {
+                throw new Error(`Unexpected signature format: expected 64-byte Uint8Array, got ${signatureArray && signatureArray.length}`);
+            }
+
+            const signatureBase64 = btoa(String.fromCharCode(...signatureArray))
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=/g, '');
+
+            return { ...operation, sig: signatureBase64 };
         }
 
         // Generate a DID:PLC ID from operation
@@ -3133,6 +3207,936 @@
             updateTabStates();
         });
 
+        // ==== Migrate tab ====
+        // Uses currentKey/currentDidKey (the same key state as every other
+        // tab) rather than holding a second copy - the only piece of this
+        // whole feature that deliberately doesn't share state is
+        // oauth-popup.html itself, which never receives currentKey, only the
+        // public currentDidKey. That isolation only holds because it's a
+        // genuinely separate page with no shared scope, so it's kept that
+        // way rather than folded in here too.
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str ?? '';
+            return div.innerHTML;
+        }
+        function migrateStatusBlock(cls, text) {
+            return `<div class="migrate-status-box ${cls}">${escapeHtml(text)}</div>`;
+        }
+
+        const migrateContentDiv = document.getElementById('migrate-content');
+        const migrateState = {
+            oldPds: '', handle: '', did: '',
+            newPds: '', newHandle: '', newEmail: '', newPassword: '', newInviteCode: '',
+            didDocument: null,
+            heldKeyRegistered: false,
+            oldPdsReachable: null,
+            mode: null, // 'cooperative' | 'adversarial'
+            newAccessJwt: null, newRefreshJwt: null,
+            activated: false,
+        };
+
+        // BroadcastChannel rather than window.opener.postMessage: the popup
+        // navigates through the authorization server's own origin (which sets
+        // Cross-Origin-Opener-Policy: same-origin on its pages), and that
+        // permanently severs window.opener for the rest of this window's
+        // life - even after navigating back to our origin. BroadcastChannel
+        // has no such dependency.
+        const migrateResultChannel = new BroadcastChannel('oauth-popup-results');
+
+        function openOAuthPopup(purpose, params) {
+            return new Promise((resolve, reject) => {
+                const url = new URL('/oauth-popup.html', window.location.origin);
+                url.searchParams.set('purpose', purpose);
+                for (const [k, v] of Object.entries(params || {})) if (v) url.searchParams.set(k, v);
+                const popup = window.open(url.toString(), 'oauth-popup', 'width=520,height=680');
+                if (!popup) { reject(new Error('Popup blocked - please allow popups for this site and try again.')); return; }
+
+                // No popup.closed polling: the moment the popup navigates to
+                // the authorization server's own origin, popup.closed starts
+                // reading true from our side even though the window is still
+                // very much open - there's no safe window in which to poll
+                // it. We rely solely on the BroadcastChannel result; if the
+                // user abandons the popup without finishing, this promise
+                // just never settles.
+                function cleanup() {
+                    migrateResultChannel.removeEventListener('message', handler);
+                }
+                function handler(event) {
+                    if (!event.data || event.data.type !== 'oauth-popup-result') return;
+                    if (event.data.purpose !== purpose) return;
+                    cleanup();
+                    if (event.data.success) resolve(event.data);
+                    else reject(new Error(event.data.error || 'Sign-in action failed'));
+                }
+                migrateResultChannel.addEventListener('message', handler);
+            });
+        }
+
+        // Sends one action to the already-open, already-authorized
+        // migration-session popup and awaits its matching response - no
+        // window.open() call here at all, so this is never at risk of being
+        // popup-blocked no matter how far into the migration it happens.
+        // Requires openOAuthPopup('migration-session', ...) to have already
+        // succeeded once, earlier, in direct response to a click.
+        function requestFromMigrationSession(action, params) {
+            return new Promise((resolve, reject) => {
+                const requestId = Math.random().toString(36).slice(2);
+                function cleanup() {
+                    migrateResultChannel.removeEventListener('message', handler);
+                }
+                function handler(event) {
+                    const msg = event.data;
+                    if (!msg || msg.type !== 'oauth-popup-result') return;
+                    if (msg.requestId !== requestId) return;
+                    cleanup();
+                    if (msg.success) resolve(msg);
+                    else reject(new Error(msg.error || `${action} failed`));
+                }
+                migrateResultChannel.addEventListener('message', handler);
+                migrateResultChannel.postMessage({ type: 'oauth-popup-request', action, requestId, params });
+            });
+        }
+
+        // ---- Step 1: identify the account ----
+
+        // Resolves a handle straight to a DID, independent of any PDS or
+        // AppView index - the public AppView's own resolveHandle/getProfile
+        // both turned out to only work for handles it has already indexed
+        // (empirically confirmed: they fail even for real accounts with a
+        // working DNS TXT record, if the AppView hasn't crawled them), which
+        // is exactly backwards for a migration tool aimed at self-hosted
+        // accounts. This does the actual resolution ourselves instead:
+        // DNS TXT record via DNS-over-HTTPS first (no CORS restriction,
+        // works for any handle regardless of hosting), then the HTTPS
+        // well-known file as a fallback (CORS-permitting servers only, but
+        // some handle domains - like DNS-TXT-only ones - have no webserver
+        // at all, so this order matters).
+        async function resolveHandleToDid(handle) {
+            try {
+                const dnsRes = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(`_atproto.${handle}`)}&type=TXT`, {
+                    headers: { Accept: 'application/dns-json' },
+                });
+                if (dnsRes.ok) {
+                    const dnsData = await dnsRes.json();
+                    for (const answer of dnsData.Answer || []) {
+                        const raw = (answer.data || '').replace(/^"|"$/g, '');
+                        if (raw.startsWith('did=')) return raw.slice(4);
+                    }
+                }
+            } catch { /* fall through to well-known method */ }
+
+            try {
+                const wellKnownRes = await fetch(`https://${handle}/.well-known/atproto-did`);
+                if (wellKnownRes.ok) {
+                    const text = (await wellKnownRes.text()).trim();
+                    if (text.startsWith('did:')) return text;
+                }
+            } catch { /* both methods failed */ }
+
+            return null;
+        }
+
+        // Shared by the Migrate and Control tabs: resolves a handle straight
+        // through to its DID, current DID document (with full audit log),
+        // current PDS endpoint, and whether that PDS is reachable right now -
+        // everything either tab needs before showing its own tab-specific UI.
+        async function resolveAccountForManagement(handle) {
+            const did = await resolveHandleToDid(handle);
+            if (!did) throw new Error('Could not resolve this handle to a DID (checked DNS TXT and .well-known/atproto-did).');
+
+            const { didDocument, auditLog } = await fetchDidPlcRecord(did);
+            const pds = didDocument.services && didDocument.services.atproto_pds && didDocument.services.atproto_pds.endpoint;
+            if (!pds) throw new Error('This DID document has no PDS service endpoint.');
+
+            // Confirm by DID, not by the handle the user typed - the whole
+            // point of a migration in progress is that the PDS's registered
+            // handle for this DID may differ from (or postdate) whatever
+            // handle resolved us here, so querying by that literal string
+            // can 404 even though the account is right where the DID
+            // document says it is. A deactivated repo (mid-migration, right
+            // before activation) has its did withheld by the PDS rather than
+            // reported outright - checkExistingRepo signals that with
+            // did: null - so only a *different* DID than the one we
+            // resolved counts as the PDS record being out of date.
+            const repoCheck = await checkExistingRepo(pds, did);
+            if (!repoCheck.exists || (repoCheck.did !== null && repoCheck.did !== did)) throw new Error(`The PDS listed in the DID document (${pds}) does not confirm this account - it may be out of date.`);
+
+            let reachable = false;
+            try {
+                await getPdsServerInfo(pds);
+                reachable = true;
+            } catch { /* reachable stays false */ }
+
+            // The handle actually registered on `pds` for this DID may not
+            // be whatever string resolved us here (e.g. an old handle that
+            // still has working .well-known/DNS but was superseded by a
+            // migration's identity update) - prefer the PDS's own live
+            // answer, then the DID document's own claim, and only fall back
+            // to the input if neither is available. This matters beyond
+            // display: it's what gets used as the OAuth login_hint, so an
+            // uncorrected old handle there means a login attempt for an
+            // account name the target PDS has never heard of.
+            const akaHandle = (didDocument.alsoKnownAs || [])
+                .map((aka) => aka.replace(/^at:\/\//, ''))
+                .find((h) => h);
+            const currentHandle = repoCheck.handle || akaHandle || handle;
+
+            return { did, handle: currentHandle, pds, didDocument, auditLog, reachable };
+        }
+
+        // buildFields receives the freshly-fetched current DID document and
+        // returns the fields to override - anything it doesn't set falls back
+        // to the fresh value, never to a possibly-stale local copy. Shared by
+        // the Migrate and Control tabs for every self-signed PLC update.
+        async function submitPlcUpdateForDid(did, privateKeyHex, buildFields) {
+            const { didDocument, auditLog } = await fetchDidPlcRecord(did);
+            const fields = buildFields(didDocument);
+            const prevCid = auditLog[auditLog.length - 1].cid;
+            const unsignedOp = {
+                type: 'plc_operation',
+                prev: prevCid,
+                rotationKeys: fields.rotationKeys || didDocument.rotationKeys,
+                verificationMethods: fields.verificationMethods || didDocument.verificationMethods,
+                alsoKnownAs: fields.alsoKnownAs || didDocument.alsoKnownAs,
+                services: fields.services || didDocument.services,
+            };
+            const signedOp = await signDidPlcOperation(unsignedOp, privateKeyHex);
+            await submitDidPlcOperation(signedOp, did);
+            return { ...didDocument, ...fields };
+        }
+
+        async function loadMigrateAccountState() {
+            const status = document.getElementById('migrate-lookup-status');
+            status.innerHTML = migrateStatusBlock('loading', 'Resolving handle...');
+            try {
+                const handle = document.getElementById('migrate-old-handle').value.trim();
+                if (!handle) throw new Error('Enter the handle to migrate.');
+
+                const account = await resolveAccountForManagement(handle);
+                migrateState.oldPds = account.pds;
+                migrateState.handle = account.handle;
+                migrateState.did = account.did;
+                migrateState.didDocument = account.didDocument;
+                migrateState.oldPdsReachable = account.reachable;
+                migrateSessionActive = false; // a prior session, if any, was scoped to a different account
+
+                status.innerHTML = migrateStatusBlock('success', `Found ${account.did} on ${account.pds} — ${account.reachable ? 'reachable' : 'NOT reachable'}.`);
+                renderMigrateTakeControlOrProceed();
+            } catch (error) {
+                status.innerHTML = migrateStatusBlock('error', error.message);
+            }
+        }
+
+        // ---- Step 2: take-control detection ----
+
+        function migrateHeldKeyInRotationKeys() {
+            if (!currentDidKey || !migrateState.didDocument) return false;
+            return (migrateState.didDocument.rotationKeys || []).includes(currentDidKey);
+        }
+
+        async function refreshMigrateDidDocument() {
+            const { didDocument } = await fetchDidPlcRecord(migrateState.did);
+            migrateState.didDocument = didDocument;
+            migrateState.heldKeyRegistered = migrateHeldKeyInRotationKeys();
+        }
+
+        function renderMigrateTakeControlOrProceed() {
+            migrateContentDiv.querySelectorAll('.take-control-section, .new-pds-section').forEach((el) => el.remove());
+            migrateState.heldKeyRegistered = migrateHeldKeyInRotationKeys();
+
+            if (!migrateState.heldKeyRegistered) {
+                const section = document.createElement('div');
+                section.className = 'module take-control-section';
+                const canTakeControl = migrateState.oldPdsReachable;
+                section.innerHTML = `
+                    <h2>take control</h2>
+                    <div class="migrate-status-box">Your current key (${escapeHtml(currentDidKey)}) isn't registered on this DID yet. ${canTakeControl
+                        ? 'Sign in to the old PDS once to add it as a rotation key (kept alongside its own, at lower priority) - required before migrating unless the old PDS is unreachable and you already hold a registered key.'
+                        : 'The old PDS is not reachable, and this key is not already registered, so there is no way to take control or migrate this account from here.'}</div>
+                    ${canTakeControl ? '<button type="button" class="submit-btn" id="migrate-take-control-btn">Sign in and take control</button>' : ''}
+                    <div id="migrate-take-control-status"></div>
+                `;
+                migrateContentDiv.appendChild(section);
+                if (canTakeControl) {
+                    document.getElementById('migrate-take-control-btn').addEventListener('click', runMigrateTakeControl);
+                }
+                return;
+            }
+            renderMigrateAuthorizeOrProceed();
+        }
+
+        async function runMigrateTakeControl() {
+            const status = document.getElementById('migrate-take-control-status');
+            status.innerHTML = migrateStatusBlock('loading', 'Opening sign-in window...');
+            try {
+                await openOAuthPopup('take-control', {
+                    pds: migrateState.oldPds, did: migrateState.did, handle: migrateState.handle, pubkey: currentDidKey,
+                });
+                status.innerHTML = migrateStatusBlock('loading', 'Verifying...');
+                await refreshMigrateDidDocument();
+                if (!migrateState.heldKeyRegistered) throw new Error('The DID document does not show the new key yet - it may not have propagated. Try again in a moment.');
+                status.innerHTML = migrateStatusBlock('success', 'Key added and independently verified against plc.directory.');
+                renderMigrateAuthorizeOrProceed();
+            } catch (error) {
+                status.innerHTML = migrateStatusBlock('error', error.message);
+            }
+        }
+
+        // ---- Step 2b: authorize once, up front, for everything the actual
+        // migration will later need from the old PDS (service-auth,
+        // get-prefs, deactivate) - instead of a fresh popup per step, which
+        // is exactly what gets blocked once enough async time (repo/blob
+        // transfer) has passed since the original click. Only relevant in
+        // cooperative mode - adversarial mode never asks the old PDS for
+        // anything during the migration itself.
+
+        let migrateSessionActive = false;
+
+        function renderMigrateAuthorizeOrProceed() {
+            migrateContentDiv.querySelectorAll('.authorize-section').forEach((el) => el.remove());
+            if (migrateState.oldPdsReachable && !migrateSessionActive) {
+                const section = document.createElement('div');
+                section.className = 'module authorize-section';
+                section.innerHTML = `
+                    <h2>authorize</h2>
+                    <div class="migrate-status-box">Sign in to the old PDS once, up front - this covers everything the migration needs from it later (creating the new account, transferring preferences, deactivating the old account), so no more sign-in windows will pop up partway through.</div>
+                    <button type="button" class="submit-btn" id="migrate-authorize-btn">Authorize with old PDS</button>
+                    <button type="button" class="clear-btn" id="migrate-skip-authorize-btn">Skip - continue with just the new account's password</button>
+                    <div id="migrate-authorize-status"></div>
+                `;
+                migrateContentDiv.appendChild(section);
+                document.getElementById('migrate-authorize-btn').addEventListener('click', runMigrateAuthorize);
+                // Escape hatch for when sign-in itself can't complete - e.g. a
+                // PDS that refuses OAuth login for a still-deactivated account
+                // (some reference-implementation PDSes try to auto-activate
+                // during login and fail on the same rotation-key check this
+                // migration flow already works around, but only when it's the
+                // one making the activateAccount call). Every later step that
+                // would otherwise use this session already has a fallback
+                // that doesn't need one - a one-shot popup, a no-auth public
+                // sync read, or a live-state skip - so proceeding without it
+                // is always safe, just less convenient.
+                document.getElementById('migrate-skip-authorize-btn').addEventListener('click', () => renderMigrateNewPdsSection());
+                return;
+            }
+            renderMigrateNewPdsSection();
+        }
+
+        async function runMigrateAuthorize() {
+            const status = document.getElementById('migrate-authorize-status');
+            status.innerHTML = migrateStatusBlock('loading', 'Opening sign-in window...');
+            try {
+                await openOAuthPopup('migration-session', {
+                    pds: migrateState.oldPds, did: migrateState.did, handle: migrateState.handle,
+                });
+                migrateSessionActive = true;
+                status.innerHTML = migrateStatusBlock('success', 'Authorized. Leave that window open until the migration finishes.');
+                renderMigrateNewPdsSection();
+            } catch (error) {
+                status.innerHTML = migrateStatusBlock('error', error.message);
+            }
+        }
+
+        // ---- Step 3: new PDS details ----
+
+        function renderMigrateNewPdsSection() {
+            migrateContentDiv.querySelectorAll('.new-pds-section').forEach((el) => el.remove());
+            const section = document.createElement('div');
+            section.className = 'module new-pds-section';
+            section.innerHTML = `
+                <h2>new pds</h2>
+                <div class="form-group"><label for="migrate-new-pds-endpoint">endpoint</label><input type="text" id="migrate-new-pds-endpoint" placeholder="pds.example.com"></div>
+                <div class="form-group"><label for="migrate-new-handle">handle</label><input type="text" id="migrate-new-handle" placeholder="alice.example.com"></div>
+                <div class="form-group"><label for="migrate-new-email">email</label><input type="email" id="migrate-new-email"></div>
+                <div class="form-group"><label for="migrate-new-password">password</label><input type="password" id="migrate-new-password"></div>
+                <div class="form-group"><label for="migrate-new-invite">invite code <span style="opacity: .6;">(optional)</span></label><input type="text" id="migrate-new-invite"></div>
+                <div class="form-button-group">
+                    <button type="button" class="submit-btn" id="migrate-start-btn">Start migration</button>
+                </div>
+                <div id="migrate-new-pds-status"></div>
+            `;
+            migrateContentDiv.appendChild(section);
+            document.getElementById('migrate-start-btn').addEventListener('click', startMigration);
+        }
+
+        // ---- Migration steps ----
+
+        const MIGRATE_STEPS = [
+            { key: 'create', label: 'create account on new pds' },
+            { key: 'repo', label: 'transfer repo' },
+            { key: 'blobs', label: 'transfer blobs' },
+            { key: 'prefs', label: 'transfer preferences' },
+            { key: 'identity', label: 'update identity' },
+            { key: 'activate', label: 'activate new account' },
+            { key: 'deactivate', label: 'deactivate old account' },
+        ];
+        let migrateCurrentStepKey = null;
+
+        function renderMigrateStepList(activeKey, failedKey) {
+            if (activeKey) migrateCurrentStepKey = activeKey;
+            let el = document.getElementById('migrate-step-list');
+            if (!el) {
+                const section = document.createElement('div');
+                section.className = 'module migration-progress-section';
+                section.innerHTML = `<h2>migration</h2><ul class="step-list" id="migrate-step-list"></ul><div class="progress" id="migrate-blob-progress" style="display:none"><div class="progress-bar" id="migrate-blob-progress-bar" style="width:0%"></div></div><div id="migrate-migration-status"></div>`;
+                migrateContentDiv.appendChild(section);
+                el = document.getElementById('migrate-step-list');
+            }
+            const activeIdx = activeKey === 'ALL_DONE' ? MIGRATE_STEPS.length : MIGRATE_STEPS.findIndex((s) => s.key === activeKey);
+            el.innerHTML = MIGRATE_STEPS.map((s, i) => {
+                let cls = '';
+                if (failedKey === s.key) cls = 'failed';
+                else if (i < activeIdx) cls = 'done';
+                else if (i === activeIdx) cls = 'active';
+                return `<li class="${cls}">${cls === 'done' ? '✓' : cls === 'failed' ? '✗' : '·'} ${s.label}</li>`;
+            }).join('');
+        }
+
+        async function startMigration() {
+            migrateState.newPds = normalizePdsEndpoint(document.getElementById('migrate-new-pds-endpoint').value.trim());
+            migrateState.newHandle = document.getElementById('migrate-new-handle').value.trim();
+            migrateState.newEmail = document.getElementById('migrate-new-email').value.trim();
+            migrateState.newPassword = document.getElementById('migrate-new-password').value;
+            migrateState.newInviteCode = document.getElementById('migrate-new-invite').value.trim();
+
+            const newPdsStatus = document.getElementById('migrate-new-pds-status');
+            if (!migrateState.newPds || !migrateState.newHandle || !migrateState.newEmail || !migrateState.newPassword) {
+                newPdsStatus.innerHTML = migrateStatusBlock('error', 'Fill in all required new-PDS fields.');
+                return;
+            }
+            newPdsStatus.innerHTML = '';
+            migrateState.mode = migrateState.oldPdsReachable ? 'cooperative' : 'adversarial';
+            if (migrateState.mode === 'adversarial' && !migrateState.heldKeyRegistered) {
+                newPdsStatus.innerHTML = migrateStatusBlock('error', 'Old PDS is unreachable and no self-held key is registered - cannot migrate.');
+                return;
+            }
+
+            const migrationStatus = () => document.getElementById('migrate-migration-status');
+            // Resuming a migration whose identity update already landed
+            // before it got interrupted means the DID document now points
+            // at what we're calling the new PDS too - "old" and "new" are
+            // the same account on the same server. Repo/blobs/prefs were
+            // already written there in the original run, and there's
+            // nothing to re-transfer from the account to itself - worse,
+            // com.atproto.sync.getRepo refuses to export a deactivated
+            // repo at all, so actually attempting it just fails outright.
+            const samePds = migrateState.oldPds === migrateState.newPds;
+            try {
+                renderMigrateStepList('create');
+                migrationStatus().innerHTML = migrateStatusBlock('loading', `Creating account on new PDS (${migrateState.mode} mode)...`);
+                await createAccountOnNewPds();
+
+                renderMigrateStepList('repo');
+                if (samePds) {
+                    migrationStatus().innerHTML = migrateStatusBlock('loading', 'Old and new PDS are the same account - skipping repo transfer...');
+                } else {
+                    migrationStatus().innerHTML = migrateStatusBlock('loading', 'Transferring repo...');
+                    await transferMigrateRepo();
+                }
+
+                renderMigrateStepList('blobs');
+                if (!samePds) {
+                    document.getElementById('migrate-blob-progress').style.display = 'block';
+                    await transferMigrateBlobs();
+                }
+
+                renderMigrateStepList('prefs');
+                if (!samePds) {
+                    migrationStatus().innerHTML = migrateStatusBlock('loading', 'Transferring preferences...');
+                    await transferMigratePrefs();
+                }
+
+                renderMigrateStepList('identity');
+                migrationStatus().innerHTML = migrateStatusBlock('loading', 'Updating identity (this is the point of no return for the old PDS serving this account)...');
+                await updateMigrateIdentity();
+
+                renderMigrateStepList('activate');
+                migrationStatus().innerHTML = migrateStatusBlock('loading', 'Activating new account...');
+                await migrateActivateAccount(migrateState.newPds, migrateState.newAccessJwt);
+                migrateState.activated = true;
+
+                renderMigrateStepList('deactivate');
+                let deactivateResult;
+                if (samePds) {
+                    // There's nothing separate to deactivate here; doing so
+                    // would just undo the activation above.
+                    deactivateResult = { deactivated: true, skipped: true };
+                } else {
+                    migrationStatus().innerHTML = migrateStatusBlock('loading', 'Deactivating old account...');
+                    deactivateResult = await deactivateMigrateOldAccount();
+                }
+
+                renderMigrateStepList('ALL_DONE');
+                migrationStatus().innerHTML = deactivateResult.skipped
+                    ? migrateStatusBlock('success', 'Migration complete (old and new PDS were the same account, so there was nothing separate to deactivate). Verify the new account looks right, then run cleanup below when ready.')
+                    : deactivateResult.deactivated
+                    ? migrateStatusBlock('success', 'Migration complete. Verify the new account looks right, then run cleanup below when ready.')
+                    : migrateStatusBlock('success', `Migration complete, but the old account could not be deactivated automatically (${deactivateResult.error}). You may need to deactivate it yourself via the old PDS. Verify the new account looks right, then run cleanup below when ready.`);
+                renderMigrateCleanupSection();
+            } catch (error) {
+                renderMigrateStepList(null, migrateCurrentStepKey);
+                migrationStatus().innerHTML = migrateStatusBlock('error', error.message);
+            } finally {
+                if (migrateSessionActive) {
+                    migrateResultChannel.postMessage({ type: 'oauth-popup-session-close' });
+                }
+            }
+        }
+
+        // Resume support: if an account for this DID already exists on the
+        // new PDS - because a previous attempt got interrupted after this
+        // step - just log into it instead of trying to create it again.
+        // Checked by DID, not by whatever handle happens to be sitting in
+        // the form field right now, so a reload-and-retry doesn't depend on
+        // remembering the exact value typed in earlier. Nothing about this
+        // needs anything persisted anywhere - it's all live server state.
+        async function createAccountOnNewPds() {
+            const existing = await checkExistingRepo(migrateState.newPds, migrateState.did);
+            if (existing.exists) {
+                const login = await tryLoginToExistingAccount(migrateState.newPds, migrateState.did, migrateState.newPassword);
+                if (!login.success) {
+                    throw new Error("An account already exists on the new PDS for this DID, but the password above doesn't match it. Enter that account's actual password to resume.");
+                }
+                migrateState.newAccessJwt = login.result.accessJwt;
+                migrateState.newRefreshJwt = login.result.refreshJwt;
+                if (existing.handle) migrateState.newHandle = existing.handle;
+                return;
+            }
+
+            let jwt;
+            if (migrateState.mode === 'cooperative') {
+                const newPdsDid = await getPdsDid(migrateState.newPds);
+                const result = await requestFromMigrationSession('service-auth', {
+                    aud: newPdsDid, lxm: 'com.atproto.server.createAccount',
+                });
+                jwt = result.serviceAuthJwt;
+            } else {
+                // Adversarial: bridge #atproto to our own held key first, self-sign
+                // from here on. This starts the downtime window - the old PDS's
+                // signed commits stop matching the DID doc the moment this lands,
+                // until the final identity update completes.
+                await submitMigratePlcUpdate((didDocument) => ({
+                    verificationMethods: { ...didDocument.verificationMethods, atproto: currentDidKey },
+                }));
+                jwt = await createServiceAuthToken(migrateState.did, migrateState.newPds, currentKey);
+            }
+
+            const response = await fetch(`${migrateState.newPds}/xrpc/com.atproto.server.createAccount`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` },
+                body: JSON.stringify({
+                    handle: migrateState.newHandle, email: migrateState.newEmail, password: migrateState.newPassword,
+                    did: migrateState.did, ...(migrateState.newInviteCode ? { inviteCode: migrateState.newInviteCode } : {}),
+                }),
+            });
+            if (!response.ok) throw new Error(`createAccount failed: ${response.status} ${await response.text()}`);
+            const result = await response.json();
+            migrateState.newAccessJwt = result.accessJwt;
+            migrateState.newRefreshJwt = result.refreshJwt;
+        }
+
+        async function submitMigratePlcUpdate(buildFields) {
+            migrateState.didDocument = await submitPlcUpdateForDid(migrateState.did, currentKey, buildFields);
+        }
+
+        async function transferMigrateRepo() {
+            const carRes = await fetch(`${migrateState.oldPds}/xrpc/com.atproto.sync.getRepo?did=${encodeURIComponent(migrateState.did)}`);
+            if (!carRes.ok) throw new Error(`getRepo failed: ${carRes.status} ${await carRes.text()}`);
+            const carBytes = await carRes.arrayBuffer();
+            const importRes = await fetch(`${migrateState.newPds}/xrpc/com.atproto.repo.importRepo`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/vnd.ipld.car',
+                    'Content-Length': String(carBytes.byteLength),
+                    Authorization: `Bearer ${migrateState.newAccessJwt}`,
+                },
+                body: carBytes,
+            });
+            if (!importRes.ok) throw new Error(`importRepo failed: ${importRes.status} ${await importRes.text()}`);
+        }
+
+        async function transferMigrateBlobs() {
+            const bar = document.getElementById('migrate-blob-progress-bar');
+            let cursor, done = 0, total = 0;
+            do {
+                const url = new URL(`${migrateState.newPds}/xrpc/com.atproto.repo.listMissingBlobs`);
+                url.searchParams.set('limit', '500');
+                if (cursor) url.searchParams.set('cursor', cursor);
+                const res = await fetch(url, { headers: { Authorization: `Bearer ${migrateState.newAccessJwt}` } });
+                if (!res.ok) throw new Error(`listMissingBlobs failed: ${res.status} ${await res.text()}`);
+                const data = await res.json();
+                total += data.blobs.length;
+                for (const blob of data.blobs) {
+                    const blobRes = await fetch(`${migrateState.oldPds}/xrpc/com.atproto.sync.getBlob?did=${encodeURIComponent(migrateState.did)}&cid=${encodeURIComponent(blob.cid)}`);
+                    if (!blobRes.ok) throw new Error(`getBlob failed for ${blob.cid}: ${blobRes.status}`);
+                    const blobBytes = await blobRes.arrayBuffer();
+                    const contentType = blobRes.headers.get('content-type') || 'application/octet-stream';
+                    const uploadRes = await fetch(`${migrateState.newPds}/xrpc/com.atproto.repo.uploadBlob`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': contentType, Authorization: `Bearer ${migrateState.newAccessJwt}` },
+                        body: blobBytes,
+                    });
+                    if (!uploadRes.ok) throw new Error(`uploadBlob failed for ${blob.cid}: ${uploadRes.status} ${await uploadRes.text()}`);
+                    done++;
+                    if (total > 0) bar.style.width = `${Math.round((done / total) * 100)}%`;
+                }
+                cursor = data.cursor;
+            } while (cursor);
+            bar.style.width = '100%';
+        }
+
+        // Best-effort, not fatal to the migration: preferences are a nice
+        // to have, and the authorized session could plausibly have expired
+        // by this point on a large, slow migration (repo/blob transfer runs
+        // first) - losing saved feeds/filters isn't worth failing the whole
+        // migration over.
+        async function transferMigratePrefs() {
+            if (migrateState.mode !== 'cooperative') return; // needs an authenticated old-PDS read
+            try {
+                const result = await requestFromMigrationSession('get-prefs', {});
+                if (!result.preferences || result.preferences.length === 0) return;
+                await fetch(`${migrateState.newPds}/xrpc/app.bsky.actor.putPreferences`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${migrateState.newAccessJwt}` },
+                    body: JSON.stringify({ preferences: result.preferences }),
+                });
+            } catch (error) {
+                console.warn('Could not transfer preferences:', error.message);
+            }
+        }
+
+        async function updateMigrateIdentity() {
+            // Resume support: if the identity already points at the new PDS,
+            // this step already succeeded in an earlier attempt - skip it
+            // rather than submitting a pointless (if harmless) second PLC
+            // operation, or worse, an OAuth cosign request for something
+            // that's already done.
+            const { didDocument: freshDoc } = await fetchDidPlcRecord(migrateState.did);
+            if (freshDoc.services && freshDoc.services.atproto_pds && freshDoc.services.atproto_pds.endpoint === migrateState.newPds) {
+                migrateState.didDocument = freshDoc;
+                return;
+            }
+
+            const creds = await getRecommendedDidCredentials(migrateState.newPds, migrateState.newAccessJwt);
+            const newSigningKey = creds.verificationMethods && creds.verificationMethods.atproto;
+            if (!newSigningKey) throw new Error('New PDS did not return a recommended signing key.');
+            const newAlsoKnownAs = (creds.alsoKnownAs && creds.alsoKnownAs.length) ? creds.alsoKnownAs : [`at://${migrateState.newHandle}`];
+
+            if (migrateState.heldKeyRegistered) {
+                await submitMigratePlcUpdate((didDocument) => ({
+                    verificationMethods: { ...didDocument.verificationMethods, atproto: newSigningKey },
+                    services: { ...didDocument.services, atproto_pds: { type: 'AtprotoPersonalDataServer', endpoint: migrateState.newPds } },
+                    alsoKnownAs: newAlsoKnownAs,
+                }));
+            } else {
+                // Cooperative path, no self-held key: old PDS must co-sign this
+                // final operation too, same as the standard/goat-style flow.
+                await openOAuthPopup('final-cosign', {
+                    pds: migrateState.oldPds, did: migrateState.did, handle: migrateState.handle,
+                    newSigningKey, newPdsEndpoint: migrateState.newPds, newHandle: migrateState.newHandle,
+                });
+            }
+        }
+
+        // Some PDSes (the stock/unpatched reference implementation) refuse
+        // to activate a self-custodied account unless their own rotation
+        // key is present in the DID's rotationKeys - same check, and same
+        // temporary-add-then-remove workaround, as the bring-your-own-DID
+        // account-creation flow already needs; reuses those exact helpers
+        // rather than a second copy.
+        async function migrateActivateAccount(pdsEndpoint, accessJwt) {
+            const res = await fetch(`${pdsEndpoint}/xrpc/com.atproto.server.activateAccount`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${accessJwt}` },
+            });
+            if (res.ok) return;
+
+            const errorText = await res.text();
+            if (!isRotationKeyCheckFailure(errorText)) {
+                throw new Error(`activateAccount failed: ${res.status} ${errorText}`);
+            }
+
+            const creds = await getRecommendedDidCredentials(pdsEndpoint, accessJwt);
+            const pdsRotationKey = creds.rotationKeys?.find((k) => k !== currentDidKey);
+            if (!pdsRotationKey) {
+                throw new Error(`activateAccount failed: ${res.status} ${errorText} (and could not determine the PDS's rotation key to work around it)`);
+            }
+            const result = await activateWithTemporaryPdsRotationKey(
+                pdsEndpoint, accessJwt, migrateState.did, currentDidKey, pdsRotationKey, currentKey
+            );
+            if (!result.success) {
+                throw new Error(`activateAccount failed even with the temporary rotation-key workaround: ${result.error}`);
+            }
+        }
+
+        // Best-effort, not fatal to the migration either way: the reference
+        // PDS implementation rejects deactivateAccount over an OAuth session
+        // outright ("OAuth credentials are not supported for this endpoint")
+        // regardless of cooperativeness, so this can fail even when
+        // everything else about the old PDS worked fine. The identity-critical
+        // part of the migration is already done by the time this runs.
+        async function deactivateMigrateOldAccount() {
+            try {
+                if (migrateSessionActive) {
+                    // Cooperative mode: reuse the already-authorized session.
+                    await requestFromMigrationSession('deactivate', {});
+                } else {
+                    // Adversarial mode: no persistent session was ever
+                    // established (the old PDS wasn't reachable when this
+                    // migration started), so this is a one-shot best-effort
+                    // attempt - it's likely to fail for the same reason the
+                    // PDS was unreachable in the first place.
+                    await openOAuthPopup('deactivate', { pds: migrateState.oldPds, did: migrateState.did, handle: migrateState.handle });
+                }
+                return { deactivated: true };
+            } catch (error) {
+                console.warn('Could not deactivate old account:', error.message);
+                return { deactivated: false, error: error.message };
+            }
+        }
+
+        // ---- Cleanup: drop the old PDS's key(s), separate explicit step ----
+
+        function renderMigrateCleanupSection() {
+            const section = document.createElement('div');
+            section.className = 'module';
+            section.innerHTML = `
+                <h2>cleanup</h2>
+                <div class="migrate-status-box">Once you've confirmed the new account is working, drop the old PDS's rotation key(s) so it can no longer affect this identity. This is a separate, deliberate step - do it once you're sure.</div>
+                <button type="button" class="submit-btn" id="migrate-cleanup-btn">Drop old PDS's key(s)</button>
+                <div id="migrate-cleanup-status"></div>
+            `;
+            migrateContentDiv.appendChild(section);
+            document.getElementById('migrate-cleanup-btn').addEventListener('click', runMigrateCleanup);
+        }
+
+        async function runMigrateCleanup() {
+            const status = document.getElementById('migrate-cleanup-status');
+            status.innerHTML = migrateStatusBlock('loading', 'Submitting...');
+            try {
+                await submitPlcUpdateForDid(migrateState.did, currentKey, (didDocument) => {
+                    const remainingKeys = (didDocument.rotationKeys || []).filter((k) => k === currentDidKey);
+                    if (remainingKeys.length === 0) throw new Error('Held key is not present in rotationKeys - refusing to proceed (would lock out the account).');
+                    return { rotationKeys: remainingKeys };
+                });
+                status.innerHTML = migrateStatusBlock('success', 'Old PDS key(s) removed.');
+            } catch (error) {
+                status.innerHTML = migrateStatusBlock('error', error.message);
+            }
+        }
+
+        const migrateLookupBtn = document.getElementById('migrate-lookup-btn');
+        if (migrateLookupBtn) migrateLookupBtn.addEventListener('click', loadMigrateAccountState);
+
+        // ==== Control tab ====
+        // Manage a DID's rotationKeys directly - add/remove/reorder, then
+        // submit either self-signed (if the held key is already registered)
+        // or via the serving PDS's cooperation (email-token cosign, same
+        // popup mechanism as Migrate's take-control).
+
+        const controlContentDiv = document.getElementById('control-content');
+        const controlState = {
+            handle: '', did: '', pds: '', didDocument: null, auditLog: null, reachable: false,
+        };
+        let controlWorkingKeys = []; // local edit buffer - only touches the chain on Save
+
+        // Labels a rotation key using only data already on hand, no extra
+        // network calls: "your held key" if it matches the currently loaded
+        // key, or "PDS: <hostname>" if it matches the *signing* key recorded
+        // in some operation in this account's own audit log. The signing key
+        // is always PDS-managed (this tool never lets a user hold it), so a
+        // match is a reliable signal - the current operation means the
+        // current PDS, an earlier operation means a PDS this account used to
+        // be hosted on (e.g. left behind by a prior migration).
+        function labelForControlKey(key) {
+            if (key === currentDidKey) return { text: 'your held key', cls: 'ok' };
+            if (!controlState.auditLog) return null;
+            for (let i = controlState.auditLog.length - 1; i >= 0; i--) {
+                const op = controlState.auditLog[i].operation;
+                if (op.verificationMethods && op.verificationMethods.atproto === key) {
+                    const endpoint = op.services && op.services.atproto_pds && op.services.atproto_pds.endpoint;
+                    const hostname = endpoint ? endpoint.replace(/^https?:\/\//, '') : 'unknown PDS';
+                    const isCurrent = i === controlState.auditLog.length - 1;
+                    return { text: isCurrent ? `current PDS (${hostname})` : `was ${hostname}'s key`, cls: isCurrent ? 'ok' : '' };
+                }
+            }
+            return null;
+        }
+
+        async function loadControlAccountState() {
+            const status = document.getElementById('control-lookup-status');
+            status.innerHTML = migrateStatusBlock('loading', 'Resolving handle...');
+            try {
+                const handle = document.getElementById('control-handle').value.trim();
+                if (!handle) throw new Error('Enter a handle.');
+                const account = await resolveAccountForManagement(handle);
+                controlState.handle = account.handle;
+                controlState.did = account.did;
+                controlState.pds = account.pds;
+                controlState.didDocument = account.didDocument;
+                controlState.auditLog = account.auditLog;
+                controlState.reachable = account.reachable;
+                controlWorkingKeys = [...(account.didDocument.rotationKeys || [])];
+
+                status.innerHTML = migrateStatusBlock('success', `Found ${account.did} on ${account.pds} — ${account.reachable ? 'reachable' : 'NOT reachable'}.`);
+                renderControlKeysSection();
+            } catch (error) {
+                status.innerHTML = migrateStatusBlock('error', error.message);
+            }
+        }
+
+        function renderControlKeysSection() {
+            controlContentDiv.querySelectorAll('.control-keys-section').forEach((el) => el.remove());
+            const section = document.createElement('div');
+            section.className = 'module control-keys-section';
+            section.innerHTML = `
+                <h2>rotation keys</h2>
+                <div id="control-key-list"></div>
+                <div class="form-group" style="margin-top: 16px;">
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="control-add-key-input" placeholder="did:key:...">
+                        <button type="button" class="submit-btn" id="control-add-key-btn" style="flex-shrink: 0;">Add</button>
+                    </div>
+                </div>
+                <div id="control-edit-status"></div>
+                <div class="form-button-group">
+                    <button type="button" class="submit-btn" id="control-save-btn">Save changes</button>
+                    <button type="button" class="clear-btn" id="control-cancel-btn">Cancel changes</button>
+                </div>
+                <div id="control-save-status"></div>
+            `;
+            controlContentDiv.appendChild(section);
+            renderControlKeyList();
+            document.getElementById('control-add-key-btn').addEventListener('click', addControlKey);
+            document.getElementById('control-save-btn').addEventListener('click', saveControlChanges);
+            document.getElementById('control-cancel-btn').addEventListener('click', () => {
+                controlWorkingKeys = [...(controlState.didDocument.rotationKeys || [])];
+                document.getElementById('control-edit-status').innerHTML = '';
+                document.getElementById('control-save-status').innerHTML = '';
+                renderControlKeyList();
+            });
+        }
+
+        // flashIndices marks rows that just moved, so a swap between two
+        // similar-looking did:key values reads as an unmistakable visible
+        // change rather than just a position number most people won't
+        // consciously track.
+        function renderControlKeyList(flashIndices) {
+            const listEl = document.getElementById('control-key-list');
+            listEl.innerHTML = controlWorkingKeys.map((key, i) => {
+                const label = labelForControlKey(key);
+                const tag = label ? `<span class="tag ${label.cls}">${escapeHtml(label.text)}</span>` : '';
+                const flashCls = flashIndices && flashIndices.includes(i) ? ' key-row-flash' : '';
+                return `
+                    <div class="key-row${flashCls}">
+                        <span class="key-position">${i + 1}</span>
+                        <span class="key-value">${escapeHtml(key)} ${tag}</span>
+                        <span class="key-actions">
+                            <button type="button" data-action="up" data-index="${i}" ${i === 0 ? 'disabled' : ''}>↑</button>
+                            <button type="button" data-action="down" data-index="${i}" ${i === controlWorkingKeys.length - 1 ? 'disabled' : ''}>↓</button>
+                            <button type="button" data-action="remove" data-index="${i}" ${controlWorkingKeys.length <= 1 ? 'disabled' : ''}>Remove</button>
+                        </span>
+                    </div>
+                `;
+            }).join('') || '<div class="migrate-status-box">No rotation keys.</div>';
+
+            listEl.querySelectorAll('button[data-action]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const i = parseInt(btn.dataset.index, 10);
+                    const action = btn.dataset.action;
+                    let flash = null;
+                    if (action === 'up' && i > 0) {
+                        [controlWorkingKeys[i - 1], controlWorkingKeys[i]] = [controlWorkingKeys[i], controlWorkingKeys[i - 1]];
+                        flash = [i - 1, i];
+                    } else if (action === 'down' && i < controlWorkingKeys.length - 1) {
+                        [controlWorkingKeys[i + 1], controlWorkingKeys[i]] = [controlWorkingKeys[i], controlWorkingKeys[i + 1]];
+                        flash = [i, i + 1];
+                    } else if (action === 'remove') {
+                        if (controlWorkingKeys.length <= 1) return; // also guarded by disabled state
+                        controlWorkingKeys.splice(i, 1);
+                    }
+                    document.getElementById('control-save-status').innerHTML = '';
+                    renderControlKeyList(flash);
+                    if (flash) {
+                        // Applied with the flash class already on (instant,
+                        // no transition), then removed a tick later so the
+                        // outline-color transition on the base .key-row rule
+                        // animates it back out.
+                        requestAnimationFrame(() => {
+                            requestAnimationFrame(() => {
+                                listEl.querySelectorAll('.key-row-flash').forEach((el) => el.classList.remove('key-row-flash'));
+                            });
+                        });
+                    }
+                });
+            });
+        }
+
+        function addControlKey() {
+            const input = document.getElementById('control-add-key-input');
+            const value = input.value.trim();
+            const status = document.getElementById('control-edit-status');
+            if (!value.startsWith('did:key:')) {
+                status.innerHTML = migrateStatusBlock('error', 'Rotation keys should look like did:key:...');
+                return;
+            }
+            if (controlWorkingKeys.includes(value)) {
+                status.innerHTML = migrateStatusBlock('error', 'That key is already in the list.');
+                return;
+            }
+            controlWorkingKeys.push(value);
+            input.value = '';
+            status.innerHTML = '';
+            renderControlKeyList();
+        }
+
+        async function saveControlChanges() {
+            const status = document.getElementById('control-save-status');
+            const saveBtn = document.getElementById('control-save-btn');
+
+            if (controlWorkingKeys.length === 0) {
+                status.innerHTML = migrateStatusBlock('error', 'At least one rotation key is required.');
+                return;
+            }
+
+            // Warn once rather than block if this would remove the key this
+            // browser currently holds - sometimes intentional (deliberately
+            // handing control back to a PDS), but easy to do by accident.
+            const currentlyHeld = currentDidKey && (controlState.didDocument.rotationKeys || []).includes(currentDidKey);
+            const removesHeldKey = currentlyHeld && !controlWorkingKeys.includes(currentDidKey);
+            if (removesHeldKey && saveBtn.dataset.confirmed !== 'true') {
+                status.innerHTML = migrateStatusBlock('error', "This removes the key you currently hold - you won't be able to make further changes here afterwards. Click Save again to confirm.");
+                saveBtn.dataset.confirmed = 'true';
+                return;
+            }
+            saveBtn.dataset.confirmed = 'false';
+
+            status.innerHTML = migrateStatusBlock('loading', 'Submitting...');
+            try {
+                if (currentlyHeld) {
+                    await submitPlcUpdateForDid(controlState.did, currentKey, () => ({ rotationKeys: controlWorkingKeys }));
+                } else {
+                    await openOAuthPopup('update-rotation-keys', {
+                        pds: controlState.pds, did: controlState.did, handle: controlState.handle,
+                        newRotationKeys: controlWorkingKeys.join(','),
+                    });
+                }
+                const { didDocument, auditLog } = await fetchDidPlcRecord(controlState.did);
+                controlState.didDocument = didDocument;
+                controlState.auditLog = auditLog;
+                controlWorkingKeys = [...(didDocument.rotationKeys || [])];
+                status.innerHTML = migrateStatusBlock('success', 'Rotation keys updated.');
+                renderControlKeyList();
+            } catch (error) {
+                status.innerHTML = migrateStatusBlock('error', error.message);
+            }
+        }
+
+        const controlLookupBtn = document.getElementById('control-lookup-btn');
+        if (controlLookupBtn) controlLookupBtn.addEventListener('click', loadControlAccountState);
+
         // Tab switching functionality
         function switchTab(tabName) {
             // Check if tab is inactive and trying to switch to it
@@ -3163,10 +4167,14 @@
         const keygenTab = document.getElementById('keygen-tab');
         const didplcTab = document.getElementById('didplc-tab');
         const createaccountTab = document.getElementById('createaccount-tab');
-        
+        const controlTab = document.getElementById('control-tab');
+        const migrateTab = document.getElementById('migrate-tab');
+
         if (keygenTab) keygenTab.addEventListener('click', () => switchTab('keygen'));
         if (didplcTab) didplcTab.addEventListener('click', () => switchTab('didplc'));
         if (createaccountTab) createaccountTab.addEventListener('click', () => switchTab('createaccount'));
+        if (controlTab) controlTab.addEventListener('click', () => switchTab('control'));
+        if (migrateTab) migrateTab.addEventListener('click', () => switchTab('migrate'));
         
         // Initialize tab states on page load
         updateTabStates();
@@ -3181,15 +4189,21 @@
             const unlocked = currentKey !== null && seedPhraseConfirmed;
             const createAccountTab = document.getElementById('createaccount-tab');
             const didplcTab = document.getElementById('didplc-tab');
+            const controlTab = document.getElementById('control-tab');
+            const migrateTab = document.getElementById('migrate-tab');
 
             if (unlocked) {
                 // Remove inactive class if key is available
                 if (createAccountTab) createAccountTab.classList.remove('inactive');
                 if (didplcTab) didplcTab.classList.remove('inactive');
+                if (controlTab) controlTab.classList.remove('inactive');
+                if (migrateTab) migrateTab.classList.remove('inactive');
             } else {
                 // Add inactive class if no key is available
                 if (createAccountTab) createAccountTab.classList.add('inactive');
                 if (didplcTab) didplcTab.classList.add('inactive');
+                if (controlTab) controlTab.classList.add('inactive');
+                if (migrateTab) migrateTab.classList.add('inactive');
             }
         }
 

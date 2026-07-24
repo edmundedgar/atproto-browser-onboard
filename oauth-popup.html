@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in to your old PDS</title>
+    <link rel="icon" href="data:,">
+    <style>
+        :root {
+            --bg: #15161b; --panel: #1b1d24; --panel-raised: #21232b;
+            --text: #e7e4dc; --text-dim: #8d8f9b; --hairline: #303240;
+            --amber: #d4a24c; --amber-bright: #eab766;
+            --ok: #9cbf8e; --bad: #c07b6e; --shadow: rgba(0, 0, 0, 0.5);
+        }
+        :root[data-theme="light"] {
+            --bg: #f3f1ea; --panel: #fbfaf5; --panel-raised: #ffffff;
+            --text: #23232a; --text-dim: #6c6c78; --hairline: #dcd8ca;
+            --amber: #9c6d1f; --amber-bright: #7d5717;
+            --ok: #2e6b3e; --bad: #a8402e; --shadow: rgba(30, 25, 10, 0.1);
+        }
+        @media (prefers-color-scheme: light) {
+            :root:not([data-theme="dark"]) {
+                --bg: #f3f1ea; --panel: #fbfaf5; --panel-raised: #ffffff;
+                --text: #23232a; --text-dim: #6c6c78; --hairline: #dcd8ca;
+                --amber: #9c6d1f; --amber-bright: #7d5717;
+                --ok: #2e6b3e; --bad: #a8402e; --shadow: rgba(30, 25, 10, 0.1);
+            }
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg); min-height: 100vh; display: flex;
+            align-items: flex-start; justify-content: center;
+            padding: 56px 20px; color: var(--text); line-height: 1.6;
+        }
+        .container {
+            max-width: 480px; width: 100%; background: var(--panel);
+            border: 1px solid var(--hairline); border-radius: 8px;
+            box-shadow: 0 30px 70px var(--shadow);
+        }
+        .header-slot { padding: 32px 32px 18px; font-size: 13px; }
+        .path { font-family: ui-monospace, 'SF Mono', Consolas, monospace; color: var(--text-dim); }
+        .path .amber { color: var(--amber); }
+        .content { padding: 0 32px 32px; }
+        .status {
+            margin: 0 0 16px; padding: 14px 16px; border-radius: 6px;
+            font-size: 13.5px; border: 1px solid var(--hairline);
+            background: var(--panel-raised); white-space: pre-line;
+        }
+        .status.error { color: var(--bad); }
+        .status.success { color: var(--ok); }
+        .status.loading { color: var(--text-dim); }
+        .field { margin-bottom: 16px; }
+        .field label { display: block; font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--text-dim); margin-bottom: 8px; }
+        .field input {
+            width: 100%; padding: 10px 12px; background: var(--panel-raised);
+            border: 1px solid var(--hairline); border-radius: 6px; color: var(--text);
+            font-family: ui-monospace, monospace; font-size: 14px;
+        }
+        button.primary {
+            appearance: none; border: 1px solid var(--text); background: var(--text);
+            color: var(--bg); font-weight: 600; font-size: 14px; padding: 12px 24px;
+            border-radius: 6px; cursor: pointer; transition: opacity 0.15s ease;
+        }
+        button.primary:hover { opacity: 0.82; }
+        button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-slot">
+            <div class="path">~/atproto <span class="amber">$</span> sign in</div>
+        </div>
+        <div class="content" id="content"></div>
+    </div>
+
+    <script type="module">
+        // No importmap/external dependencies needed: this page never signs
+        // anything locally (the old PDS signs PLC operations via
+        // signPlcOperation, never us), so the only crypto it does is DPoP
+        // (ES256/P-256), which crypto.subtle handles natively. That keeps it
+        // dependency-free even though it doesn't share code with index.html.
+
+        async function fetchDidPlcRecord(didPlc) {
+            const response = await fetch(`https://plc.directory/${didPlc}/log/audit`);
+            if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            const auditLog = await response.json();
+            if (auditLog.length === 0) throw new Error('No records found in audit log');
+            const operation = auditLog[auditLog.length - 1].operation;
+            const didDocument = {
+                rotationKeys: operation.rotationKeys,
+                verificationMethods: operation.verificationMethods,
+                services: operation.services,
+                alsoKnownAs: operation.alsoKnownAs,
+            };
+            return { didDocument, auditLog };
+        }
+
+        async function submitDidPlcOperation(signedOperation, didPlcId) {
+            const response = await fetch(`https://plc.directory/${didPlcId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(signedOperation),
+            });
+            if (!response.ok) {
+                throw new Error(`Failed to submit PLC operation: ${response.status} ${response.statusText}\n${await response.text()}`);
+            }
+        }
+
+        const contentDiv = document.getElementById('content');
+        const STORAGE_KEY = 'oauth-popup-pending';
+
+        function setContent(html) { contentDiv.innerHTML = html; }
+        function statusBlock(cls, text) { return `<div class="status ${cls}">${escapeHtml(text)}</div>`; }
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str ?? '';
+            return div.innerHTML;
+        }
+
+        // BroadcastChannel rather than window.opener.postMessage: the popup
+        // navigates through the authorization server's own origin (which sets
+        // Cross-Origin-Opener-Policy: same-origin on its pages), and that
+        // permanently severs window.opener for the rest of this window's
+        // life - even after navigating back to our own origin. BroadcastChannel
+        // has no such dependency, since it's scoped by origin+name, not by
+        // window relationships.
+        const resultChannel = new BroadcastChannel('oauth-popup-results');
+        function reportResult(result) {
+            resultChannel.postMessage({ type: 'oauth-popup-result', ...result });
+        }
+
+        // ---- PKCE + DPoP helpers ----
+
+        function randomBase64Url(byteLength) {
+            const bytes = new Uint8Array(byteLength);
+            crypto.getRandomValues(bytes);
+            let str = '';
+            for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
+            return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+        }
+
+        async function sha256Base64Url(str) {
+            const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+            const bytes = new Uint8Array(hash);
+            let s = '';
+            for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+            return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+        }
+
+        async function generateDpopKeypair() {
+            return crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
+        }
+
+        async function publicJwk(publicKey) {
+            const jwk = await crypto.subtle.exportKey('jwk', publicKey);
+            return { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y };
+        }
+
+        async function buildDpopProof({ privateKey, pubJwk, htm, htu, nonce, accessToken }) {
+            const header = { typ: 'dpop+jwt', alg: 'ES256', jwk: pubJwk };
+            const payload = {
+                jti: randomBase64Url(16),
+                htm, htu,
+                iat: Math.floor(Date.now() / 1000),
+            };
+            if (nonce) payload.nonce = nonce;
+            if (accessToken) payload.ath = await sha256Base64Url(accessToken);
+            const encode = (obj) => btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+            const signingInput = `${encode(header)}.${encode(payload)}`;
+            const sig = await crypto.subtle.sign(
+                { name: 'ECDSA', hash: 'SHA-256' },
+                privateKey,
+                new TextEncoder().encode(signingInput)
+            );
+            const sigBytes = new Uint8Array(sig);
+            let s = '';
+            for (let i = 0; i < sigBytes.length; i++) s += String.fromCharCode(sigBytes[i]);
+            const sigB64 = btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+            return `${signingInput}.${sigB64}`;
+        }
+
+        // Fetch with DPoP proof, retrying once if the server demands a fresh
+        // nonce (RFC 9449 - both the authorization server and resource server
+        // maintain independent nonce state, hence per-call retry rather than
+        // trying to precompute it).
+        async function dpopFetch(url, options, dpopCtx) {
+            const htu = url.split('?')[0];
+            const doFetch = async (nonce) => {
+                const proof = await buildDpopProof({
+                    privateKey: dpopCtx.privateKey,
+                    pubJwk: dpopCtx.pubJwk,
+                    htm: options.method || 'GET',
+                    htu,
+                    nonce,
+                    accessToken: dpopCtx.accessToken,
+                });
+                const headers = { ...(options.headers || {}), DPoP: proof };
+                if (dpopCtx.accessToken) headers.Authorization = `DPoP ${dpopCtx.accessToken}`;
+                return fetch(url, { ...options, headers });
+            };
+            let response = await doFetch(dpopCtx.nonce);
+            if (response.status === 400 || response.status === 401) {
+                const newNonce = response.headers.get('DPoP-Nonce');
+                if (newNonce) {
+                    dpopCtx.nonce = newNonce;
+                    response = await doFetch(newNonce);
+                }
+            }
+            const returnedNonce = response.headers.get('DPoP-Nonce');
+            if (returnedNonce) dpopCtx.nonce = returnedNonce;
+            return response;
+        }
+
+        // ---- OAuth discovery ----
+
+        async function discoverAuthServer(pdsEndpoint) {
+            const prRes = await fetch(`${pdsEndpoint}/.well-known/oauth-protected-resource`);
+            if (!prRes.ok) throw new Error(`PDS does not advertise OAuth support (${prRes.status})`);
+            const pr = await prRes.json();
+            const authServer = pr.authorization_servers && pr.authorization_servers[0];
+            if (!authServer) throw new Error('PDS did not list an authorization server');
+            const asRes = await fetch(`${authServer}/.well-known/oauth-authorization-server`);
+            if (!asRes.ok) throw new Error(`Could not fetch authorization server metadata (${asRes.status})`);
+            return asRes.json();
+        }
+
+        // ---- Main flow ----
+
+        const clientId = `${window.location.origin}/client-metadata.json`;
+        const redirectUri = `${window.location.origin}/oauth-popup.html`;
+
+        async function startOAuth(pending) {
+            setContent(statusBlock('loading', 'Discovering your PDS’s login server...'));
+            const asMeta = await discoverAuthServer(pending.pds);
+
+            const dpopKeypair = await generateDpopKeypair();
+            const pubJwk = await publicJwk(dpopKeypair.publicKey);
+            const privJwk = await crypto.subtle.exportKey('jwk', dpopKeypair.privateKey);
+
+            const codeVerifier = randomBase64Url(64);
+            const codeChallenge = await sha256Base64Url(codeVerifier);
+            const state = randomBase64Url(24);
+
+            const dpopCtx = { privateKey: dpopKeypair.privateKey, pubJwk, nonce: null };
+
+            setContent(statusBlock('loading', 'Requesting authorization...'));
+            const parBody = new URLSearchParams({
+                response_type: 'code',
+                client_id: clientId,
+                redirect_uri: redirectUri,
+                code_challenge: codeChallenge,
+                code_challenge_method: 'S256',
+                state,
+                scope: 'atproto transition:generic identity:*',
+            });
+            if (pending.handle) parBody.set('login_hint', pending.handle);
+
+            const parRes = await dpopFetch(asMeta.pushed_authorization_request_endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: parBody.toString(),
+            }, dpopCtx);
+            if (!parRes.ok) {
+                throw new Error(`Pushed authorization request failed: ${parRes.status} ${await parRes.text()}`);
+            }
+            const parData = await parRes.json();
+
+            sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+                ...pending,
+                state,
+                codeVerifier,
+                privJwk,
+                pubJwk,
+                dpopNonce: dpopCtx.nonce,
+                authorizationEndpoint: asMeta.authorization_endpoint,
+                tokenEndpoint: asMeta.token_endpoint,
+            }));
+
+            const authUrl = new URL(asMeta.authorization_endpoint);
+            authUrl.searchParams.set('client_id', clientId);
+            authUrl.searchParams.set('request_uri', parData.request_uri);
+            window.location.href = authUrl.toString();
+        }
+
+        async function completeOAuth(code, returnedState) {
+            const raw = sessionStorage.getItem(STORAGE_KEY);
+            if (!raw) throw new Error('Lost track of the sign-in attempt (storage was cleared). Please try again.');
+            const pending = JSON.parse(raw);
+            if (returnedState !== pending.state) throw new Error('State mismatch - possible interference, aborting.');
+
+            setContent(statusBlock('loading', 'Finishing sign-in...'));
+            const privateKey = await crypto.subtle.importKey(
+                'jwk', pending.privJwk, { name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign']
+            );
+            const dpopCtx = { privateKey, pubJwk: pending.pubJwk, nonce: pending.dpopNonce };
+
+            const tokenBody = new URLSearchParams({
+                grant_type: 'authorization_code',
+                code,
+                redirect_uri: redirectUri,
+                client_id: clientId,
+                code_verifier: pending.codeVerifier,
+            });
+            const tokenRes = await dpopFetch(pending.tokenEndpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: tokenBody.toString(),
+            }, dpopCtx);
+            if (!tokenRes.ok) {
+                throw new Error(`Token exchange failed: ${tokenRes.status} ${await tokenRes.text()}`);
+            }
+            const tokens = await tokenRes.json();
+            dpopCtx.accessToken = tokens.access_token;
+
+            return { pending, dpopCtx, tokens };
+        }
+
+        // ---- Purpose-specific actions, run once we hold a DPoP-bound session ----
+
+        async function doServiceAuth(pending, dpopCtx) {
+            const url = `${pending.pds}/xrpc/com.atproto.server.getServiceAuth?aud=${encodeURIComponent(pending.aud)}&lxm=${encodeURIComponent(pending.lxm || 'com.atproto.server.createAccount')}`;
+            const res = await dpopFetch(url, { method: 'GET' }, dpopCtx);
+            if (!res.ok) throw new Error(`getServiceAuth failed: ${res.status} ${await res.text()}`);
+            const data = await res.json();
+            return { serviceAuthJwt: data.token };
+        }
+
+        async function doDeactivate(pending, dpopCtx) {
+            const res = await dpopFetch(`${pending.pds}/xrpc/com.atproto.server.deactivateAccount`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: '{}',
+            }, dpopCtx);
+            if (!res.ok) throw new Error(`deactivateAccount failed: ${res.status} ${await res.text()}`);
+            return {};
+        }
+
+        // Preferences aren't public, so unlike repo/blobs this needs an
+        // authenticated read - relaying the resulting JSON back to the opener
+        // is fine, it's just saved-feed/moderation settings, not a credential.
+        async function doGetPrefs(pending, dpopCtx) {
+            const res = await dpopFetch(`${pending.pds}/xrpc/app.bsky.actor.getPreferences`, { method: 'GET' }, dpopCtx);
+            if (!res.ok) throw new Error(`getPreferences failed: ${res.status} ${await res.text()}`);
+            const data = await res.json();
+            return { preferences: data.preferences || [] };
+        }
+
+        // Shared by take-control and final-cosign: request the email token,
+        // show a small form for the user to enter it, sign with the old PDS,
+        // and submit straight to plc.directory.
+        async function doPlcCosign(pending, dpopCtx, buildUnsignedOp) {
+            const reqRes = await dpopFetch(`${pending.pds}/xrpc/com.atproto.identity.requestPlcOperationSignature`, {
+                method: 'POST',
+            }, dpopCtx);
+            if (!reqRes.ok) throw new Error(`requestPlcOperationSignature failed: ${reqRes.status} ${await reqRes.text()}`);
+
+            const { didDocument } = await fetchDidPlcRecord(pending.did);
+            const unsignedOp = buildUnsignedOp(didDocument);
+
+            const token = await new Promise((resolve, reject) => {
+                setContent(`
+                    ${statusBlock('success', 'Check your email for a confirmation code.')}
+                    <div class="field">
+                        <label>confirmation code</label>
+                        <input type="text" id="plc-token-input" autocomplete="one-time-code" autofocus>
+                    </div>
+                    <button class="primary" id="plc-token-submit">Continue</button>
+                    <div id="plc-token-status"></div>
+                `);
+                document.getElementById('plc-token-submit').addEventListener('click', () => {
+                    const val = document.getElementById('plc-token-input').value.trim();
+                    if (!val) return;
+                    resolve(val);
+                });
+            });
+
+            setContent(statusBlock('loading', 'Signing and submitting...'));
+            const signRes = await dpopFetch(`${pending.pds}/xrpc/com.atproto.identity.signPlcOperation`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, ...unsignedOp }),
+            }, dpopCtx);
+            if (!signRes.ok) throw new Error(`signPlcOperation failed: ${signRes.status} ${await signRes.text()}`);
+            const { operation: signedOperation } = await signRes.json();
+            await submitDidPlcOperation(signedOperation, pending.did);
+            return {};
+        }
+
+        async function runPurpose(pending, dpopCtx) {
+            switch (pending.purpose) {
+                case 'take-control':
+                    return doPlcCosign(pending, dpopCtx, (didDocument) => ({
+                        rotationKeys: [pending.pubkey, ...(didDocument.rotationKeys || [])],
+                    }));
+                case 'final-cosign':
+                    return doPlcCosign(pending, dpopCtx, (didDocument) => ({
+                        verificationMethods: { ...didDocument.verificationMethods, atproto: pending.newSigningKey },
+                        services: { ...didDocument.services, atproto_pds: { type: 'AtprotoPersonalDataServer', endpoint: pending.newPdsEndpoint } },
+                        alsoKnownAs: pending.newHandle ? [`at://${pending.newHandle}`] : didDocument.alsoKnownAs,
+                    }));
+                case 'update-rotation-keys':
+                    return doPlcCosign(pending, dpopCtx, () => ({
+                        rotationKeys: pending.newRotationKeys.split(','),
+                    }));
+                case 'service-auth':
+                    return doServiceAuth(pending, dpopCtx);
+                case 'deactivate':
+                    return doDeactivate(pending, dpopCtx);
+                case 'get-prefs':
+                    return doGetPrefs(pending, dpopCtx);
+                default:
+                    throw new Error(`Unknown purpose: ${pending.purpose}`);
+            }
+        }
+
+        // Handles one incoming action request at a time for the rest of this
+        // window's life, reusing the same already-authenticated dpopCtx for
+        // each - no further window.open() calls, so nothing here can be
+        // blocked by a popup blocker no matter how deep into the migration's
+        // async chain it happens.
+        function listenForSessionRequests(pending, dpopCtx) {
+            resultChannel.addEventListener('message', async (event) => {
+                const msg = event.data;
+                if (!msg || msg.type !== 'oauth-popup-request') return;
+                setContent(statusBlock('loading', `Handling: ${msg.action}...`));
+                try {
+                    const actionPending = { ...pending, purpose: msg.action, ...(msg.params || {}) };
+                    const result = await runPurpose(actionPending, dpopCtx);
+                    setContent(statusBlock('success', `Done: ${msg.action}. Waiting for the next step - leave this window open.`));
+                    resultChannel.postMessage({ type: 'oauth-popup-result', purpose: msg.action, requestId: msg.requestId, success: true, ...result });
+                } catch (error) {
+                    setContent(statusBlock('error', `${msg.action} failed: ${error.message}`));
+                    resultChannel.postMessage({ type: 'oauth-popup-result', purpose: msg.action, requestId: msg.requestId, success: false, error: error.message });
+                }
+            });
+            resultChannel.addEventListener('message', (event) => {
+                if (event.data && event.data.type === 'oauth-popup-session-close') {
+                    setContent(statusBlock('success', 'Migration finished - you can close this window.'));
+                }
+            });
+        }
+
+        async function main() {
+            const params = new URLSearchParams(window.location.search);
+            // Tracked separately from params, because after the OAuth redirect
+            // the URL only has code/state/iss - "purpose" only exists in the
+            // pre-redirect URL or the sessionStorage-persisted pending record.
+            // Losing track of it here means an error report goes out with
+            // purpose:null, which the opener's purpose-matching listener then
+            // silently ignores - not a visible failure, just a permanent hang.
+            let currentPurpose = params.get('purpose');
+            try {
+                if (params.has('code')) {
+                    const { pending, dpopCtx } = await completeOAuth(params.get('code'), params.get('state'));
+                    currentPurpose = pending.purpose;
+                    sessionStorage.removeItem(STORAGE_KEY);
+                    if (pending.purpose === 'migration-session') {
+                        // Doesn't do anything itself and doesn't close - logs
+                        // in once, then stays open, handling each later
+                        // request (service-auth, get-prefs, deactivate) as it
+                        // arrives over the rest of the migration. This is
+                        // what lets the migration only need one popup, opened
+                        // up front in direct response to a click, instead of
+                        // one per step - later ones, opened deep inside an
+                        // async chain after repo/blob transfer, are exactly
+                        // what browsers block as no longer "from" the click.
+                        setContent(statusBlock('success', 'Signed in. This window will handle the rest of the migration automatically - leave it open until the migration finishes.'));
+                        reportResult({ purpose: 'migration-session', success: true });
+                        listenForSessionRequests(pending, dpopCtx);
+                        return;
+                    }
+                    setContent(statusBlock('loading', 'Completing the requested action...'));
+                    const result = await runPurpose(pending, dpopCtx);
+                    setContent(statusBlock('success', 'Done - you can close this window.'));
+                    reportResult({ purpose: pending.purpose, success: true, ...result });
+                } else if (params.has('error')) {
+                    throw new Error(params.get('error_description') || params.get('error'));
+                } else {
+                    const purpose = params.get('purpose');
+                    if (!purpose) throw new Error('No purpose specified.');
+                    const pending = {
+                        purpose,
+                        pds: params.get('pds'),
+                        did: params.get('did'),
+                        handle: params.get('handle') || '',
+                        pubkey: params.get('pubkey') || '',
+                        aud: params.get('aud') || '',
+                        lxm: params.get('lxm') || '',
+                        newSigningKey: params.get('newSigningKey') || '',
+                        newPdsEndpoint: params.get('newPdsEndpoint') || '',
+                        newHandle: params.get('newHandle') || '',
+                        newRotationKeys: params.get('newRotationKeys') || '',
+                    };
+                    await startOAuth(pending);
+                }
+            } catch (error) {
+                console.error(error);
+                setContent(statusBlock('error', error.message));
+                sessionStorage.removeItem(STORAGE_KEY);
+                reportResult({ purpose: currentPurpose, success: false, error: error.message });
+            }
+        }
+
+        main();
+    </script>
+</body>
+</html>
