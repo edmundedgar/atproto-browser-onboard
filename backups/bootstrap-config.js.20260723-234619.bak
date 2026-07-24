@@ -21,7 +21,7 @@ window.BOOTSTRAP_CONFIG = {
     lists: [],
     // Starter pack AT-URIs: members of the pack's list are added to follows,
     // and the pack's bundled feeds (if any) are added to saved feeds.
-    // Temporarily emptied to stop test-account runs spamming real accounts
-    // with follows - see backups/ for the previous value.
-    starterpacks: []
+    starterpacks: [
+        'at://did:plc:pyzlzqt6b2nyrha7smfry6rv/app.bsky.graph.starterpack/3llqccb5wea2x'
+    ]
 };

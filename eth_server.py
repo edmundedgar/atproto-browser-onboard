@@ -3,7 +3,7 @@
 Server for interfacing with .eth domains to query .well-known/atproto-did files.
 """
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
@@ -50,7 +50,7 @@ TEST_SERVER_URL = os.getenv('TEST_SERVER_URL')  # e.g., "http://localhost:3000"
 SEPOLIA_TEST_MODE = os.getenv('SEPOLIA_TEST_MODE', 'false').lower() == 'true'
 
 # Ethereum RPC configuration for ENS Registry queries
-ETH_RPC_URL = os.getenv('ETH_RPC_URL')  # e.g., "https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY" or "https://sepolia.infura.io/v3/YOUR_KEY"
+ETH_RPC_URL = os.getenv('ETH_RPC_URL')  # e.g., a mainnet endpoint like https://ethereum-rpc.publicnode.com
 # ENS Registry contract address (same on Mainnet and Sepolia)
 ENS_REGISTRY_ADDRESS = '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e'
 # ENS Registry ABI - need owner() and resolver() functions
@@ -409,6 +409,44 @@ async def serve_bootstrap_config():
 @app.get("/social-import-config.js")
 async def serve_social_import_config():
     return FileResponse("social-import-config.js", media_type="application/javascript")
+
+
+@app.get("/oauth-popup.html")
+async def serve_oauth_popup():
+    return FileResponse("oauth-popup.html")
+
+
+def _client_metadata_document(client_id: str, base: str) -> dict:
+    return {
+        "client_id": client_id,
+        "client_name": "atproto PDS migration tool",
+        "client_uri": base,
+        "redirect_uris": [f"{base}/oauth-popup.html"],
+        "grant_types": ["authorization_code", "refresh_token"],
+        "response_types": ["code"],
+        "scope": "atproto transition:generic identity:*",
+        "application_type": "web",
+        "token_endpoint_auth_method": "none",
+        "dpop_bound_access_tokens": True,
+    }
+
+
+@app.get("/client-metadata.json")
+async def serve_client_metadata(request: Request):
+    # atproto OAuth client ID metadata document - client_id must equal the
+    # exact URL this is served from. No client secret (public client using
+    # PKCE + DPoP instead), so token_endpoint_auth_method is "none".
+    base = str(request.base_url).rstrip("/")
+    return JSONResponse(_client_metadata_document(f"{base}/client-metadata.json", base))
+
+
+@app.get("/client-metadata/{tag}.json")
+async def serve_client_metadata_tagged(request: Request, tag: str):
+    # Same document under a distinct path, self-referential on whatever tag
+    # is requested. Exists so a fresh client_id can be picked during testing
+    # without waiting out an authorization server's cache of the untagged one.
+    base = str(request.base_url).rstrip("/")
+    return JSONResponse(_client_metadata_document(f"{base}/client-metadata/{tag}.json", base))
 
 
 @app.get("/atproto-did/{domain}")
