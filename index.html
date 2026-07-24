@@ -105,6 +105,12 @@
 
             <!-- Create Account Tab -->
             <div class="tab-pane" id="createaccount-pane">
+                <div class="sub-tab-navigation">
+                    <button class="sub-tab-btn active" id="account-new-subtab" data-subtab="new">New</button>
+                    <button class="sub-tab-btn" id="account-list-subtab" data-subtab="list">List</button>
+                </div>
+
+                <div class="sub-tab-pane active" id="account-new-subpane">
                 <div class="plc-form-container">
                     <form id="createaccount-form" class="plc-form">
                         <div class="module">
@@ -173,62 +179,52 @@
                             </button>
                         </div>
                     </form>
-                    
-                    <div class="plc-result hidden" id="createaccount-result">
-                        <h3>Account Created Successfully</h3>
-                        <div class="plc-result-content" id="createaccount-result-content"></div>
-                        <button class="copy-btn" id="copy-createaccount-result-btn">
-                            Copy Account Details
-                        </button>
+                </div>
+                </div>
+
+                <div class="sub-tab-pane" id="account-list-subpane">
+                    <div class="plc-form-container">
+                        <div id="account-list-items"></div>
+
+                        <a href="#" class="account-find-toggle hidden" id="account-find-toggle">Find another →</a>
+
+                        <div class="module" id="account-find-module">
+                            <div class="form-group">
+                                <label for="account-find-handle">find an account by handle</label>
+                                <input type="text" id="account-find-handle" placeholder="alice.example.com">
+                            </div>
+                            <div class="form-button-group">
+                                <button type="button" class="submit-btn" id="account-find-btn">Look up account</button>
+                            </div>
+                            <div id="account-find-status"></div>
+                        </div>
+
+                        <div id="account-detail" class="hidden"></div>
                     </div>
                 </div>
             </div>
 
-            <!-- Handle Tab -->
+            <!-- Handle Tab - operates on selectedAccount (see Account tab);
+                 no lookup box of its own, see enterHandleTab. -->
             <div class="tab-pane" id="handle-pane">
                 <div class="plc-form-container" id="handle-content">
-                    <div class="module">
-                        <div class="form-group">
-                            <label for="handle-current-handle">handle</label>
-                            <input type="text" id="handle-current-handle" placeholder="alice.example.com">
-                        </div>
-                        <div class="form-button-group">
-                            <button type="button" class="submit-btn" id="handle-lookup-btn">Look up account</button>
-                        </div>
-                        <div id="handle-lookup-status"></div>
-                    </div>
+                    <div id="handle-lookup-status"></div>
                 </div>
             </div>
 
-            <!-- Control Tab -->
+            <!-- Control Tab - operates on selectedAccount (see Account tab);
+                 no lookup box of its own, see enterControlTab. -->
             <div class="tab-pane" id="control-pane">
                 <div class="plc-form-container" id="control-content">
-                    <div class="module">
-                        <div class="form-group">
-                            <label for="control-handle">handle</label>
-                            <input type="text" id="control-handle" placeholder="alice.example.com">
-                        </div>
-                        <div class="form-button-group">
-                            <button type="button" class="submit-btn" id="control-lookup-btn">Look up account</button>
-                        </div>
-                        <div id="control-lookup-status"></div>
-                    </div>
+                    <div id="control-lookup-status"></div>
                 </div>
             </div>
 
-            <!-- Migrate Tab -->
+            <!-- Migrate Tab - operates on selectedAccount (see Account tab);
+                 no lookup box of its own, see enterMigrateTab. -->
             <div class="tab-pane" id="migrate-pane">
                 <div class="plc-form-container" id="migrate-content">
-                    <div class="module">
-                        <div class="form-group">
-                            <label for="migrate-old-handle">handle to migrate</label>
-                            <input type="text" id="migrate-old-handle" placeholder="alice.example.com">
-                        </div>
-                        <div class="form-button-group">
-                            <button type="button" class="submit-btn" id="migrate-lookup-btn">Look up account</button>
-                        </div>
-                        <div id="migrate-lookup-status"></div>
-                    </div>
+                    <div id="migrate-lookup-status"></div>
                 </div>
             </div>
         </div>
@@ -284,6 +280,67 @@
         // existing key skips this - there's nothing new to lose track of.
         let seedPhraseConfirmed = true;
 
+        // Accounts this browser has created or looked up before, so
+        // returning to Handle/Control/Migrate doesn't mean re-typing a
+        // handle every time. Just {did, handle, pds} pointers - nothing
+        // sensitive, everything here is already public once an account
+        // exists (its DID document says the same). Persisted so it survives
+        // a reload; currentKey/currentDidKey deliberately aren't, so this
+        // list can outlive a key being cleared or a page refresh.
+        const KNOWN_ACCOUNTS_STORAGE_KEY = 'atproto-onboard:known-accounts';
+
+        function loadKnownAccounts() {
+            try {
+                const parsed = JSON.parse(localStorage.getItem(KNOWN_ACCOUNTS_STORAGE_KEY) || '[]');
+                return Array.isArray(parsed) ? parsed : [];
+            } catch {
+                return [];
+            }
+        }
+
+        function saveKnownAccounts() {
+            try {
+                localStorage.setItem(KNOWN_ACCOUNTS_STORAGE_KEY, JSON.stringify(knownAccounts));
+            } catch { /* storage unavailable/full - the list just won't persist */ }
+        }
+
+        let knownAccounts = loadKnownAccounts();
+        // The account Handle/Control/Migrate currently operate on. Not
+        // persisted across reloads, same as currentKey - a reload already
+        // requires restoring your key from the seed phrase, so there's no
+        // account to safely act on until that happens again anyway.
+        let selectedAccount = null;
+
+        function upsertKnownAccount(account) {
+            const { did, handle, pds } = account;
+            const i = knownAccounts.findIndex((a) => a.did === did);
+            if (i === -1) {
+                knownAccounts.push({ did, handle, pds });
+            } else {
+                knownAccounts[i] = { did, handle, pds };
+            }
+            saveKnownAccounts();
+        }
+
+        function removeKnownAccount(did) {
+            knownAccounts = knownAccounts.filter((a) => a.did !== did);
+            saveKnownAccounts();
+        }
+
+        // The single entry point for changing which account Handle/Control/
+        // Migrate act on - always keeps the header and the Account tab's
+        // detail view in sync with it, so nothing else needs to remember to.
+        function selectAccount(account) {
+            // Deselecting (account === null, e.g. "forget this account")
+            // must drop the resolution cache too, not just leave it - it's
+            // keyed by DID, so re-selecting the *same* account later (found
+            // again via search) would otherwise compare equal to the stale
+            // entry and hand back a resolution from before it was forgotten.
+            if (!account) invalidateResolvedAccountCache();
+            selectedAccount = account;
+            refreshHeaderIdleContent();
+            renderAccountDetail();
+        }
 
         // Generate secp256k1 public key from private key
         function generatePublicKey(privateKeyHex) {
@@ -1858,7 +1915,7 @@
                 if (copyMnemonicBtn) copyMnemonicBtn.disabled = false;
                 if (copyDidKeyBtn) copyDidKeyBtn.disabled = false;
 
-                setHeaderIdleContent(renderKeyForHeader(currentDidKey));
+                setIdentityHeaderContent(renderKeyForHeader(currentDidKey));
 
                 // A freshly generated key needs its seed phrase confirmed
                 // written down before the other tabs unlock.
@@ -2028,7 +2085,7 @@
                 if (copyMnemonicBtn) copyMnemonicBtn.disabled = false;
                 if (copyDidKeyBtn) copyDidKeyBtn.disabled = false;
 
-                setHeaderIdleContent(renderKeyForHeader(currentDidKey));
+                setIdentityHeaderContent(renderKeyForHeader(currentDidKey));
 
                 // Restoring an existing key skips the write-it-down
                 // confirmation - there's nothing new to lose track of.
@@ -2127,6 +2184,39 @@
             statusLineEl.classList.remove('faded');
             statusLineEl.innerHTML = html;
             if (statusObserver) statusObserver.observe(statusLineEl, { childList: true, subtree: true, characterData: true });
+        }
+
+        // Mirrors renderKeyForHeader's full/short-truncation pair, for the
+        // same reason: an account handle can be as long as a did:key, and
+        // the header only has room for a short one on a phone screen.
+        function renderAccountForHeader(handle) {
+            const short = truncateMiddle(handle, 14, 8);
+            return `<span class="status-idle status-idle-full">${escapeHtml(handle)}</span><span class="status-idle status-idle-short">${escapeHtml(short)}</span>`;
+        }
+
+        // What Key/Account (and everywhere else) show in the header - a
+        // did:key, a did:plc, or a placeholder. Handle/Control/Migrate show
+        // the selected account's handle instead, but only while one of them
+        // is the active tab: switching back to Key/Account should show this
+        // again unchanged, not whatever the account tabs last displayed.
+        // setIdentityHeaderContent is what every existing call site sets
+        // this through; setHeaderIdleContent (above) stays the low-level
+        // DOM write, now only called from refreshHeaderIdleContent below.
+        let identityHeaderContent = document.getElementById('status-line')?.innerHTML || '';
+        let activeTabName = 'keygen';
+        const ACCOUNT_CONTEXT_TABS = ['handle', 'control', 'migrate'];
+
+        function refreshHeaderIdleContent() {
+            if (ACCOUNT_CONTEXT_TABS.includes(activeTabName) && selectedAccount) {
+                setHeaderIdleContent(renderAccountForHeader(selectedAccount.handle));
+            } else {
+                setHeaderIdleContent(identityHeaderContent);
+            }
+        }
+
+        function setIdentityHeaderContent(html) {
+            identityHeaderContent = html;
+            refreshHeaderIdleContent();
         }
 
         // Fades the status line out ~10s after it's updated, then restores
@@ -2391,6 +2481,49 @@
             return { did, handle: currentHandle, pds, didDocument, auditLog, reachable };
         }
 
+        // A single resolveAccountForManagement() per selected account,
+        // shared by Handle/Control/Migrate and the account-detail view -
+        // they all need the same DID document/audit log/reachability check
+        // for the same account, so without this, clicking from the account
+        // detail view straight into one of those tabs redundantly repeated
+        // (DNS resolution + DID doc + audit log + repo check + reachability)
+        // work the detail view had just finished doing to show rotation
+        // keys. Cached by promise, not just by resolved value, so a second
+        // consumer arriving while the first is still in flight (e.g. a fast
+        // click before the detail view's own fetch has settled) awaits that
+        // same request instead of firing a duplicate one. Keyed by DID and
+        // invalidated whenever a different account is selected, or after an
+        // action that changes what it would return (see
+        // invalidateResolvedAccountCache's call sites).
+        let resolvedAccountDid = null;
+        let resolvedAccountPromise = null;
+
+        function resolveSelectedAccount() {
+            if (!selectedAccount) return null;
+            if (resolvedAccountDid !== selectedAccount.did) {
+                const did = selectedAccount.did;
+                resolvedAccountDid = did;
+                resolvedAccountPromise = resolveAccountForManagement(selectedAccount.handle).catch((error) => {
+                    // Don't leave a failure cached - resolution can fail on
+                    // a transient DNS/propagation hiccup (common right after
+                    // creating an account), and caching that would make
+                    // every future consumer for this account see the same
+                    // stale failure instead of getting to retry. Only clear
+                    // it if nothing has superseded this attempt already
+                    // (e.g. the user picked a different account while it
+                    // was in flight).
+                    if (resolvedAccountDid === did) invalidateResolvedAccountCache();
+                    throw error;
+                });
+            }
+            return resolvedAccountPromise;
+        }
+
+        function invalidateResolvedAccountCache() {
+            resolvedAccountDid = null;
+            resolvedAccountPromise = null;
+        }
+
         // buildFields receives the freshly-fetched current DID document and
         // returns the fields to override - anything it doesn't set falls back
         // to the fresh value, never to a possibly-stale local copy. Shared by
@@ -2414,12 +2547,10 @@
 
         async function loadMigrateAccountState() {
             const status = document.getElementById('migrate-lookup-status');
+            if (!selectedAccount) return;
             status.replaceChildren(migrateStatusBlock('loading', 'Resolving handle...'));
             try {
-                const handle = document.getElementById('migrate-old-handle').value.trim();
-                if (!handle) throw new Error('Enter the handle to migrate.');
-
-                const account = await resolveAccountForManagement(handle);
+                const account = await resolveSelectedAccount();
                 migrateState.oldPds = account.pds;
                 migrateState.handle = account.handle;
                 migrateState.did = account.did;
@@ -2851,6 +2982,24 @@
                     newSigningKey, newPdsEndpoint: newEndpoint, newHandle: migrateState.newHandle,
                 });
             }
+
+            // Same reasoning as the Handle tab's post-change update: the DID
+            // stays the same across a migration, but its pds (and possibly
+            // handle, if the new PDS assigned a different one than typed)
+            // just changed - keep the saved account list from pointing a
+            // future lookup at the old PDS or a handle that no longer
+            // resolves to this DID.
+            if (selectedAccount && selectedAccount.did === migrateState.did) {
+                const newHandle = (newAlsoKnownAs[0] || '').replace(/^at:\/\//, '') || migrateState.newHandle;
+                const updated = { did: migrateState.did, handle: newHandle, pds: newEndpoint };
+                upsertKnownAccount(updated);
+                // The DID doesn't change across a migration, so the shared
+                // resolution cache's DID-keyed check alone wouldn't catch
+                // that its pds/handle are now stale - invalidate explicitly.
+                invalidateResolvedAccountCache();
+                selectAccount(updated);
+                renderKnownAccountsList();
+            }
         }
 
         // Some PDSes (the stock/unpatched reference implementation) refuse
@@ -2940,8 +3089,22 @@
             }
         }
 
-        const migrateLookupBtn = document.getElementById('migrate-lookup-btn');
-        if (migrateLookupBtn) migrateLookupBtn.addEventListener('click', loadMigrateAccountState);
+        // Called by switchTab on every entry to the Migrate tab (there's no
+        // lookup box any more - selectedAccount, chosen on the Account tab,
+        // is the only way in). Skips the reload if this account's state is
+        // already loaded, so switching tabs and back doesn't discard an
+        // in-progress migration.
+        function enterMigrateTab() {
+            const status = document.getElementById('migrate-lookup-status');
+            if (!selectedAccount) {
+                migrateState.did = '';
+                Array.from(migrateContentDiv.children).forEach((el) => { if (el.id !== 'migrate-lookup-status') el.remove(); });
+                if (status) status.replaceChildren(migrateStatusBlock('error', 'No account selected — pick one from the Account tab.'));
+                return;
+            }
+            if (migrateState.did === selectedAccount.did) return;
+            loadMigrateAccountState();
+        }
 
         // ==== Control tab ====
         // Manage a DID's rotationKeys directly - add/remove/reorder, then
@@ -2980,11 +3143,10 @@
 
         async function loadControlAccountState() {
             const status = document.getElementById('control-lookup-status');
+            if (!selectedAccount) return;
             status.replaceChildren(migrateStatusBlock('loading', 'Resolving handle...'));
             try {
-                const handle = document.getElementById('control-handle').value.trim();
-                if (!handle) throw new Error('Enter a handle.');
-                const account = await resolveAccountForManagement(handle);
+                const account = await resolveSelectedAccount();
                 controlState.handle = account.handle;
                 controlState.did = account.did;
                 controlState.pds = account.pds;
@@ -3140,6 +3302,11 @@
                 controlState.didDocument = didDocument;
                 controlState.auditLog = auditLog;
                 controlWorkingKeys = [...(didDocument.rotationKeys || [])];
+                // The shared resolution (see resolveSelectedAccount) now has
+                // stale rotationKeys for this account - drop it so the next
+                // consumer (e.g. the account-detail view, if visited again)
+                // re-resolves rather than showing the pre-save keys.
+                invalidateResolvedAccountCache();
                 status.replaceChildren(migrateStatusBlock('success', 'Rotation keys updated.'));
                 renderControlKeyList();
             } catch (error) {
@@ -3147,8 +3314,20 @@
             }
         }
 
-        const controlLookupBtn = document.getElementById('control-lookup-btn');
-        if (controlLookupBtn) controlLookupBtn.addEventListener('click', loadControlAccountState);
+        // Called by switchTab on every entry to the Control tab - see
+        // enterMigrateTab's comment for why this guards on the account
+        // already being loaded rather than always reloading.
+        function enterControlTab() {
+            const status = document.getElementById('control-lookup-status');
+            if (!selectedAccount) {
+                controlState.did = '';
+                Array.from(controlContentDiv.children).forEach((el) => { if (el.id !== 'control-lookup-status') el.remove(); });
+                if (status) status.replaceChildren(migrateStatusBlock('error', 'No account selected — pick one from the Account tab.'));
+                return;
+            }
+            if (controlState.did === selectedAccount.did) return;
+            loadControlAccountState();
+        }
 
         // ==== Handle tab ====
         // Change a DID's handle. If the held key is a registered rotation
@@ -3169,11 +3348,10 @@
 
         async function loadHandleAccountState() {
             const status = document.getElementById('handle-lookup-status');
+            if (!selectedAccount) return;
             status.replaceChildren(migrateStatusBlock('loading', 'Resolving handle...'));
             try {
-                const handle = document.getElementById('handle-current-handle').value.trim();
-                if (!handle) throw new Error('Enter a handle.');
-                const account = await resolveAccountForManagement(handle);
+                const account = await resolveSelectedAccount();
                 handleState.handle = account.handle;
                 handleState.did = account.did;
                 handleState.pds = account.pds;
@@ -3275,7 +3453,20 @@
                 handleState.handle = newHandle;
                 handleState.didDocument = freshDoc;
                 handleState.heldKeyRegistered = !!currentDidKey && (freshDoc.rotationKeys || []).includes(currentDidKey);
-                document.getElementById('handle-current-handle').value = newHandle;
+
+                // Keep the saved account list (and the header, if this
+                // account is the one currently selected) from showing a
+                // handle this account no longer has.
+                if (selectedAccount && selectedAccount.did === handleState.did) {
+                    const updated = { did: handleState.did, handle: newHandle, pds: handleState.pds };
+                    upsertKnownAccount(updated);
+                    // Same reason as Migrate's equivalent call: the DID is
+                    // unchanged, so the cache's own DID check wouldn't catch
+                    // that its handle is now stale.
+                    invalidateResolvedAccountCache();
+                    selectAccount(updated);
+                    renderKnownAccountsList();
+                }
 
                 // renderHandleChangeSection() rebuilds the whole section,
                 // including this status div - set its message after
@@ -3288,8 +3479,20 @@
             }
         }
 
-        const handleLookupBtn = document.getElementById('handle-lookup-btn');
-        if (handleLookupBtn) handleLookupBtn.addEventListener('click', loadHandleAccountState);
+        // Called by switchTab on every entry to the Handle tab - see
+        // enterMigrateTab's comment for why this guards on the account
+        // already being loaded rather than always reloading.
+        function enterHandleTab() {
+            const status = document.getElementById('handle-lookup-status');
+            if (!selectedAccount) {
+                handleState.did = '';
+                Array.from(handleContentDiv.children).forEach((el) => { if (el.id !== 'handle-lookup-status') el.remove(); });
+                if (status) status.replaceChildren(migrateStatusBlock('error', 'No account selected — pick one from the Account tab.'));
+                return;
+            }
+            if (handleState.did === selectedAccount.did) return;
+            loadHandleAccountState();
+        }
 
         // Tab switching functionality
         function switchTab(tabName) {
@@ -3312,9 +3515,15 @@
             
             // Show selected tab pane
             document.getElementById(tabName + '-pane').classList.add('active');
-            
+
             // Add active class to selected tab button
             document.getElementById(tabName + '-tab').classList.add('active');
+
+            activeTabName = tabName;
+            if (tabName === 'handle') enterHandleTab();
+            else if (tabName === 'control') enterControlTab();
+            else if (tabName === 'migrate') enterMigrateTab();
+            refreshHeaderIdleContent();
         }
 
         // Add tab event listeners
@@ -3404,7 +3613,7 @@
             updateTabStates();
 
             // No key loaded any more - back to the original placeholder.
-            setHeaderIdleContent('self-sovereign identity');
+            setIdentityHeaderContent('self-sovereign identity');
         }
 
         // Live-check the social import fields as the user types: fetches the
@@ -3816,7 +4025,7 @@
                 if (didValueField) {
                     didValueField.value = '';
                 }
-                setHeaderIdleContent('<span class="status-idle">did:plc:...</span>');
+                setIdentityHeaderContent('<span class="status-idle">did:plc:...</span>');
                 return;
             }
 
@@ -3842,14 +4051,14 @@
                 if (didValueField) {
                     didValueField.value = didPlcId;
                 }
-                setHeaderIdleContent(renderKeyForHeader(didPlcId));
+                setIdentityHeaderContent(renderKeyForHeader(didPlcId));
             } catch (error) {
                 console.error('Error calculating DID for display:', error);
                 const didValueField = document.getElementById('account-did-value');
                 if (didValueField) {
                     didValueField.value = '';
                 }
-                setHeaderIdleContent('<span class="status-idle">could not calculate DID</span>');
+                setIdentityHeaderContent('<span class="status-idle">could not calculate DID</span>');
             }
         }
         
@@ -4115,7 +4324,16 @@
                 if (didValueField) {
                     didValueField.value = didPlcId;
                 }
-                setHeaderIdleContent(renderKeyForHeader(didPlcId));
+                setIdentityHeaderContent(renderKeyForHeader(didPlcId));
+
+                // Save it and select it, same as finding an existing account
+                // on the List sub-tab would - the new account is now just an
+                // account like any other, so its Handle/Control/Migrate links
+                // should work immediately without the user re-finding it.
+                upsertKnownAccount({ did: didPlcId, handle: data.handle, pds: data.pdsEndpoint });
+                selectAccount({ did: didPlcId, handle: data.handle, pds: data.pdsEndpoint });
+                renderKnownAccountsList();
+                switchAccountSubTab('list');
 
                 if (status) {
                     status.replaceChildren(statusBlock('success', 'account created'));
@@ -4173,12 +4391,10 @@
         }
 
         const clearCreateaccountBtn = document.getElementById('clear-createaccount-btn');
-        const copyCreateaccountResultBtn = document.getElementById('copy-createaccount-result-btn');
-        
+
         if (clearCreateaccountBtn) {
             clearCreateaccountBtn.addEventListener('click', function() {
                 const createaccountForm = document.getElementById('createaccount-form');
-                const createaccountResult = document.getElementById('createaccount-result');
                 if (createaccountForm) createaccountForm.reset();
                 // Reset domain select to placeholder
                 const domainSelect = document.getElementById('account-handle-domain');
@@ -4189,7 +4405,6 @@
                     // Trigger change event to reset UI state
                     handleDomainChange();
                 }
-                if (createaccountResult) createaccountResult.classList.add('hidden');
                 const status = getCurrentStatusElement();
                 if (status) {
                     status.innerHTML = '';
@@ -4197,18 +4412,194 @@
             });
         }
 
-        if (copyCreateaccountResultBtn) {
-            copyCreateaccountResultBtn.addEventListener('click', function() {
-                // TODO: Implement copy functionality
-                console.log('Copy account details clicked');
+        // ==== Account tab: New/List sub-tabs ====
+        // "New" is the existing create-account form above, unchanged.
+        // "List" shows accounts this browser already knows about (see
+        // knownAccounts/selectedAccount up top) plus a handle search to find
+        // one it doesn't, both funnelling into the same account-detail view
+        // with links straight into Handle/Control/Migrate for that account.
+
+        function switchAccountSubTab(name) {
+            document.querySelectorAll('.sub-tab-pane').forEach((pane) => pane.classList.remove('active'));
+            document.querySelectorAll('.sub-tab-btn').forEach((btn) => btn.classList.remove('active'));
+            document.getElementById(`account-${name}-subpane`).classList.add('active');
+            document.getElementById(`account-${name}-subtab`).classList.add('active');
+        }
+
+        const accountNewSubtab = document.getElementById('account-new-subtab');
+        const accountListSubtab = document.getElementById('account-list-subtab');
+        if (accountNewSubtab) accountNewSubtab.addEventListener('click', () => switchAccountSubTab('new'));
+        if (accountListSubtab) accountListSubtab.addEventListener('click', () => switchAccountSubTab('list'));
+
+        // 0 known accounts favors the flow a first-time user needs (New);
+        // any saved accounts mean a returning user almost certainly wants
+        // List instead - re-typing a handle they've already got saved would
+        // be exactly the friction this feature exists to remove.
+        if (knownAccounts.length > 0) switchAccountSubTab('list');
+
+        function renderKnownAccountsList() {
+            const container = document.getElementById('account-list-items');
+            if (!container) return;
+            if (knownAccounts.length === 0) {
+                container.innerHTML = '<div class="migrate-status-box">No accounts saved yet — create one, or look one up below.</div>';
+            } else {
+                container.innerHTML = knownAccounts.map((a, i) => `
+                    <button type="button" class="account-list-item${selectedAccount && selectedAccount.did === a.did ? ' selected' : ''}" data-index="${i}">
+                        <span class="account-list-handle">${escapeHtml(a.handle)}</span>
+                        <span class="account-list-did">${escapeHtml(a.did)}</span>
+                    </button>
+                `).join('');
+                container.querySelectorAll('.account-list-item').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        selectAccount(knownAccounts[parseInt(btn.dataset.index, 10)]);
+                        renderKnownAccountsList();
+                    });
+                });
+            }
+            updateAccountFindVisibility();
+        }
+
+        // Once there's at least one saved account, the find-a-handle box
+        // defaults to collapsed behind a "Find another" link - otherwise it
+        // permanently sits between the list and whichever account's detail
+        // is showing, for a box most visits to this tab don't need.
+        let accountFindExpanded = false;
+
+        function updateAccountFindVisibility() {
+            const toggle = document.getElementById('account-find-toggle');
+            const module = document.getElementById('account-find-module');
+            if (!toggle || !module) return;
+            const expand = knownAccounts.length === 0 || accountFindExpanded;
+            module.classList.toggle('hidden', !expand);
+            toggle.classList.toggle('hidden', expand);
+        }
+
+        const accountFindToggle = document.getElementById('account-find-toggle');
+        if (accountFindToggle) {
+            accountFindToggle.addEventListener('click', (e) => {
+                e.preventDefault();
+                accountFindExpanded = true;
+                updateAccountFindVisibility();
             });
         }
+
+        // data-goto links sit next to the specific field each tab manages -
+        // Handle by the handle, Control by the rotation keys, Migrate by the
+        // PDS host - rather than as a separate row of generic buttons.
+        async function renderAccountDetail() {
+            const el = document.getElementById('account-detail');
+            if (!el) return;
+            if (!selectedAccount) {
+                el.classList.add('hidden');
+                el.innerHTML = '';
+                return;
+            }
+            const did = selectedAccount.did;
+            el.classList.remove('hidden');
+            el.innerHTML = `
+                <div class="module">
+                    <h2>${escapeHtml(selectedAccount.handle)}</h2>
+                    <div class="account-detail-row">
+                        <div class="flex-1">
+                            <div class="account-detail-label">handle</div>
+                            <div class="account-detail-value">${escapeHtml(selectedAccount.handle)}</div>
+                        </div>
+                        <a href="#" class="account-detail-link" data-goto="handle">Handle →</a>
+                    </div>
+                    <div class="account-detail-row">
+                        <div class="flex-1">
+                            <div class="account-detail-label">PDS host</div>
+                            <div class="account-detail-value">${escapeHtml(selectedAccount.pds)}</div>
+                        </div>
+                        <a href="#" class="account-detail-link" data-goto="migrate">Migrate →</a>
+                    </div>
+                    <div class="account-detail-row">
+                        <div class="flex-1">
+                            <div class="account-detail-label">rotation keys</div>
+                            <div class="account-detail-value" id="account-detail-rotation-keys">Loading...</div>
+                        </div>
+                        <a href="#" class="account-detail-link" data-goto="control">Control →</a>
+                    </div>
+                    <div class="account-detail-row">
+                        <div class="flex-1">
+                            <div class="account-detail-label">DID</div>
+                            <div class="account-detail-value">${escapeHtml(selectedAccount.did)}</div>
+                        </div>
+                    </div>
+                    <div class="form-button-group mt-16">
+                        <button type="button" class="clear-btn" id="account-forget-btn">Forget this account</button>
+                    </div>
+                </div>
+            `;
+            el.querySelectorAll('a[data-goto]').forEach((link) => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    switchTab(link.dataset.goto);
+                });
+            });
+            const forgetBtn = document.getElementById('account-forget-btn');
+            if (forgetBtn) {
+                forgetBtn.addEventListener('click', () => {
+                    removeKnownAccount(selectedAccount.did);
+                    selectAccount(null);
+                    renderKnownAccountsList();
+                });
+            }
+
+            const rotationKeysEl = document.getElementById('account-detail-rotation-keys');
+            try {
+                // Kicks off the shared resolution (see resolveSelectedAccount)
+                // that Handle/Control/Migrate then reuse instead of each
+                // redundantly re-resolving the same account from scratch.
+                const { didDocument } = await resolveSelectedAccount();
+                // selectedAccount may have changed (or been cleared) while
+                // this was in flight - don't overwrite a now-unrelated view.
+                if (!selectedAccount || selectedAccount.did !== did) return;
+                const keys = didDocument.rotationKeys || [];
+                if (rotationKeysEl) {
+                    rotationKeysEl.innerHTML = keys.length
+                        ? `<ul class="account-detail-key-list">${keys.map((k) => `<li>${escapeHtml(k)}</li>`).join('')}</ul>`
+                        : 'none';
+                }
+            } catch (error) {
+                if (!selectedAccount || selectedAccount.did !== did) return;
+                if (rotationKeysEl) rotationKeysEl.textContent = `could not load (${error.message})`;
+            }
+        }
+
+        const accountFindBtn = document.getElementById('account-find-btn');
+        if (accountFindBtn) {
+            accountFindBtn.addEventListener('click', async () => {
+                const status = document.getElementById('account-find-status');
+                const handleInput = document.getElementById('account-find-handle');
+                const handle = handleInput.value.trim();
+                if (!handle) {
+                    status.replaceChildren(migrateStatusBlock('error', 'Enter a handle.'));
+                    return;
+                }
+                status.replaceChildren(migrateStatusBlock('loading', 'Resolving handle...'));
+                try {
+                    const account = await resolveAccountForManagement(handle);
+                    upsertKnownAccount({ did: account.did, handle: account.handle, pds: account.pds });
+                    selectAccount({ did: account.did, handle: account.handle, pds: account.pds });
+                    accountFindExpanded = false;
+                    renderKnownAccountsList();
+                    handleInput.value = '';
+                    status.innerHTML = '';
+                } catch (error) {
+                    status.replaceChildren(migrateStatusBlock('error', error.message));
+                }
+            });
+        }
+
+        renderKnownAccountsList();
+        renderAccountDetail();
 
         // Check if Web Crypto API is available
         if (!window.crypto || !window.crypto.getRandomValues) {
             const generateBtn = document.getElementById('generateBtn');
             if (generateBtn) generateBtn.disabled = true;
-            setHeaderIdleContent(statusBlock('error', 'Web Crypto API not supported in this browser'));
+            setIdentityHeaderContent('<span class="status-idle">Web Crypto API not supported in this browser</span>');
         }
 
         // Run test case on page load

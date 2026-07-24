@@ -426,6 +426,115 @@
             display: block;
         }
 
+        /* Sub-tabs within a single tab-pane (currently just Account's
+           New/List) - visually lighter than .tab-navigation/.tab-btn since
+           they're nested one level down: no "# " prefix, no page-edge
+           padding, smaller type. */
+        .sub-tab-navigation {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--hairline);
+        }
+
+        .sub-tab-btn {
+            appearance: none;
+            background: transparent;
+            border: none;
+            font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+            padding: 8px 4px 10px;
+            margin-right: 20px;
+            font-size: 12.5px;
+            color: var(--text-dim);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: color 0.15s ease;
+        }
+        .sub-tab-btn:hover { color: var(--text); }
+        .sub-tab-btn.active { color: var(--text); border-bottom-color: var(--amber); }
+        .sub-tab-btn:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+        .sub-tab-pane { display: none; }
+        .sub-tab-pane.active { display: block; }
+
+        .account-list-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            width: 100%;
+            text-align: left;
+            appearance: none;
+            background: var(--panel-raised);
+            border: 1px solid var(--hairline);
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: border-color 0.15s ease;
+        }
+        .account-list-item:hover { border-color: var(--text-dim); }
+        .account-list-item.selected { border-color: var(--amber); }
+        .account-list-item:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+        .account-list-handle { font-size: 13.5px; color: var(--text); }
+        .account-list-did {
+            font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+            font-size: 11px;
+            color: var(--text-dim);
+            word-break: break-all;
+        }
+
+        .account-find-toggle {
+            display: inline-block;
+            margin-bottom: 16px;
+            font-size: 12.5px;
+            color: var(--amber);
+            text-decoration: none;
+        }
+        .account-find-toggle:hover { text-decoration: underline; }
+        .account-find-toggle:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+        .account-detail-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--hairline);
+        }
+        .account-detail-row:last-of-type { border-bottom: none; }
+
+        .account-detail-label {
+            font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+        }
+        .account-detail-value {
+            font-size: 13px;
+            color: var(--text);
+            word-break: break-all;
+        }
+
+        .account-detail-link {
+            flex-shrink: 0;
+            font-size: 12.5px;
+            color: var(--amber);
+            text-decoration: none;
+            white-space: nowrap;
+            padding-top: 2px;
+        }
+        .account-detail-link:hover { text-decoration: underline; }
+        .account-detail-link:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+
+        .account-detail-key-list { list-style: none; margin-top: 4px; }
+        .account-detail-key-list li {
+            font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+            font-size: 12px;
+            color: var(--amber);
+            word-break: break-all;
+            padding: 2px 0;
+        }
+
         /* DID:PLC Form Styles */
         .plc-form-container {
             max-width: 100%;
