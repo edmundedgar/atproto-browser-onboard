@@ -151,6 +151,7 @@
         button.primary:active { opacity: 0.7; }
         button.primary:disabled { opacity: 0.4; cursor: not-allowed; }
         button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+        .value-wrap { color: var(--text); font-size: 13.5px; word-break: normal; }
 
         @media (max-width: 640px) {
             .header-slot, .content { padding-left: 26px; padding-right: 26px; }
@@ -305,7 +306,7 @@
                 <div class="module">
                     <div class="field">
                         <label>this domain already points to other content</label>
-                        <div class="value" style="color: var(--text); font-size: 13.5px; word-break: normal;">
+                        <div class="value value-wrap">
                             Setting up automatically here would replace it, so add this file to your existing site yourself and republish it however you normally do.
                         </div>
                     </div>
@@ -350,7 +351,7 @@
                     </div>
                 </div>
                 <div class="module">
-                    <div class="value" style="color: var(--text); font-size: 13.5px; word-break: normal;">
+                    <div class="value value-wrap">
                         Continuing will replace it with your DID. Whoever currently controls that account will stop being able to use this domain as their handle - only do this if that's you, or you're intentionally taking over the domain.
                     </div>
                 </div>
