@@ -761,6 +761,9 @@
             <button class="tab-btn" id="createaccount-tab" data-tab="createaccount">
                 Account
             </button>
+            <button class="tab-btn" id="handle-tab" data-tab="handle">
+                Handle
+            </button>
             <button class="tab-btn" id="control-tab" data-tab="control">
                 Control
             </button>
@@ -919,7 +922,23 @@
                 
                 <div class="status" style="display: none;"></div>
             </div>
-            
+
+            <!-- Handle Tab -->
+            <div class="tab-pane" id="handle-pane">
+                <div class="plc-form-container" id="handle-content">
+                    <div class="module">
+                        <div class="form-group">
+                            <label for="handle-current-handle">handle</label>
+                            <input type="text" id="handle-current-handle" placeholder="alice.example.com">
+                        </div>
+                        <div class="form-button-group">
+                            <button type="button" class="submit-btn" id="handle-lookup-btn">Look up account</button>
+                        </div>
+                        <div id="handle-lookup-status"></div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Control Tab -->
             <div class="tab-pane" id="control-pane">
                 <div class="plc-form-container" id="control-content">
@@ -1891,6 +1910,76 @@
             const result = await response.json();
             console.log('Found an existing account for this handle, reusing it:', result.did);
             return { success: true, result: result };
+        }
+
+        async function callUpdateHandle(pdsEndpoint, accessJwt, handle) {
+            const res = await fetch(`${pdsEndpoint}/xrpc/com.atproto.identity.updateHandle`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessJwt}` },
+                body: JSON.stringify({ handle }),
+            });
+            if (!res.ok) {
+                const errorText = await res.text();
+                throw new Error(`updateHandle failed: ${res.status} ${errorText}`);
+            }
+        }
+
+        // Some PDSes (the stock/unpatched reference implementation) refuse to
+        // let a self-custodied account update its handle on their own - same
+        // underlying assumption as the activate-time rotation-key check, but
+        // surfacing differently: the PDS still attempts to self-sign and
+        // submit its own PLC operation regardless of who holds the rotation
+        // key, so the rejection comes from plc.directory itself, not the PDS
+        // validating up front.
+        function isHandleUpdateSignatureFailure(updateErrorText) {
+            return !!updateErrorText && updateErrorText.includes('Invalid signature on op');
+        }
+
+        // Work around a PDS that can't update a self-custodied account's
+        // handle on its own: temporarily add its rotation key (after our own,
+        // so it's never senior for recovery purposes), retry updateHandle,
+        // then remove the key again regardless of outcome. Same trade-off as
+        // activateWithTemporaryPdsRotationKey - reused rather than
+        // generalized into one function, since the "thing to retry" differs
+        // and the existing activate path is already proven; duplicating this
+        // small a pattern is safer than reshaping working code around it.
+        async function updateHandleWithTemporaryPdsRotationKey(pdsEndpoint, accessJwt, didPlcId, currentDidKey, pdsRotationKey, privateKeyHex, handle) {
+            console.log('PDS requires its own rotation key to update the handle - adding it temporarily');
+
+            const docNow = await fetchDidPlcRecord(didPlcId);
+            const baseKeys = docNow.didDocument.rotationKeys || [currentDidKey];
+            const alreadyHasPdsKey = baseKeys.includes(pdsRotationKey);
+            if (!alreadyHasPdsKey) {
+                const addResult = await submitRotationKeysUpdate(didPlcId, [...baseKeys, pdsRotationKey], privateKeyHex);
+                if (!addResult.success) {
+                    throw new Error('Failed to temporarily add the PDS rotation key');
+                }
+                console.log('Temporarily added PDS rotation key (lower priority than existing keys)');
+            }
+
+            let retryError = null;
+            try {
+                await callUpdateHandle(pdsEndpoint, accessJwt, handle);
+            } catch (error) {
+                retryError = error;
+            }
+
+            // Remove it again regardless of whether the retry just succeeded
+            // - no reason to leave it there any longer than necessary either way.
+            const docAfter = await fetchDidPlcRecord(didPlcId);
+            if (docAfter.didDocument.rotationKeys?.includes(pdsRotationKey)) {
+                const restoredKeys = docAfter.didDocument.rotationKeys.filter((k) => k !== pdsRotationKey);
+                const removeResult = await submitRotationKeysUpdate(didPlcId, restoredKeys, privateKeyHex);
+                if (!removeResult.success) {
+                    console.warn('Failed to remove the temporary PDS rotation key - it is still present on the DID and should be removed manually');
+                } else {
+                    console.log('Removed temporary PDS rotation key');
+                }
+            }
+
+            if (retryError) {
+                throw retryError;
+            }
         }
 
         // Create an account on the PDS
@@ -3750,6 +3839,147 @@
         const controlLookupBtn = document.getElementById('control-lookup-btn');
         if (controlLookupBtn) controlLookupBtn.addEventListener('click', loadControlAccountState);
 
+        // ==== Handle tab ====
+        // Change a DID's handle. If the held key is a registered rotation
+        // key, self-sign the alsoKnownAs change directly against
+        // plc.directory first - a PDS running the patched updateHandle (see
+        // account-manager.ts / handle_identity_update_handle.go) notices the
+        // DID document already shows the new handle and skips straight to
+        // syncing its own local record and firehose event, rather than
+        // trying (and failing) to sign a redundant PLC operation with a
+        // rotation key it no longer holds. On an unpatched/stock PDS, or an
+        // account where the PDS still holds the rotation key, updateHandle
+        // is still called the same way and behaves exactly as it always has.
+
+        const handleContentDiv = document.getElementById('handle-content');
+        const handleState = {
+            handle: '', did: '', pds: '', didDocument: null, reachable: false, heldKeyRegistered: false,
+        };
+
+        async function loadHandleAccountState() {
+            const status = document.getElementById('handle-lookup-status');
+            status.innerHTML = migrateStatusBlock('loading', 'Resolving handle...');
+            try {
+                const handle = document.getElementById('handle-current-handle').value.trim();
+                if (!handle) throw new Error('Enter a handle.');
+                const account = await resolveAccountForManagement(handle);
+                handleState.handle = account.handle;
+                handleState.did = account.did;
+                handleState.pds = account.pds;
+                handleState.didDocument = account.didDocument;
+                handleState.reachable = account.reachable;
+                handleState.heldKeyRegistered = !!currentDidKey && (account.didDocument.rotationKeys || []).includes(currentDidKey);
+
+                status.innerHTML = migrateStatusBlock('success', `Found ${account.did} on ${account.pds} — ${account.reachable ? 'reachable' : 'NOT reachable'}.`);
+                renderHandleChangeSection();
+            } catch (error) {
+                status.innerHTML = migrateStatusBlock('error', error.message);
+            }
+        }
+
+        function renderHandleChangeSection() {
+            handleContentDiv.querySelectorAll('.handle-change-section').forEach((el) => el.remove());
+            const section = document.createElement('div');
+            section.className = 'module handle-change-section';
+            section.innerHTML = `
+                <h2>change handle</h2>
+                <div class="migrate-status-box">Current handle: ${escapeHtml(handleState.handle)}${handleState.heldKeyRegistered
+                    ? ' — your held key is a registered rotation key, so the identity change will be self-signed.'
+                    : ' — your held key is not a registered rotation key, so the PDS will sign the identity change itself.'}</div>
+                <div class="form-group">
+                    <label for="handle-new-handle">new handle</label>
+                    <input type="text" id="handle-new-handle" placeholder="alice.example.com">
+                </div>
+                <div class="form-group">
+                    <label for="handle-password">password (for ${escapeHtml(handleState.pds)})</label>
+                    <input type="password" id="handle-password" placeholder="Account password">
+                </div>
+                <div class="form-button-group">
+                    <button type="button" class="submit-btn" id="handle-change-btn">Change handle</button>
+                </div>
+                <div id="handle-change-status"></div>
+            `;
+            handleContentDiv.appendChild(section);
+            document.getElementById('handle-change-btn').addEventListener('click', runHandleChange);
+        }
+
+        async function runHandleChange() {
+            const status = document.getElementById('handle-change-status');
+            const newHandle = document.getElementById('handle-new-handle').value.trim();
+            const password = document.getElementById('handle-password').value;
+
+            if (!newHandle) {
+                status.innerHTML = migrateStatusBlock('error', 'Enter the new handle.');
+                return;
+            }
+            if (newHandle === handleState.handle) {
+                status.innerHTML = migrateStatusBlock('error', 'That is already the current handle.');
+                return;
+            }
+            if (!password) {
+                status.innerHTML = migrateStatusBlock('error', 'Enter the account password.');
+                return;
+            }
+
+            status.innerHTML = migrateStatusBlock('loading', 'Submitting...');
+            try {
+                if (handleState.heldKeyRegistered) {
+                    await submitPlcUpdateForDid(handleState.did, currentKey, (didDocument) => {
+                        const oldAka = `at://${handleState.handle}`;
+                        const kept = (didDocument.alsoKnownAs || []).filter((aka) => aka !== oldAka);
+                        return { alsoKnownAs: [...kept, `at://${newHandle}`] };
+                    });
+                }
+
+                status.innerHTML = migrateStatusBlock('loading', 'Signing in to update the PDS record...');
+                const login = await tryLoginToExistingAccount(handleState.pds, handleState.did, password);
+                if (!login.success) {
+                    throw new Error("That password didn't work for this account.");
+                }
+
+                status.innerHTML = migrateStatusBlock('loading', 'Updating handle on the PDS...');
+                try {
+                    await callUpdateHandle(handleState.pds, login.result.accessJwt, newHandle);
+                } catch (error) {
+                    if (!handleState.heldKeyRegistered || !isHandleUpdateSignatureFailure(error.message)) {
+                        throw error;
+                    }
+                    status.innerHTML = migrateStatusBlock('loading', 'Updating handle (temporary workaround)...');
+                    const creds = await getRecommendedDidCredentials(handleState.pds, login.result.accessJwt);
+                    const pdsRotationKey = creds.rotationKeys?.find((k) => k !== currentDidKey);
+                    if (!pdsRotationKey) {
+                        throw new Error(`${error.message} (and could not determine the PDS's rotation key to work around it)`);
+                    }
+                    await updateHandleWithTemporaryPdsRotationKey(
+                        handleState.pds, login.result.accessJwt, handleState.did, currentDidKey, pdsRotationKey, currentKey, newHandle
+                    );
+                }
+
+                // Refresh by the DID we already have, not by re-resolving the
+                // new handle - DNS/resolver propagation for a handle that
+                // only just changed can lag behind the change itself by a
+                // few seconds even though it already fully landed on both
+                // plc.directory and the PDS.
+                const { didDocument: freshDoc } = await fetchDidPlcRecord(handleState.did);
+                handleState.handle = newHandle;
+                handleState.didDocument = freshDoc;
+                handleState.heldKeyRegistered = !!currentDidKey && (freshDoc.rotationKeys || []).includes(currentDidKey);
+                document.getElementById('handle-current-handle').value = newHandle;
+
+                // renderHandleChangeSection() rebuilds the whole section,
+                // including this status div - set its message after
+                // rebuilding, not before, or the fresh (empty) div replaces
+                // the one we just wrote to.
+                renderHandleChangeSection();
+                document.getElementById('handle-change-status').innerHTML = migrateStatusBlock('success', `Handle changed to ${newHandle}.`);
+            } catch (error) {
+                status.innerHTML = migrateStatusBlock('error', error.message);
+            }
+        }
+
+        const handleLookupBtn = document.getElementById('handle-lookup-btn');
+        if (handleLookupBtn) handleLookupBtn.addEventListener('click', loadHandleAccountState);
+
         // Tab switching functionality
         function switchTab(tabName) {
             // Check if tab is inactive and trying to switch to it
@@ -3781,12 +4011,14 @@
         const createaccountTab = document.getElementById('createaccount-tab');
         const controlTab = document.getElementById('control-tab');
         const migrateTab = document.getElementById('migrate-tab');
+        const handleTab = document.getElementById('handle-tab');
 
         if (keygenTab) keygenTab.addEventListener('click', () => switchTab('keygen'));
         if (createaccountTab) createaccountTab.addEventListener('click', () => switchTab('createaccount'));
         if (controlTab) controlTab.addEventListener('click', () => switchTab('control'));
         if (migrateTab) migrateTab.addEventListener('click', () => switchTab('migrate'));
-        
+        if (handleTab) handleTab.addEventListener('click', () => switchTab('handle'));
+
         // Initialize tab states on page load
         updateTabStates();
         
@@ -3801,17 +4033,20 @@
             const createAccountTab = document.getElementById('createaccount-tab');
             const controlTab = document.getElementById('control-tab');
             const migrateTab = document.getElementById('migrate-tab');
+            const handleTab = document.getElementById('handle-tab');
 
             if (unlocked) {
                 // Remove inactive class if key is available
                 if (createAccountTab) createAccountTab.classList.remove('inactive');
                 if (controlTab) controlTab.classList.remove('inactive');
                 if (migrateTab) migrateTab.classList.remove('inactive');
+                if (handleTab) handleTab.classList.remove('inactive');
             } else {
                 // Add inactive class if no key is available
                 if (createAccountTab) createAccountTab.classList.add('inactive');
                 if (controlTab) controlTab.classList.add('inactive');
                 if (migrateTab) migrateTab.classList.add('inactive');
+                if (handleTab) handleTab.classList.add('inactive');
             }
         }
 
