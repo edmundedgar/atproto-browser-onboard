@@ -728,7 +728,14 @@
         .key-row .key-actions button:hover { border-color: var(--text-dim); }
         .key-row .key-actions button:disabled { opacity: 0.3; cursor: not-allowed; }
 
+        /* Both renderings are always in the DOM (see renderKeyForHeader) -
+           CSS alone decides which shows, so it stays correct across resizes
+           without a resize listener. */
+        .status-idle-short { display: none; }
+
         @media (max-width: 640px) {
+            .status-idle-full { display: none; }
+            .status-idle-short { display: inline; }
             .header-slot, .tab-pane { padding-left: 26px; padding-right: 26px; }
             .tab-navigation { padding-left: 26px; padding-right: 26px; }
             /* The 1.25 zoom is sized for spacious desktop viewing; on a
@@ -2603,7 +2610,7 @@
                 if (copyMnemonicBtn) copyMnemonicBtn.disabled = false;
                 if (copyDidKeyBtn) copyDidKeyBtn.disabled = false;
 
-                setHeaderIdleContent(`<span class="status-idle">${currentDidKey}</span>`);
+                setHeaderIdleContent(renderKeyForHeader(currentDidKey));
 
                 // A freshly generated key needs its seed phrase confirmed
                 // written down before the other tabs unlock.
@@ -2781,7 +2788,7 @@
                 if (copyMnemonicBtn) copyMnemonicBtn.disabled = false;
                 if (copyDidKeyBtn) copyDidKeyBtn.disabled = false;
 
-                setHeaderIdleContent(`<span class="status-idle">${currentDidKey}</span>`);
+                setHeaderIdleContent(renderKeyForHeader(currentDidKey));
 
                 // Restoring an existing key skips the write-it-down
                 // confirmation - there's nothing new to lose track of.
@@ -2835,6 +2842,22 @@
         // reverting to the original placeholder text.
         let headerIdleContent = document.getElementById('status-line')?.innerHTML || '';
         let showingTemporaryStatus = false;
+
+        function truncateMiddle(str, headChars, tailChars) {
+            if (str.length <= headChars + tailChars + 3) return str;
+            return `${str.slice(0, headChars)}...${str.slice(-tailChars)}`;
+        }
+
+        // Renders both a full and a middle-truncated version of a did:key
+        // (or any other identifier) into the header idle slot at once - CSS
+        // (see the status-idle-full/status-idle-short rules) picks which one
+        // is actually visible based on viewport width, so it's a did:key on
+        // desktop and a short did:key:zQ3s...MFR on a phone screen too
+        // narrow to show the whole thing.
+        function renderKeyForHeader(key) {
+            const short = truncateMiddle(key, 14, 8);
+            return `<span class="status-idle status-idle-full">${key}</span><span class="status-idle status-idle-short">${short}</span>`;
+        }
 
         function setHeaderIdleContent(html) {
             headerIdleContent = html;
