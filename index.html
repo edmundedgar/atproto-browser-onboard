@@ -3553,26 +3553,34 @@
         }
 
         async function updateMigrateIdentity() {
-            // Resume support: if the identity already points at the new PDS,
-            // this step already succeeded in an earlier attempt - skip it
-            // rather than submitting a pointless (if harmless) second PLC
-            // operation, or worse, an OAuth cosign request for something
-            // that's already done.
-            const { didDocument: freshDoc } = await fetchDidPlcRecord(migrateState.did);
-            if (freshDoc.services && freshDoc.services.atproto_pds && freshDoc.services.atproto_pds.endpoint === migrateState.newPds) {
-                migrateState.didDocument = freshDoc;
-                return;
-            }
-
+            // getRecommendedDidCredentials' services is the new PDS's own
+            // recommended endpoint - needed before the resume check below,
+            // not just for the update itself, since on an entryway setup
+            // (many PDSes behind one shared hostname the user actually
+            // types, e.g. bsky.social) that's a different, real per-account
+            // hostname, not whatever migrateState.newPds was typed as.
             const creds = await getRecommendedDidCredentials(migrateState.newPds, migrateState.newAccessJwt);
             const newSigningKey = creds.verificationMethods && creds.verificationMethods.atproto;
             if (!newSigningKey) throw new Error('New PDS did not return a recommended signing key.');
             const newAlsoKnownAs = (creds.alsoKnownAs && creds.alsoKnownAs.length) ? creds.alsoKnownAs : [`at://${migrateState.newHandle}`];
+            const newServices = creds.services || { atproto_pds: { type: 'AtprotoPersonalDataServer', endpoint: migrateState.newPds } };
+            const newEndpoint = newServices.atproto_pds && newServices.atproto_pds.endpoint;
+
+            // Resume support: if the identity already points at the new PDS's
+            // real endpoint, this step already succeeded in an earlier
+            // attempt - skip it rather than submitting a pointless (if
+            // harmless) second PLC operation, or worse, an OAuth cosign
+            // request for something that's already done.
+            const { didDocument: freshDoc } = await fetchDidPlcRecord(migrateState.did);
+            if (freshDoc.services && freshDoc.services.atproto_pds && freshDoc.services.atproto_pds.endpoint === newEndpoint) {
+                migrateState.didDocument = freshDoc;
+                return;
+            }
 
             if (migrateState.heldKeyRegistered) {
                 await submitMigratePlcUpdate((didDocument) => ({
                     verificationMethods: { ...didDocument.verificationMethods, atproto: newSigningKey },
-                    services: { ...didDocument.services, atproto_pds: { type: 'AtprotoPersonalDataServer', endpoint: migrateState.newPds } },
+                    services: { ...didDocument.services, ...newServices },
                     alsoKnownAs: newAlsoKnownAs,
                 }));
             } else {
@@ -3580,7 +3588,7 @@
                 // final operation too, same as the standard/goat-style flow.
                 await openOAuthPopup('final-cosign', {
                     pds: migrateState.oldPds, did: migrateState.did, handle: migrateState.handle,
-                    newSigningKey, newPdsEndpoint: migrateState.newPds, newHandle: migrateState.newHandle,
+                    newSigningKey, newPdsEndpoint: newEndpoint, newHandle: migrateState.newHandle,
                 });
             }
         }
@@ -4762,12 +4770,22 @@
                 if (status) {
                     status.innerHTML = '<div class="status success">preparing DID update...</div>';
                 }
+                // recommended.services is the PDS's own recommended endpoint,
+                // which on an entryway setup (many PDSes behind one shared
+                // hostname the user actually typed, e.g. bsky.social) is a
+                // different, real per-account hostname - initialOperation's
+                // services was only ever a placeholder built from the typed
+                // endpoint before this account (and its real endpoint) even
+                // existed, and needs correcting here just like the signing key.
+                const newServices = recommended.services || initialOperation.services;
+                const newEndpoint = newServices?.atproto_pds?.endpoint;
                 const updateOperation = {
                     ...initialOperation,
                     prev: await getLastOperationCid(didPlcId),
                     verificationMethods: {
                         atproto: pdsVerificationMethod
-                    }
+                    },
+                    services: newServices
                 };
                 const signedUpdate = await signDidPlcOperation(updateOperation, currentKey);
                 const verificationResult = await verifyDidPlcOperation(signedUpdate);
@@ -4776,16 +4794,18 @@
                 }
 
                 // Step 5: Submit the update, handing #atproto over to the PDS's
-                // real signing key. Skip if a previous attempt already did this -
-                // getRecommendedDidCredentials always reflects the account's
-                // actual current key, so on a resumed run pdsVerificationMethod
-                // above already equals whatever's published, making this check
-                // reliable (unlike the old reserveSigningKey-based version).
+                // real signing key and endpoint. Skip if a previous attempt
+                // already did this - getRecommendedDidCredentials always
+                // reflects the account's actual current key/endpoint, so on a
+                // resumed run pdsVerificationMethod/newEndpoint above already
+                // equal whatever's published, making this check reliable
+                // (unlike the old reserveSigningKey-based version).
                 if (status) {
                     status.innerHTML = '<div class="status success">submitting DID update...</div>';
                 }
                 const currentDoc = await fetchDidPlcRecord(didPlcId).catch(() => null);
-                const alreadySubmitted = currentDoc?.didDocument?.verificationMethods?.atproto === pdsVerificationMethod;
+                const alreadySubmitted = currentDoc?.didDocument?.verificationMethods?.atproto === pdsVerificationMethod
+                    && currentDoc?.didDocument?.services?.atproto_pds?.endpoint === newEndpoint;
                 if (alreadySubmitted) {
                     console.log('DID update was already submitted in a previous attempt, skipping');
                 } else {
