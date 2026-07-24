@@ -2800,7 +2800,8 @@
                 // Toggle key generation sections visibility
                 toggleKeyGenerationSections();
 
-                if (status) status.innerHTML = '<div class="status success">keypair restored</div>';
+                // No status message here - the header switching straight to
+                // showing the key is feedback enough for this screen.
 
             } catch (error) {
                 console.error('Error restoring from mnemonic:', error);
@@ -2842,6 +2843,8 @@
         // reverting to the original placeholder text.
         let headerIdleContent = document.getElementById('status-line')?.innerHTML || '';
         let showingTemporaryStatus = false;
+        let statusFadeTimeout;
+        let statusObserver = null;
 
         function truncateMiddle(str, headChars, tailChars) {
             if (str.length <= headChars + tailChars + 3) return str;
@@ -2859,13 +2862,33 @@
             return `<span class="status-idle status-idle-full">${key}</span><span class="status-idle status-idle-short">${short}</span>`;
         }
 
+        // Always applies immediately and wins over an in-progress temporary
+        // status, rather than silently queuing until that status's fade
+        // timer happens to fire (up to 10s later) - callers use this because
+        // they have something authoritative to show *now* (e.g. a key was
+        // just loaded), not because they're fine waiting.
+        //
+        // Disconnects the observer for this one write rather than marking it
+        // with a flag for the observer to notice and discard afterwards -
+        // when this is immediately followed by another synchronous write
+        // (e.g. a status message set right after loading a key, with no
+        // await in between), both mutations land in the same batch and the
+        // observer's callback only runs once for the pair. A flag set by the
+        // first write and checked once for the whole batch would make the
+        // observer discard *both* mutations - including the second, genuine
+        // temporary status - and never arm the fade timer at all. Since the
+        // observer is fully detached during this write, it can't see it or
+        // batch it with anything, no matter what runs immediately after.
         function setHeaderIdleContent(html) {
             headerIdleContent = html;
-            if (showingTemporaryStatus) return;
+            showingTemporaryStatus = false;
+            clearTimeout(statusFadeTimeout);
             const statusLineEl = document.getElementById('status-line');
             if (!statusLineEl) return;
-            statusLineEl.dataset.idleWrite = '1';
+            if (statusObserver) statusObserver.disconnect();
+            statusLineEl.style.opacity = '1';
             statusLineEl.innerHTML = html;
+            if (statusObserver) statusObserver.observe(statusLineEl, { childList: true, subtree: true, characterData: true });
         }
 
         // Fades the status line out ~10s after it's updated, then restores
@@ -2875,28 +2898,22 @@
         (function watchStatusLine() {
             const statusLineEl = document.getElementById('status-line');
             if (!statusLineEl) return;
-            let fadeTimeout;
-            const observer = new MutationObserver(() => {
-                // Our own restore of idle content shouldn't be treated as a
-                // fresh temporary status - skip it and clear the marker.
-                if (statusLineEl.dataset.idleWrite) {
-                    delete statusLineEl.dataset.idleWrite;
-                    return;
-                }
+            statusObserver = new MutationObserver(() => {
                 showingTemporaryStatus = true;
-                clearTimeout(fadeTimeout);
+                clearTimeout(statusFadeTimeout);
                 statusLineEl.style.opacity = '1';
-                fadeTimeout = setTimeout(() => {
+                statusFadeTimeout = setTimeout(() => {
                     statusLineEl.style.opacity = '0';
                     setTimeout(() => {
-                        statusLineEl.dataset.idleWrite = '1';
+                        statusObserver.disconnect();
                         statusLineEl.innerHTML = headerIdleContent;
+                        statusObserver.observe(statusLineEl, { childList: true, subtree: true, characterData: true });
                         statusLineEl.style.opacity = '1';
                         showingTemporaryStatus = false;
                     }, 800);
                 }, 10000);
             });
-            observer.observe(statusLineEl, { childList: true, subtree: true, characterData: true });
+            statusObserver.observe(statusLineEl, { childList: true, subtree: true, characterData: true });
         })();
         // Make functions globally accessible for onclick handlers
         window.generateKey = generateKey;
