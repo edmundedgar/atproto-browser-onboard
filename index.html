@@ -803,8 +803,6 @@
             <!-- Key Generation Tab -->
             <div class="tab-pane active" id="keygen-pane">
 
-        <div class="key-display hidden" id="keyDisplay">No key generated yet</div>
-
         <div class="did-key-display hidden" id="didKeyDisplay">
             <div class="box-header">
                 <h3>Key</h3>
@@ -2572,7 +2570,6 @@
 
 
         async function generateKey() {
-            const keyDisplay = document.getElementById('keyDisplay');
             const mnemonicDisplay = document.getElementById('mnemonicDisplay');
             const mnemonicText = document.getElementById('mnemonicText');
             const didKeyDisplay = document.getElementById('didKeyDisplay');
@@ -2586,7 +2583,6 @@
                 // Show loading state
                 if (generateBtn) generateBtn.disabled = true;
                 if (generateBtn) generateBtn.textContent = 'Generating...';
-                if (keyDisplay) keyDisplay.textContent = 'Generating secure random key, mnemonic, and public key...';
                 if (mnemonicDisplay) mnemonicDisplay.classList.add('hidden');
                 if (status) status.innerHTML = '';
 
@@ -2608,10 +2604,6 @@
                 // Generate DID key
                 currentDidKey = generateDidKey(currentPublicKey);
 
-                // Display the key
-                if (keyDisplay) keyDisplay.textContent = currentKey;
-                if (keyDisplay) keyDisplay.classList.add('has-key');
-                
                 // Display the mnemonic
                 if (mnemonicText) mnemonicText.textContent = currentMnemonic;
                 if (mnemonicDisplay) mnemonicDisplay.classList.remove('hidden');
@@ -2646,8 +2638,6 @@
                 if (status) {
                     status.replaceChildren(statusBlock('error', "couldn't generate a key — try again"));
                 }
-                if (keyDisplay) keyDisplay.textContent = `couldn't generate a key — try again`;
-                if (keyDisplay) keyDisplay.classList.remove('has-key');
                 if (mnemonicDisplay) mnemonicDisplay.classList.add('hidden');
                 if (didKeyDisplay) didKeyDisplay.classList.add('hidden');
             } finally {
@@ -2734,7 +2724,6 @@
 
         async function restoreFromMnemonic() {
             const mnemonicInput = document.getElementById('mnemonicInput');
-            const keyDisplay = document.getElementById('keyDisplay');
             const mnemonicDisplay = document.getElementById('mnemonicDisplay');
             const mnemonicText = document.getElementById('mnemonicText');
             const didKeyDisplay = document.getElementById('didKeyDisplay');
@@ -2785,10 +2774,6 @@
                 currentPublicKey = restoredPublicKey;
                 currentDidKey = restoredDidKey;
 
-                // Display the restored key
-                if (keyDisplay) keyDisplay.textContent = currentKey;
-                if (keyDisplay) keyDisplay.classList.add('has-key');
-                
                 // Display the mnemonic
                 if (mnemonicText) mnemonicText.textContent = currentMnemonic;
                 if (mnemonicDisplay) mnemonicDisplay.classList.remove('hidden');
@@ -2819,8 +2804,6 @@
             } catch (error) {
                 console.error('Error restoring from mnemonic:', error);
                 if (status) status.replaceChildren(statusBlock('error', error.message));
-                if (keyDisplay) keyDisplay.textContent = 'Error restoring key. Please check your mnemonic phrase.';
-                if (keyDisplay) keyDisplay.classList.remove('has-key');
                 if (mnemonicDisplay) mnemonicDisplay.classList.add('hidden');
                 if (didKeyDisplay) didKeyDisplay.classList.add('hidden');
             } finally {
@@ -4981,10 +4964,9 @@
 
         // Check if Web Crypto API is available
         if (!window.crypto || !window.crypto.getRandomValues) {
-            const keyDisplay = document.getElementById('keyDisplay');
             const generateBtn = document.getElementById('generateBtn');
-            if (keyDisplay) keyDisplay.textContent = 'Web Crypto API not supported in this browser';
             if (generateBtn) generateBtn.disabled = true;
+            setHeaderIdleContent(statusBlock('error', 'Web Crypto API not supported in this browser'));
         }
 
         // Run test case on page load
