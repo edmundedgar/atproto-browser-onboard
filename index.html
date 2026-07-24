@@ -658,7 +658,7 @@
             overflow: hidden;
             margin: 0 0 12px;
         }
-        .progress-bar { height: 100%; background: var(--amber); transition: width 0.2s ease; }
+        .progress-bar { width: 0; height: 100%; background: var(--amber); transition: width 0.2s ease; }
 
         /* Multi-line, boxed status messages for the Migrate tab, distinct
            from the shared single-line .status used elsewhere - migration has
@@ -733,6 +733,25 @@
            without a resize listener. */
         .status-idle-short { display: none; }
 
+        /* Class-based replacements for what used to be inline style=
+           attributes/properties, so style-src can drop 'unsafe-inline' in
+           the CSP. !important on .hidden means show/hide never needs to
+           know or restore each element's own display type (block vs flex
+           vary by element) - removing the class just lets the element's
+           own class(es) take over the cascade again. */
+        .hidden { display: none !important; }
+        .faded { opacity: 0; }
+        .optional-hint { opacity: .6; }
+        .flex-1 { flex: 1; }
+        .flex-row-8 { display: flex; gap: 8px; align-items: center; }
+        .at-symbol { font-size: 16px; color: var(--text-dim); }
+        .mt-16 { margin-top: 16px; }
+        .flex-shrink-0 { flex-shrink: 0; }
+        .eth-ready-note { color: #28a745; font-weight: bold; padding: 12px; }
+        .social-import-checking { color: #a0a0a0; }
+        .social-import-found { color: #00ff88; }
+        .social-import-not-found { color: #ff4444; }
+
         @media (max-width: 640px) {
             .status-idle-full { display: none; }
             .status-idle-short { display: inline; }
@@ -784,9 +803,9 @@
             <!-- Key Generation Tab -->
             <div class="tab-pane active" id="keygen-pane">
 
-        <div class="key-display" id="keyDisplay" style="display: none;">No key generated yet</div>
+        <div class="key-display hidden" id="keyDisplay">No key generated yet</div>
 
-        <div class="did-key-display" id="didKeyDisplay" style="display: none;">
+        <div class="did-key-display hidden" id="didKeyDisplay">
             <div class="box-header">
                 <h3>Key</h3>
                 <button class="copy-icon" id="copyDidKeyBtn" title="Copy DID:Key to clipboard">📋</button>
@@ -795,7 +814,7 @@
         </div>
 
 
-        <div class="mnemonic-display" id="mnemonicDisplay" style="display: none;">
+        <div class="mnemonic-display hidden" id="mnemonicDisplay">
             <div class="box-header">
                 <h3>Secret Key Phrase</h3>
                 <button class="copy-icon" id="copyMnemonicBtn" title="Copy mnemonic to clipboard">📋</button>
@@ -803,7 +822,7 @@
             <div class="mnemonic-text" id="mnemonicText"></div>
         </div>
 
-        <div class="confirm-seed-section" id="confirmSeedSection" style="display: none;">
+        <div class="confirm-seed-section hidden" id="confirmSeedSection">
             <button class="generate-btn" id="confirmSeedBtn">I have written down this seed phrase</button>
         </div>
 
@@ -837,16 +856,13 @@
             </div>
         </div>
 
-        <div class="clear-key-section" id="clearKeySection" style="display: none;">
+        <div class="clear-key-section hidden" id="clearKeySection">
             <button class="clear-btn" id="clearKeyBtn">
                 Clear current key
             </button>
         </div>
-
-        
-        <div class="status" style="display: none;"></div>
             </div>
-            
+
             <!-- Create Account Tab -->
             <div class="tab-pane" id="createaccount-pane">
                 <div class="plc-form-container">
@@ -859,10 +875,10 @@
 
                             <div class="form-group">
                                 <label for="account-handle">handle</label>
-                                <div style="display: flex; gap: 8px; align-items: center;">
-                                    <input type="text" id="account-handle-subdomain" name="handleSubdomain" placeholder="username" required style="flex: 1;">
-                                    <span style="font-size: 16px; color: var(--text-dim);">@</span>
-                                    <select id="account-handle-domain" name="handleDomain" required style="flex: 1;">
+                                <div class="flex-row-8">
+                                    <input type="text" id="account-handle-subdomain" name="handleSubdomain" placeholder="username" required class="flex-1">
+                                    <span class="at-symbol">@</span>
+                                    <select id="account-handle-domain" name="handleDomain" required class="flex-1">
                                         <option value="">Select domain...</option>
                                     </select>
                                 </div>
@@ -883,14 +899,14 @@
                             </div>
 
                             <div class="form-group">
-                                <label for="account-invite-code">invite code <span style="opacity: .6;">(optional)</span></label>
+                                <label for="account-invite-code">invite code <span class="optional-hint">(optional)</span></label>
                                 <input type="text" id="account-invite-code" name="inviteCode" placeholder="Enter invite code if required">
                             </div>
                         </div>
 
                         <div class="module">
                             <div class="form-group">
-                                <label for="social-import-username">picture &amp; bio from <span style="opacity: .6;">(optional)</span></label>
+                                <label for="social-import-username">picture &amp; bio from <span class="optional-hint">(optional)</span></label>
                                 <div class="social-import-group">
                                     <select id="social-import-platform" name="socialPlatform">
                                         <option value="farcaster">Farcaster</option>
@@ -902,7 +918,7 @@
                             </div>
                         </div>
 
-                        <div class="form-button-group" id="setup-eth-group" style="display: none;">
+                        <div class="form-button-group hidden" id="setup-eth-group">
                             <button type="button" class="submit-btn" id="setup-eth-btn">
                                 Set up .eth
                             </button>
@@ -918,7 +934,7 @@
                         </div>
                     </form>
                     
-                    <div class="plc-result" id="createaccount-result" style="display: none;">
+                    <div class="plc-result hidden" id="createaccount-result">
                         <h3>Account Created Successfully</h3>
                         <div class="plc-result-content" id="createaccount-result-content"></div>
                         <button class="copy-btn" id="copy-createaccount-result-btn">
@@ -926,8 +942,6 @@
                         </button>
                     </div>
                 </div>
-                
-                <div class="status" style="display: none;"></div>
             </div>
 
             <!-- Handle Tab -->
@@ -2573,7 +2587,7 @@
                 if (generateBtn) generateBtn.disabled = true;
                 if (generateBtn) generateBtn.textContent = 'Generating...';
                 if (keyDisplay) keyDisplay.textContent = 'Generating secure random key, mnemonic, and public key...';
-                if (mnemonicDisplay) mnemonicDisplay.style.display = 'none';
+                if (mnemonicDisplay) mnemonicDisplay.classList.add('hidden');
                 if (status) status.innerHTML = '';
 
                 // Generate 256 bits (32 bytes) of random data
@@ -2600,11 +2614,11 @@
                 
                 // Display the mnemonic
                 if (mnemonicText) mnemonicText.textContent = currentMnemonic;
-                if (mnemonicDisplay) mnemonicDisplay.style.display = 'block';
+                if (mnemonicDisplay) mnemonicDisplay.classList.remove('hidden');
                 
                 // Display the DID key
                 if (didKeyText) didKeyText.textContent = currentDidKey;
-                if (didKeyDisplay) didKeyDisplay.style.display = 'block';
+                if (didKeyDisplay) didKeyDisplay.classList.remove('hidden');
 
                 // Enable copy buttons
                 if (copyMnemonicBtn) copyMnemonicBtn.disabled = false;
@@ -2616,7 +2630,7 @@
                 // written down before the other tabs unlock.
                 seedPhraseConfirmed = false;
                 const confirmSeedSection = document.getElementById('confirmSeedSection');
-                if (confirmSeedSection) confirmSeedSection.style.display = 'block';
+                if (confirmSeedSection) confirmSeedSection.classList.remove('hidden');
 
                 // Update tab states to enable inactive tabs
                 updateTabStates();
@@ -2634,8 +2648,8 @@
                 }
                 if (keyDisplay) keyDisplay.textContent = `couldn't generate a key — try again`;
                 if (keyDisplay) keyDisplay.classList.remove('has-key');
-                if (mnemonicDisplay) mnemonicDisplay.style.display = 'none';
-                if (didKeyDisplay) didKeyDisplay.style.display = 'none';
+                if (mnemonicDisplay) mnemonicDisplay.classList.add('hidden');
+                if (didKeyDisplay) didKeyDisplay.classList.add('hidden');
             } finally {
                 if (generateBtn) generateBtn.disabled = false;
                 if (generateBtn) generateBtn.textContent = 'Generate key';
@@ -2777,11 +2791,11 @@
                 
                 // Display the mnemonic
                 if (mnemonicText) mnemonicText.textContent = currentMnemonic;
-                if (mnemonicDisplay) mnemonicDisplay.style.display = 'block';
+                if (mnemonicDisplay) mnemonicDisplay.classList.remove('hidden');
                 
                 // Display the DID key
                 if (didKeyText) didKeyText.textContent = currentDidKey;
-                if (didKeyDisplay) didKeyDisplay.style.display = 'block';
+                if (didKeyDisplay) didKeyDisplay.classList.remove('hidden');
 
                 // Enable copy buttons
                 if (copyMnemonicBtn) copyMnemonicBtn.disabled = false;
@@ -2807,8 +2821,8 @@
                 if (status) status.replaceChildren(statusBlock('error', error.message));
                 if (keyDisplay) keyDisplay.textContent = 'Error restoring key. Please check your mnemonic phrase.';
                 if (keyDisplay) keyDisplay.classList.remove('has-key');
-                if (mnemonicDisplay) mnemonicDisplay.style.display = 'none';
-                if (didKeyDisplay) didKeyDisplay.style.display = 'none';
+                if (mnemonicDisplay) mnemonicDisplay.classList.add('hidden');
+                if (didKeyDisplay) didKeyDisplay.classList.add('hidden');
             } finally {
                 if (restoreBtn) restoreBtn.disabled = false;
                 if (restoreBtn) restoreBtn.textContent = 'Restore key';
@@ -2885,7 +2899,7 @@
             const statusLineEl = document.getElementById('status-line');
             if (!statusLineEl) return;
             if (statusObserver) statusObserver.disconnect();
-            statusLineEl.style.opacity = '1';
+            statusLineEl.classList.remove('faded');
             statusLineEl.innerHTML = html;
             if (statusObserver) statusObserver.observe(statusLineEl, { childList: true, subtree: true, characterData: true });
         }
@@ -2900,14 +2914,14 @@
             statusObserver = new MutationObserver(() => {
                 showingTemporaryStatus = true;
                 clearTimeout(statusFadeTimeout);
-                statusLineEl.style.opacity = '1';
+                statusLineEl.classList.remove('faded');
                 statusFadeTimeout = setTimeout(() => {
-                    statusLineEl.style.opacity = '0';
+                    statusLineEl.classList.add('faded');
                     setTimeout(() => {
                         statusObserver.disconnect();
                         statusLineEl.innerHTML = headerIdleContent;
                         statusObserver.observe(statusLineEl, { childList: true, subtree: true, characterData: true });
-                        statusLineEl.style.opacity = '1';
+                        statusLineEl.classList.remove('faded');
                         showingTemporaryStatus = false;
                     }, 800);
                 }, 10000);
@@ -2948,7 +2962,7 @@
         if (confirmSeedBtn) confirmSeedBtn.addEventListener('click', () => {
             seedPhraseConfirmed = true;
             const confirmSeedSection = document.getElementById('confirmSeedSection');
-            if (confirmSeedSection) confirmSeedSection.style.display = 'none';
+            if (confirmSeedSection) confirmSeedSection.classList.add('hidden');
             updateTabStates();
         });
 
@@ -3317,7 +3331,7 @@
                 <div class="form-group"><label for="migrate-new-handle">handle</label><input type="text" id="migrate-new-handle" placeholder="alice.example.com"></div>
                 <div class="form-group"><label for="migrate-new-email">email</label><input type="email" id="migrate-new-email"></div>
                 <div class="form-group"><label for="migrate-new-password">password</label><input type="password" id="migrate-new-password"></div>
-                <div class="form-group"><label for="migrate-new-invite">invite code <span style="opacity: .6;">(optional)</span></label><input type="text" id="migrate-new-invite"></div>
+                <div class="form-group"><label for="migrate-new-invite">invite code <span class="optional-hint">(optional)</span></label><input type="text" id="migrate-new-invite"></div>
                 <div class="form-button-group">
                     <button type="button" class="submit-btn" id="migrate-start-btn">Start migration</button>
                 </div>
@@ -3346,7 +3360,7 @@
             if (!el) {
                 const section = document.createElement('div');
                 section.className = 'module migration-progress-section';
-                section.innerHTML = `<h2>migration</h2><ul class="step-list" id="migrate-step-list"></ul><div class="progress" id="migrate-blob-progress" style="display:none"><div class="progress-bar" id="migrate-blob-progress-bar" style="width:0%"></div></div><div id="migrate-migration-status"></div>`;
+                section.innerHTML = `<h2>migration</h2><ul class="step-list" id="migrate-step-list"></ul><div class="progress hidden" id="migrate-blob-progress"><div class="progress-bar" id="migrate-blob-progress-bar"></div></div><div id="migrate-migration-status"></div>`;
                 migrateContentDiv.appendChild(section);
                 el = document.getElementById('migrate-step-list');
             }
@@ -3404,7 +3418,7 @@
 
                 renderMigrateStepList('blobs');
                 if (!samePds) {
-                    document.getElementById('migrate-blob-progress').style.display = 'block';
+                    document.getElementById('migrate-blob-progress').classList.remove('hidden');
                     await transferMigrateBlobs();
                 }
 
@@ -3768,10 +3782,10 @@
             section.innerHTML = `
                 <h2>rotation keys</h2>
                 <div id="control-key-list"></div>
-                <div class="form-group" style="margin-top: 16px;">
-                    <div style="display: flex; gap: 8px;">
+                <div class="form-group mt-16">
+                    <div class="flex-row-8">
                         <input type="text" id="control-add-key-input" placeholder="did:key:...">
-                        <button type="button" class="submit-btn" id="control-add-key-btn" style="flex-shrink: 0;">Add</button>
+                        <button type="button" class="submit-btn flex-shrink-0" id="control-add-key-btn">Add</button>
                     </div>
                 </div>
                 <div id="control-edit-status"></div>
@@ -4130,12 +4144,12 @@
             
             if (hasKey) {
                 // Hide key generation section, show clear button
-                if (keyGenerationSection) keyGenerationSection.style.display = 'none';
-                if (clearKeySection) clearKeySection.style.display = 'flex';
+                if (keyGenerationSection) keyGenerationSection.classList.add('hidden');
+                if (clearKeySection) clearKeySection.classList.remove('hidden');
             } else {
                 // Show key generation section, hide clear button
-                if (keyGenerationSection) keyGenerationSection.style.display = 'block';
-                if (clearKeySection) clearKeySection.style.display = 'none';
+                if (keyGenerationSection) keyGenerationSection.classList.remove('hidden');
+                if (clearKeySection) clearKeySection.classList.add('hidden');
             }
         }
 
@@ -4151,9 +4165,9 @@
             const mnemonicDisplay = document.getElementById('mnemonicDisplay');
             const confirmSeedSection = document.getElementById('confirmSeedSection');
 
-            if (didKeyDisplay) didKeyDisplay.style.display = 'none';
-            if (mnemonicDisplay) mnemonicDisplay.style.display = 'none';
-            if (confirmSeedSection) confirmSeedSection.style.display = 'none';
+            if (didKeyDisplay) didKeyDisplay.classList.add('hidden');
+            if (mnemonicDisplay) mnemonicDisplay.classList.add('hidden');
+            if (confirmSeedSection) confirmSeedSection.classList.add('hidden');
             seedPhraseConfirmed = true;
             
             // Clear mnemonic input
@@ -4178,26 +4192,32 @@
         let socialImportCheckTimeout;
         let socialImportCheckSeq = 0;
 
+        // cls is null to fall back to .form-help's own default color.
+        function setSocialImportStatusClass(cls) {
+            socialImportCheckStatus.classList.remove('social-import-checking', 'social-import-found', 'social-import-not-found');
+            if (cls) socialImportCheckStatus.classList.add(cls);
+        }
+
         async function checkSocialImport() {
             if (!socialImportCheckStatus) return;
             const username = socialImportUsername.value.trim();
             if (!username) {
                 socialImportCheckStatus.textContent = socialImportDefaultHelp;
-                socialImportCheckStatus.style.color = '';
+                setSocialImportStatusClass(null);
                 return;
             }
             const seq = ++socialImportCheckSeq;
             socialImportCheckStatus.textContent = 'Checking...';
-            socialImportCheckStatus.style.color = '#a0a0a0';
+            setSocialImportStatusClass('social-import-checking');
             try {
                 const profile = await fetchSocialProfile(socialImportPlatform.value, username);
                 if (seq !== socialImportCheckSeq) return;
                 socialImportCheckStatus.textContent = `Found: ${profile.bio || '(no bio set)'}`;
-                socialImportCheckStatus.style.color = '#00ff88';
+                setSocialImportStatusClass('social-import-found');
             } catch (error) {
                 if (seq !== socialImportCheckSeq) return;
                 socialImportCheckStatus.textContent = `Not found: ${error.message}`;
-                socialImportCheckStatus.style.color = '#ff4444';
+                setSocialImportStatusClass('social-import-not-found');
             }
         }
 
@@ -4321,7 +4341,7 @@
             if (isEthLink) {
                 // Show "Set up .eth" button and disable Create Account
                 if (setupEthGroup) {
-                    setupEthGroup.style.display = 'block';
+                    setupEthGroup.classList.remove('hidden');
                     // Reset to button (in case it was changed to success message)
                     if (!setupEthGroup.querySelector('button')) {
                         setupEthGroup.innerHTML = '<button type="button" class="submit-btn" id="setup-eth-btn">Set up .eth</button>';
@@ -4334,7 +4354,7 @@
                 if (submitCreateAccountBtn) submitCreateAccountBtn.disabled = true;
             } else {
                 // Hide "Set up .eth" button and enable Create Account
-                if (setupEthGroup) setupEthGroup.style.display = 'none';
+                if (setupEthGroup) setupEthGroup.classList.add('hidden');
                 if (submitCreateAccountBtn) submitCreateAccountBtn.disabled = false;
             }
         }
@@ -4375,7 +4395,7 @@
                         
                         // Replace button with success message
                         if (setupEthGroup) {
-                            setupEthGroup.innerHTML = '<div style="color: #28a745; font-weight: bold; padding: 12px;">.eth.link address ready</div>';
+                            setupEthGroup.innerHTML = '<div class="eth-ready-note">.eth.link address ready</div>';
                         }
                         
                         // Enable Create Account button
@@ -4944,7 +4964,7 @@
                     // Trigger change event to reset UI state
                     handleDomainChange();
                 }
-                if (createaccountResult) createaccountResult.style.display = 'none';
+                if (createaccountResult) createaccountResult.classList.add('hidden');
                 const status = getCurrentStatusElement();
                 if (status) {
                     status.innerHTML = '';
