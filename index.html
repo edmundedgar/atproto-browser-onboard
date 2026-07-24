@@ -2603,6 +2603,8 @@
                 if (copyMnemonicBtn) copyMnemonicBtn.disabled = false;
                 if (copyDidKeyBtn) copyDidKeyBtn.disabled = false;
 
+                setHeaderIdleContent(`<span class="status-idle">${currentDidKey}</span>`);
+
                 // A freshly generated key needs its seed phrase confirmed
                 // written down before the other tabs unlock.
                 seedPhraseConfirmed = false;
@@ -2778,6 +2780,8 @@
                 // Enable copy buttons
                 if (copyMnemonicBtn) copyMnemonicBtn.disabled = false;
                 if (copyDidKeyBtn) copyDidKeyBtn.disabled = false;
+
+                setHeaderIdleContent(`<span class="status-idle">${currentDidKey}</span>`);
 
                 // Restoring an existing key skips the write-it-down
                 // confirmation - there's nothing new to lose track of.
@@ -4091,10 +4095,9 @@
             // Update UI
             toggleKeyGenerationSections();
             updateTabStates();
-            
-            // Clear status
-            const status = getCurrentStatusElement();
-            if (status) status.innerHTML = '';
+
+            // No key loaded any more - back to the original placeholder.
+            setHeaderIdleContent('self-sovereign identity');
         }
 
         // Live-check the social import fields as the user types: fetches the
