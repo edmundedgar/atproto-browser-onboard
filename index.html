@@ -2630,7 +2630,7 @@
             } catch (error) {
                 console.error('Error generating key:', error);
                 if (status) {
-                    status.innerHTML = `<div class="status error">couldn't generate a key — try again</div>`;
+                    status.replaceChildren(statusBlock('error', "couldn't generate a key — try again"));
                 }
                 if (keyDisplay) keyDisplay.textContent = `couldn't generate a key — try again`;
                 if (keyDisplay) keyDisplay.classList.remove('has-key');
@@ -2649,7 +2649,7 @@
                 await navigator.clipboard.writeText(currentKey);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status success">copied</div>';
+                    status.replaceChildren(statusBlock('success', 'copied'));
                 }
                 
                 // Clear status after 3 seconds
@@ -2662,7 +2662,7 @@
                 console.error('Error copying to clipboard:', error);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status error">copy failed</div>';
+                    status.replaceChildren(statusBlock('error', 'copy failed'));
                 }
             }
         }
@@ -2674,7 +2674,7 @@
                 await navigator.clipboard.writeText(currentMnemonic);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status success">copied</div>';
+                    status.replaceChildren(statusBlock('success', 'copied'));
                 }
                 
                 // Clear status after 3 seconds
@@ -2687,7 +2687,7 @@
                 console.error('Error copying mnemonic to clipboard:', error);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status error">copy failed</div>';
+                    status.replaceChildren(statusBlock('error', 'copy failed'));
                 }
             }
         }
@@ -2700,7 +2700,7 @@
                 await navigator.clipboard.writeText(currentDidKey);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status success">copied</div>';
+                    status.replaceChildren(statusBlock('success', 'copied'));
                 }
                 
                 // Clear status after 3 seconds
@@ -2713,7 +2713,7 @@
                 console.error('Error copying DID key to clipboard:', error);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status error">copy failed</div>';
+                    status.replaceChildren(statusBlock('error', 'copy failed'));
                 }
             }
         }
@@ -2734,7 +2734,7 @@
 
             if (!inputMnemonic) {
                 if (status) {
-                    status.innerHTML = '<div class="status error">enter a seed phrase first</div>';
+                    status.replaceChildren(statusBlock('error', 'enter a seed phrase first'));
                 }
                 return;
             }
@@ -2804,7 +2804,7 @@
 
             } catch (error) {
                 console.error('Error restoring from mnemonic:', error);
-                if (status) status.innerHTML = `<div class="status error">${error.message}</div>`;
+                if (status) status.replaceChildren(statusBlock('error', error.message));
                 if (keyDisplay) keyDisplay.textContent = 'Error restoring key. Please check your mnemonic phrase.';
                 if (keyDisplay) keyDisplay.classList.remove('has-key');
                 if (mnemonicDisplay) mnemonicDisplay.style.display = 'none';
@@ -2966,8 +2966,29 @@
             div.textContent = str ?? '';
             return div.innerHTML;
         }
+
+        // Builds a status box as a real DOM node - via textContent, never
+        // HTML-parsed - so dynamic text (including raw error strings from a
+        // PDS, which for this app is effectively attacker-controlled) can
+        // never be interpreted as markup, regardless of what it contains.
+        // This replaces the innerHTML-template-plus-escapeHtml() pattern for
+        // all status rendering: that pattern only stays safe if every call
+        // site remembers to escape, which is exactly the kind of thing that
+        // eventually doesn't happen (a few direct innerHTML writes elsewhere
+        // in this app didn't, before this).
+        function buildStatusEl(containerClass, modifierClass, text) {
+            const div = document.createElement('div');
+            div.className = `${containerClass} ${modifierClass}`;
+            div.textContent = text;
+            return div;
+        }
         function migrateStatusBlock(cls, text) {
-            return `<div class="migrate-status-box ${cls}">${escapeHtml(text)}</div>`;
+            return buildStatusEl('migrate-status-box', cls, text);
+        }
+        // Same idea as migrateStatusBlock, for the older .status convention
+        // used by the Key/Account/eth-setup flows.
+        function statusBlock(cls, text) {
+            return buildStatusEl('status', cls, text);
         }
 
         const migrateContentDiv = document.getElementById('migrate-content');
@@ -3154,7 +3175,7 @@
 
         async function loadMigrateAccountState() {
             const status = document.getElementById('migrate-lookup-status');
-            status.innerHTML = migrateStatusBlock('loading', 'Resolving handle...');
+            status.replaceChildren(migrateStatusBlock('loading', 'Resolving handle...'));
             try {
                 const handle = document.getElementById('migrate-old-handle').value.trim();
                 if (!handle) throw new Error('Enter the handle to migrate.');
@@ -3167,10 +3188,10 @@
                 migrateState.oldPdsReachable = account.reachable;
                 migrateSessionActive = false; // a prior session, if any, was scoped to a different account
 
-                status.innerHTML = migrateStatusBlock('success', `Found ${account.did} on ${account.pds} — ${account.reachable ? 'reachable' : 'NOT reachable'}.`);
+                status.replaceChildren(migrateStatusBlock('success', `Found ${account.did} on ${account.pds} — ${account.reachable ? 'reachable' : 'NOT reachable'}.`));
                 renderMigrateTakeControlOrProceed();
             } catch (error) {
-                status.innerHTML = migrateStatusBlock('error', error.message);
+                status.replaceChildren(migrateStatusBlock('error', error.message));
             }
         }
 
@@ -3214,18 +3235,18 @@
 
         async function runMigrateTakeControl() {
             const status = document.getElementById('migrate-take-control-status');
-            status.innerHTML = migrateStatusBlock('loading', 'Opening sign-in window...');
+            status.replaceChildren(migrateStatusBlock('loading', 'Opening sign-in window...'));
             try {
                 await openOAuthPopup('take-control', {
                     pds: migrateState.oldPds, did: migrateState.did, handle: migrateState.handle, pubkey: currentDidKey,
                 });
-                status.innerHTML = migrateStatusBlock('loading', 'Verifying...');
+                status.replaceChildren(migrateStatusBlock('loading', 'Verifying...'));
                 await refreshMigrateDidDocument();
                 if (!migrateState.heldKeyRegistered) throw new Error('The DID document does not show the new key yet - it may not have propagated. Try again in a moment.');
-                status.innerHTML = migrateStatusBlock('success', 'Key added and independently verified against plc.directory.');
+                status.replaceChildren(migrateStatusBlock('success', 'Key added and independently verified against plc.directory.'));
                 renderMigrateAuthorizeOrProceed();
             } catch (error) {
-                status.innerHTML = migrateStatusBlock('error', error.message);
+                status.replaceChildren(migrateStatusBlock('error', error.message));
             }
         }
 
@@ -3271,16 +3292,16 @@
 
         async function runMigrateAuthorize() {
             const status = document.getElementById('migrate-authorize-status');
-            status.innerHTML = migrateStatusBlock('loading', 'Opening sign-in window...');
+            status.replaceChildren(migrateStatusBlock('loading', 'Opening sign-in window...'));
             try {
                 await openOAuthPopup('migration-session', {
                     pds: migrateState.oldPds, did: migrateState.did, handle: migrateState.handle,
                 });
                 migrateSessionActive = true;
-                status.innerHTML = migrateStatusBlock('success', 'Authorized. Leave that window open until the migration finishes.');
+                status.replaceChildren(migrateStatusBlock('success', 'Authorized. Leave that window open until the migration finishes.'));
                 renderMigrateNewPdsSection();
             } catch (error) {
-                status.innerHTML = migrateStatusBlock('error', error.message);
+                status.replaceChildren(migrateStatusBlock('error', error.message));
             }
         }
 
@@ -3348,13 +3369,13 @@
 
             const newPdsStatus = document.getElementById('migrate-new-pds-status');
             if (!migrateState.newPds || !migrateState.newHandle || !migrateState.newEmail || !migrateState.newPassword) {
-                newPdsStatus.innerHTML = migrateStatusBlock('error', 'Fill in all required new-PDS fields.');
+                newPdsStatus.replaceChildren(migrateStatusBlock('error', 'Fill in all required new-PDS fields.'));
                 return;
             }
             newPdsStatus.innerHTML = '';
             migrateState.mode = migrateState.oldPdsReachable ? 'cooperative' : 'adversarial';
             if (migrateState.mode === 'adversarial' && !migrateState.heldKeyRegistered) {
-                newPdsStatus.innerHTML = migrateStatusBlock('error', 'Old PDS is unreachable and no self-held key is registered - cannot migrate.');
+                newPdsStatus.replaceChildren(migrateStatusBlock('error', 'Old PDS is unreachable and no self-held key is registered - cannot migrate.'));
                 return;
             }
 
@@ -3370,14 +3391,14 @@
             const samePds = migrateState.oldPds === migrateState.newPds;
             try {
                 renderMigrateStepList('create');
-                migrationStatus().innerHTML = migrateStatusBlock('loading', `Creating account on new PDS (${migrateState.mode} mode)...`);
+                migrationStatus().replaceChildren(migrateStatusBlock('loading', `Creating account on new PDS (${migrateState.mode} mode)...`));
                 await createAccountOnNewPds();
 
                 renderMigrateStepList('repo');
                 if (samePds) {
-                    migrationStatus().innerHTML = migrateStatusBlock('loading', 'Old and new PDS are the same account - skipping repo transfer...');
+                    migrationStatus().replaceChildren(migrateStatusBlock('loading', 'Old and new PDS are the same account - skipping repo transfer...'));
                 } else {
-                    migrationStatus().innerHTML = migrateStatusBlock('loading', 'Transferring repo...');
+                    migrationStatus().replaceChildren(migrateStatusBlock('loading', 'Transferring repo...'));
                     await transferMigrateRepo();
                 }
 
@@ -3389,16 +3410,16 @@
 
                 renderMigrateStepList('prefs');
                 if (!samePds) {
-                    migrationStatus().innerHTML = migrateStatusBlock('loading', 'Transferring preferences...');
+                    migrationStatus().replaceChildren(migrateStatusBlock('loading', 'Transferring preferences...'));
                     await transferMigratePrefs();
                 }
 
                 renderMigrateStepList('identity');
-                migrationStatus().innerHTML = migrateStatusBlock('loading', 'Updating identity (this is the point of no return for the old PDS serving this account)...');
+                migrationStatus().replaceChildren(migrateStatusBlock('loading', 'Updating identity (this is the point of no return for the old PDS serving this account)...'));
                 await updateMigrateIdentity();
 
                 renderMigrateStepList('activate');
-                migrationStatus().innerHTML = migrateStatusBlock('loading', 'Activating new account...');
+                migrationStatus().replaceChildren(migrateStatusBlock('loading', 'Activating new account...'));
                 await migrateActivateAccount(migrateState.newPds, migrateState.newAccessJwt);
                 migrateState.activated = true;
 
@@ -3409,20 +3430,20 @@
                     // would just undo the activation above.
                     deactivateResult = { deactivated: true, skipped: true };
                 } else {
-                    migrationStatus().innerHTML = migrateStatusBlock('loading', 'Deactivating old account...');
+                    migrationStatus().replaceChildren(migrateStatusBlock('loading', 'Deactivating old account...'));
                     deactivateResult = await deactivateMigrateOldAccount();
                 }
 
                 renderMigrateStepList('ALL_DONE');
-                migrationStatus().innerHTML = deactivateResult.skipped
+                migrationStatus().replaceChildren(deactivateResult.skipped
                     ? migrateStatusBlock('success', 'Migration complete (old and new PDS were the same account, so there was nothing separate to deactivate). Verify the new account looks right, then run cleanup below when ready.')
                     : deactivateResult.deactivated
                     ? migrateStatusBlock('success', 'Migration complete. Verify the new account looks right, then run cleanup below when ready.')
-                    : migrateStatusBlock('success', `Migration complete, but the old account could not be deactivated automatically (${deactivateResult.error}). You may need to deactivate it yourself via the old PDS. Verify the new account looks right, then run cleanup below when ready.`);
+                    : migrateStatusBlock('success', `Migration complete, but the old account could not be deactivated automatically (${deactivateResult.error}). You may need to deactivate it yourself via the old PDS. Verify the new account looks right, then run cleanup below when ready.`));
                 renderMigrateCleanupSection();
             } catch (error) {
                 renderMigrateStepList(null, migrateCurrentStepKey);
-                migrationStatus().innerHTML = migrateStatusBlock('error', error.message);
+                migrationStatus().replaceChildren(migrateStatusBlock('error', error.message));
             } finally {
                 if (migrateSessionActive) {
                     migrateResultChannel.postMessage({ type: 'oauth-popup-session-close' });
@@ -3667,16 +3688,16 @@
 
         async function runMigrateCleanup() {
             const status = document.getElementById('migrate-cleanup-status');
-            status.innerHTML = migrateStatusBlock('loading', 'Submitting...');
+            status.replaceChildren(migrateStatusBlock('loading', 'Submitting...'));
             try {
                 await submitPlcUpdateForDid(migrateState.did, currentKey, (didDocument) => {
                     const remainingKeys = (didDocument.rotationKeys || []).filter((k) => k === currentDidKey);
                     if (remainingKeys.length === 0) throw new Error('Held key is not present in rotationKeys - refusing to proceed (would lock out the account).');
                     return { rotationKeys: remainingKeys };
                 });
-                status.innerHTML = migrateStatusBlock('success', 'Old PDS key(s) removed.');
+                status.replaceChildren(migrateStatusBlock('success', 'Old PDS key(s) removed.'));
             } catch (error) {
-                status.innerHTML = migrateStatusBlock('error', error.message);
+                status.replaceChildren(migrateStatusBlock('error', error.message));
             }
         }
 
@@ -3720,7 +3741,7 @@
 
         async function loadControlAccountState() {
             const status = document.getElementById('control-lookup-status');
-            status.innerHTML = migrateStatusBlock('loading', 'Resolving handle...');
+            status.replaceChildren(migrateStatusBlock('loading', 'Resolving handle...'));
             try {
                 const handle = document.getElementById('control-handle').value.trim();
                 if (!handle) throw new Error('Enter a handle.');
@@ -3733,10 +3754,10 @@
                 controlState.reachable = account.reachable;
                 controlWorkingKeys = [...(account.didDocument.rotationKeys || [])];
 
-                status.innerHTML = migrateStatusBlock('success', `Found ${account.did} on ${account.pds} — ${account.reachable ? 'reachable' : 'NOT reachable'}.`);
+                status.replaceChildren(migrateStatusBlock('success', `Found ${account.did} on ${account.pds} — ${account.reachable ? 'reachable' : 'NOT reachable'}.`));
                 renderControlKeysSection();
             } catch (error) {
-                status.innerHTML = migrateStatusBlock('error', error.message);
+                status.replaceChildren(migrateStatusBlock('error', error.message));
             }
         }
 
@@ -3832,11 +3853,11 @@
             const value = input.value.trim();
             const status = document.getElementById('control-edit-status');
             if (!value.startsWith('did:key:')) {
-                status.innerHTML = migrateStatusBlock('error', 'Rotation keys should look like did:key:...');
+                status.replaceChildren(migrateStatusBlock('error', 'Rotation keys should look like did:key:...'));
                 return;
             }
             if (controlWorkingKeys.includes(value)) {
-                status.innerHTML = migrateStatusBlock('error', 'That key is already in the list.');
+                status.replaceChildren(migrateStatusBlock('error', 'That key is already in the list.'));
                 return;
             }
             controlWorkingKeys.push(value);
@@ -3850,7 +3871,7 @@
             const saveBtn = document.getElementById('control-save-btn');
 
             if (controlWorkingKeys.length === 0) {
-                status.innerHTML = migrateStatusBlock('error', 'At least one rotation key is required.');
+                status.replaceChildren(migrateStatusBlock('error', 'At least one rotation key is required.'));
                 return;
             }
 
@@ -3860,13 +3881,13 @@
             const currentlyHeld = currentDidKey && (controlState.didDocument.rotationKeys || []).includes(currentDidKey);
             const removesHeldKey = currentlyHeld && !controlWorkingKeys.includes(currentDidKey);
             if (removesHeldKey && saveBtn.dataset.confirmed !== 'true') {
-                status.innerHTML = migrateStatusBlock('error', "This removes the key you currently hold - you won't be able to make further changes here afterwards. Click Save again to confirm.");
+                status.replaceChildren(migrateStatusBlock('error', "This removes the key you currently hold - you won't be able to make further changes here afterwards. Click Save again to confirm."));
                 saveBtn.dataset.confirmed = 'true';
                 return;
             }
             saveBtn.dataset.confirmed = 'false';
 
-            status.innerHTML = migrateStatusBlock('loading', 'Submitting...');
+            status.replaceChildren(migrateStatusBlock('loading', 'Submitting...'));
             try {
                 if (currentlyHeld) {
                     await submitPlcUpdateForDid(controlState.did, currentKey, () => ({ rotationKeys: controlWorkingKeys }));
@@ -3880,10 +3901,10 @@
                 controlState.didDocument = didDocument;
                 controlState.auditLog = auditLog;
                 controlWorkingKeys = [...(didDocument.rotationKeys || [])];
-                status.innerHTML = migrateStatusBlock('success', 'Rotation keys updated.');
+                status.replaceChildren(migrateStatusBlock('success', 'Rotation keys updated.'));
                 renderControlKeyList();
             } catch (error) {
-                status.innerHTML = migrateStatusBlock('error', error.message);
+                status.replaceChildren(migrateStatusBlock('error', error.message));
             }
         }
 
@@ -3909,7 +3930,7 @@
 
         async function loadHandleAccountState() {
             const status = document.getElementById('handle-lookup-status');
-            status.innerHTML = migrateStatusBlock('loading', 'Resolving handle...');
+            status.replaceChildren(migrateStatusBlock('loading', 'Resolving handle...'));
             try {
                 const handle = document.getElementById('handle-current-handle').value.trim();
                 if (!handle) throw new Error('Enter a handle.');
@@ -3921,10 +3942,10 @@
                 handleState.reachable = account.reachable;
                 handleState.heldKeyRegistered = !!currentDidKey && (account.didDocument.rotationKeys || []).includes(currentDidKey);
 
-                status.innerHTML = migrateStatusBlock('success', `Found ${account.did} on ${account.pds} — ${account.reachable ? 'reachable' : 'NOT reachable'}.`);
+                status.replaceChildren(migrateStatusBlock('success', `Found ${account.did} on ${account.pds} — ${account.reachable ? 'reachable' : 'NOT reachable'}.`));
                 renderHandleChangeSection();
             } catch (error) {
-                status.innerHTML = migrateStatusBlock('error', error.message);
+                status.replaceChildren(migrateStatusBlock('error', error.message));
             }
         }
 
@@ -3960,19 +3981,19 @@
             const password = document.getElementById('handle-password').value;
 
             if (!newHandle) {
-                status.innerHTML = migrateStatusBlock('error', 'Enter the new handle.');
+                status.replaceChildren(migrateStatusBlock('error', 'Enter the new handle.'));
                 return;
             }
             if (newHandle === handleState.handle) {
-                status.innerHTML = migrateStatusBlock('error', 'That is already the current handle.');
+                status.replaceChildren(migrateStatusBlock('error', 'That is already the current handle.'));
                 return;
             }
             if (!password) {
-                status.innerHTML = migrateStatusBlock('error', 'Enter the account password.');
+                status.replaceChildren(migrateStatusBlock('error', 'Enter the account password.'));
                 return;
             }
 
-            status.innerHTML = migrateStatusBlock('loading', 'Submitting...');
+            status.replaceChildren(migrateStatusBlock('loading', 'Submitting...'));
             try {
                 if (handleState.heldKeyRegistered) {
                     await submitPlcUpdateForDid(handleState.did, currentKey, (didDocument) => {
@@ -3982,20 +4003,20 @@
                     });
                 }
 
-                status.innerHTML = migrateStatusBlock('loading', 'Signing in to update the PDS record...');
+                status.replaceChildren(migrateStatusBlock('loading', 'Signing in to update the PDS record...'));
                 const login = await tryLoginToExistingAccount(handleState.pds, handleState.did, password);
                 if (!login.success) {
                     throw new Error("That password didn't work for this account.");
                 }
 
-                status.innerHTML = migrateStatusBlock('loading', 'Updating handle on the PDS...');
+                status.replaceChildren(migrateStatusBlock('loading', 'Updating handle on the PDS...'));
                 try {
                     await callUpdateHandle(handleState.pds, login.result.accessJwt, newHandle);
                 } catch (error) {
                     if (!handleState.heldKeyRegistered || !isHandleUpdateSignatureFailure(error.message)) {
                         throw error;
                     }
-                    status.innerHTML = migrateStatusBlock('loading', 'Updating handle (temporary workaround)...');
+                    status.replaceChildren(migrateStatusBlock('loading', 'Updating handle (temporary workaround)...'));
                     const creds = await getRecommendedDidCredentials(handleState.pds, login.result.accessJwt);
                     const pdsRotationKey = creds.rotationKeys?.find((k) => k !== currentDidKey);
                     if (!pdsRotationKey) {
@@ -4022,9 +4043,9 @@
                 // rebuilding, not before, or the fresh (empty) div replaces
                 // the one we just wrote to.
                 renderHandleChangeSection();
-                document.getElementById('handle-change-status').innerHTML = migrateStatusBlock('success', `Handle changed to ${newHandle}.`);
+                document.getElementById('handle-change-status').replaceChildren(migrateStatusBlock('success', `Handle changed to ${newHandle}.`));
             } catch (error) {
-                status.innerHTML = migrateStatusBlock('error', error.message);
+                status.replaceChildren(migrateStatusBlock('error', error.message));
             }
         }
 
@@ -4456,7 +4477,7 @@
             if (!currentKey) {
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status error">no key loaded — generate or restore one on the key tab first</div>';
+                    status.replaceChildren(statusBlock('error', 'no key loaded — generate or restore one on the key tab first'));
                 }
                 return;
             }
@@ -4473,7 +4494,7 @@
             if (!subdomain || !domain) {
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = '<div class="status error">enter a handle and choose a domain</div>';
+                    status.replaceChildren(statusBlock('error', 'enter a handle and choose a domain'));
                 }
                 return;
             }
@@ -4509,7 +4530,7 @@
                 console.error('Error calculating DID for .eth setup:', error);
                 const status = getCurrentStatusElement();
                 if (status) {
-                    status.innerHTML = `<div class="status error">couldn't calculate DID: ${error.message}</div>`;
+                    status.replaceChildren(statusBlock('error', `couldn't calculate DID: ${error.message}`));
                 }
             }
         }
@@ -4621,7 +4642,7 @@
             // Check if a private key has been generated or loaded
             if (!currentKey) {
                 if (status) {
-                    status.innerHTML = '<div class="status error">no key loaded — generate or restore one on the key tab first</div>';
+                    status.replaceChildren(statusBlock('error', 'no key loaded — generate or restore one on the key tab first'));
                 }
                 return;
             }
@@ -4637,7 +4658,7 @@
             const domain = data.handleDomain?.trim() || '';
             if (!subdomain || !domain) {
                 if (status) {
-                    status.innerHTML = '<div class="status error">enter a handle and choose a domain</div>';
+                    status.replaceChildren(statusBlock('error', 'enter a handle and choose a domain'));
                 }
                 return;
             }
@@ -4653,7 +4674,7 @@
             try {
                 // Step 1: Create initial DID:PLC record with our rotation key as verificationMethod
                 if (status) {
-                    status.innerHTML = '<div class="status success">creating DID record...</div>';
+                    status.replaceChildren(statusBlock('success', 'creating DID record...'));
                 }
                 
                 console.log('Creating initial DID:PLC record with rotation key:', currentDidKey);
@@ -4706,7 +4727,7 @@
                 // is signed with the rotation key, and the PDS verifies it by
                 // resolving whatever key #atproto currently points to.
                 if (status) {
-                    status.innerHTML = '<div class="status success">creating account...</div>';
+                    status.replaceChildren(statusBlock('success', 'creating account...'));
                 }
 
                 console.log('Creating account with rotation key still as #atproto');
@@ -4752,7 +4773,7 @@
                 // consumed (which happens as soon as createAccount succeeds, so
                 // it can't be used to recover from an interrupted run either).
                 if (status) {
-                    status.innerHTML = '<div class="status success">fetching signing key...</div>';
+                    status.replaceChildren(statusBlock('success', 'fetching signing key...'));
                 }
                 const recommended = await getRecommendedDidCredentials(data.pdsEndpoint, accountResult.result.accessJwt);
                 const pdsVerificationMethod = recommended?.verificationMethods?.atproto;
@@ -4768,7 +4789,7 @@
                 // self-custody wants; the PDS never gets a rotation key, only
                 // the signing (#atproto) key it needs to serve day-to-day writes.
                 if (status) {
-                    status.innerHTML = '<div class="status success">preparing DID update...</div>';
+                    status.replaceChildren(statusBlock('success', 'preparing DID update...'));
                 }
                 // recommended.services is the PDS's own recommended endpoint,
                 // which on an entryway setup (many PDSes behind one shared
@@ -4801,7 +4822,7 @@
                 // equal whatever's published, making this check reliable
                 // (unlike the old reserveSigningKey-based version).
                 if (status) {
-                    status.innerHTML = '<div class="status success">submitting DID update...</div>';
+                    status.replaceChildren(statusBlock('success', 'submitting DID update...'));
                 }
                 const currentDoc = await fetchDidPlcRecord(didPlcId).catch(() => null);
                 const alreadySubmitted = currentDoc?.didDocument?.verificationMethods?.atproto === pdsVerificationMethod
@@ -4822,13 +4843,13 @@
                 // the PDS's key, so activateAccount's check against the actor's
                 // real signing key can actually pass.
                 if (status) {
-                    status.innerHTML = '<div class="status success">activating account...</div>';
+                    status.replaceChildren(statusBlock('success', 'activating account...'));
                 }
                 let activateResult = await activateAccountAfterDidUpdate(data.pdsEndpoint, accountResult.result.accessJwt);
 
                 if (!activateResult.success && isRotationKeyCheckFailure(activateResult.error)) {
                     if (status) {
-                        status.innerHTML = '<div class="status success">activating account (temporary workaround)...</div>';
+                        status.replaceChildren(statusBlock('success', 'activating account (temporary workaround)...'));
                     }
                     const pdsRotationKey = recommended?.rotationKeys?.find((k) => k !== currentDidKey);
                     if (!pdsRotationKey) {
@@ -4852,7 +4873,7 @@
                 setHeaderIdleContent(renderKeyForHeader(didPlcId));
 
                 if (status) {
-                    status.innerHTML = '<div class="status success">account created</div>';
+                    status.replaceChildren(statusBlock('success', 'account created'));
                 }
 
                 // Runs after the account is already fully created and activated,
@@ -4900,7 +4921,7 @@
             } catch (error) {
                 console.error('Error creating account:', error);
                 if (status) {
-                    status.innerHTML = `<div class="status error">couldn't create account: ${error.message}</div>`;
+                    status.replaceChildren(statusBlock('error', `couldn't create account: ${error.message}`));
                 }
             }
         });

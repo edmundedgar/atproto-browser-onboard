@@ -110,12 +110,16 @@
         const contentDiv = document.getElementById('content');
         const STORAGE_KEY = 'oauth-popup-pending';
 
-        function setContent(html) { contentDiv.innerHTML = html; }
-        function statusBlock(cls, text) { return `<div class="status ${cls}">${escapeHtml(text)}</div>`; }
-        function escapeHtml(str) {
+        // Node, not string - see statusBlock.
+        function setContent(node) { contentDiv.replaceChildren(node); }
+        // Built via textContent, never HTML-parsed, so dynamic text (error
+        // responses from the PDS this popup is signing into - effectively
+        // attacker-controlled) can never be interpreted as markup.
+        function statusBlock(cls, text) {
             const div = document.createElement('div');
-            div.textContent = str ?? '';
-            return div.innerHTML;
+            div.className = `status ${cls}`;
+            div.textContent = text;
+            return div;
         }
 
         // BroadcastChannel rather than window.opener.postMessage: the popup
@@ -359,15 +363,24 @@
             const unsignedOp = buildUnsignedOp(didDocument);
 
             const token = await new Promise((resolve, reject) => {
-                setContent(`
-                    ${statusBlock('success', 'Check your email for a confirmation code.')}
+                // The status line carries dynamic text and goes through
+                // statusBlock (DOM, never HTML-parsed); the rest of this
+                // form is fixed markup with no interpolation at all, so
+                // building it via a <template> is fine - there's nothing in
+                // it that could ever carry attacker-controlled content.
+                const formTemplate = document.createElement('template');
+                formTemplate.innerHTML = `
                     <div class="field">
                         <label>confirmation code</label>
                         <input type="text" id="plc-token-input" autocomplete="one-time-code" autofocus>
                     </div>
                     <button class="primary" id="plc-token-submit">Continue</button>
                     <div id="plc-token-status"></div>
-                `);
+                `;
+                contentDiv.replaceChildren(
+                    statusBlock('success', 'Check your email for a confirmation code.'),
+                    formTemplate.content
+                );
                 document.getElementById('plc-token-submit').addEventListener('click', () => {
                     const val = document.getElementById('plc-token-input').value.trim();
                     if (!val) return;
