@@ -554,10 +554,12 @@
             padding: 2px 0;
         }
 
-	.page-explanation {
+	.page-explanation p {
             font-family: ui-monospace, 'SF Mono', Consolas, monospace;
             font-size: 11px;
             color: var(--text-dim);
+	    margin-top: 8px;
+	    margin-bottom: 8px;
         }
 
         /* DID:PLC Form Styles */
@@ -4231,7 +4233,7 @@
             section.className = 'module control-keys-section';
             section.innerHTML = `
                 <h2>rotation keys</h2>
-		<div class="page-explanation">These keys control your account. If you created your account here it only uses your own key, so you can move your account without permission from your PDS. Accounts created on other websites often only use keys held by the PDS.<br /><br /></div>
+		<div class="page-explanation"><p>These keys control your account.</p><p>If you create your account on this website, it only uses your own key, so you can move your account without permission from your PDS.</p><p>Accounts created on other websites often only use keys held by the PDS. You can add your own key here, and optionally remove the PDS keys.</p></div>
                 <div id="control-key-list"></div>
                 <div class="form-group mt-16">
                     <div id="control-add-self-key-link-wrap"></div>
