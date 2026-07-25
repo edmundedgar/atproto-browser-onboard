@@ -64,7 +64,7 @@ server {
 
 ## Endpoints
 
-- `GET /`, `/eth.html`, `/oauth-popup.html`, `/index.css`, `/eth.css`,
+- `GET /`, `/eth.html`, `/oauth-popup.html`, `/eth.css`,
   `/oauth-popup.css`, `/bootstrap-config.js`, `/social-import-config.js` -
   static files.
 - `GET /client-metadata.json`, `/client-metadata/{tag}.json` - atproto

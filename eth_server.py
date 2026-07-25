@@ -52,11 +52,6 @@ async def serve_oauth_popup():
     return FileResponse("oauth-popup.html")
 
 
-@app.get("/index.css")
-async def serve_index_css():
-    return FileResponse("index.css", media_type="text/css")
-
-
 @app.get("/eth.css")
 async def serve_eth_css():
     return FileResponse("eth.css", media_type="text/css")
