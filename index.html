@@ -818,6 +818,7 @@
             color: var(--text-dim);
         }
         .tag.ok { color: var(--ok); border-color: var(--ok); }
+        .tag.known { color: var(--amber); border-color: var(--amber); font-weight: 600; }
 
         .step-list {
             list-style: none;
@@ -4071,6 +4072,22 @@
         };
         let controlWorkingKeys = []; // local edit buffer - only touches the chain on Save
 
+        // Best-effort identification for well-known operator rotation keys
+        // seen in the wild - not from any API (getRecommendedDidCredentials
+        // would tell us definitively, but it needs a login to the specific
+        // account being viewed, which isn't worth the friction here), just
+        // hardcoded pairs worth recognizing on sight. Bluesky's own setup
+        // uses two - add more here as they come up.
+        const KNOWN_ROTATION_KEYS = {
+            'did:key:zQ3shhCGUqDKjStzuDxPkTxN6ujddP4RkEKJJouJGRRkaLGbg': 'Bluesky',
+            'did:key:zQ3shpKnbdPx3g3CmPf5cRVTPe1HtSwVn5ish3wSnDPQCbLJK': 'Bluesky',
+        };
+
+        function knownRotationKeyTag(key) {
+            const known = KNOWN_ROTATION_KEYS[key];
+            return known ? ` <span class="tag known">${escapeHtml(known)}</span>` : '';
+        }
+
         // Labels a rotation key using only data already on hand, no extra
         // network calls: "your held key" if it matches the currently loaded
         // key, or "PDS: <hostname>" if it matches the *signing* key recorded
@@ -4164,7 +4181,7 @@
                 return `
                     <div class="key-row${flashCls}">
                         <span class="key-position">${i + 1}</span>
-                        <span class="key-value">${escapeHtml(key)} ${tag}</span>
+                        <span class="key-value">${escapeHtml(key)}${knownRotationKeyTag(key)} ${tag}</span>
                         <span class="key-actions">
                             <button type="button" data-action="up" data-index="${i}" ${i === 0 ? 'disabled' : ''}>↑</button>
                             <button type="button" data-action="down" data-index="${i}" ${i === controlWorkingKeys.length - 1 ? 'disabled' : ''}>↓</button>
@@ -5526,7 +5543,7 @@
                 const keys = didDocument.rotationKeys || [];
                 if (rotationKeysEl) {
                     rotationKeysEl.innerHTML = keys.length
-                        ? `<ul class="account-detail-key-list">${keys.map((k) => `<li>${escapeHtml(k)}</li>`).join('')}</ul>`
+                        ? `<ul class="account-detail-key-list">${keys.map((k) => `<li>${escapeHtml(k)}${knownRotationKeyTag(k)}</li>`).join('')}</ul>`
                         : 'none';
                 }
             } catch (error) {
