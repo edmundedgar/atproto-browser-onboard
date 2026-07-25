@@ -70,7 +70,25 @@ def _client_metadata_document(client_id: str, base: str) -> dict:
         "redirect_uris": [f"{base}/oauth-popup.html"],
         "grant_types": ["authorization_code", "refresh_token"],
         "response_types": ["code"],
-        "scope": "atproto transition:generic identity:*",
+        # Every rpc:<lxm>?aud=* entry matches exactly one XRPC call in
+        # oauth-popup.html - keep this in sync with that file's OAUTH_SCOPE
+        # constant (must be the identical string: the reference PDS
+        # implementation requires an exact match against what's requested
+        # per-authorization, no wildcard leniency). Not transition:generic +
+        # identity:* (the previous approach) because some PDS
+        # implementations (tranquil-pds) reject mixing the legacy
+        # transition:* scope with granular ones, per the atproto OAuth scope
+        # spec - others (cocoon, the reference PDS) just don't enforce it.
+        "scope": (
+            "atproto identity:* "
+            "rpc:com.atproto.identity.updateHandle?aud=* "
+            "rpc:com.atproto.identity.getRecommendedDidCredentials?aud=* "
+            "rpc:com.atproto.identity.requestPlcOperationSignature?aud=* "
+            "rpc:com.atproto.identity.signPlcOperation?aud=* "
+            "rpc:com.atproto.server.getServiceAuth?aud=* "
+            "rpc:com.atproto.server.deactivateAccount?aud=* "
+            "rpc:app.bsky.actor.getPreferences?aud=*"
+        ),
         "application_type": "web",
         "token_endpoint_auth_method": "none",
         "dpop_bound_access_tokens": True,

@@ -187,6 +187,33 @@
         const clientId = `${window.location.origin}/client-metadata.json`;
         const redirectUri = `${window.location.origin}/oauth-popup.html`;
 
+        // Every rpc:<lxm>?aud=* scope below matches exactly one dpopFetch
+        // call elsewhere in this file - keep the two in sync. aud=* (rather
+        // than a specific PDS DID) is fine here since these tokens are only
+        // ever used directly against the same PDS that issued them, never
+        // handed to a third party; it also keeps this scope string fully
+        // static, which matters because the reference PDS implementation
+        // requires an exact string match against the client's registered
+        // scope (no wildcard leniency), so a per-request scope built from a
+        // dynamically-looked-up PDS DID could never be pre-registered for
+        // every PDS this app might ever talk to. Not transition:generic +
+        // identity:* (the previous approach) because some PDS
+        // implementations (tranquil-pds) reject mixing the legacy
+        // transition:* scope with granular ones, per the atproto OAuth
+        // scope spec - others (cocoon, the reference PDS) just don't bother
+        // enforcing that rule.
+        const OAUTH_SCOPE = [
+            'atproto',
+            'identity:*',
+            'rpc:com.atproto.identity.updateHandle?aud=*',
+            'rpc:com.atproto.identity.getRecommendedDidCredentials?aud=*',
+            'rpc:com.atproto.identity.requestPlcOperationSignature?aud=*',
+            'rpc:com.atproto.identity.signPlcOperation?aud=*',
+            'rpc:com.atproto.server.getServiceAuth?aud=*',
+            'rpc:com.atproto.server.deactivateAccount?aud=*',
+            'rpc:app.bsky.actor.getPreferences?aud=*',
+        ].join(' ');
+
         async function startOAuth(pending) {
             setContent(statusBlock('loading', 'Discovering your PDS’s login server...'));
             const asMeta = await discoverAuthServer(pending.pds);
@@ -209,7 +236,7 @@
                 code_challenge: codeChallenge,
                 code_challenge_method: 'S256',
                 state,
-                scope: 'atproto transition:generic identity:*',
+                scope: OAUTH_SCOPE,
             });
             if (pending.handle) parBody.set('login_hint', pending.handle);
 
