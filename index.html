@@ -963,19 +963,19 @@
         <!-- Tab Navigation -->
         <div class="tab-navigation">
             <button class="tab-btn active" id="keygen-tab" data-tab="keygen">
-                Key
+                key
             </button>
             <button class="tab-btn" id="createaccount-tab" data-tab="createaccount">
-                Account
+                account
             </button>
             <button class="tab-btn" id="handle-tab" data-tab="handle">
-                Handle
+                handle
             </button>
             <button class="tab-btn" id="control-tab" data-tab="control">
-                Control
+                control
             </button>
             <button class="tab-btn" id="migrate-tab" data-tab="migrate">
-                Migrate
+                migrate
             </button>
         </div>
         
@@ -1045,8 +1045,8 @@
             <!-- Create Account Tab -->
             <div class="tab-pane" id="createaccount-pane">
                 <div class="sub-tab-navigation">
-                    <button class="sub-tab-btn active" id="account-new-subtab" data-subtab="new">New</button>
-                    <button class="sub-tab-btn" id="account-list-subtab" data-subtab="list">List</button>
+                    <button class="sub-tab-btn active" id="account-new-subtab" data-subtab="new">new</button>
+                    <button class="sub-tab-btn" id="account-list-subtab" data-subtab="list">list</button>
                 </div>
 
                 <div class="sub-tab-pane active" id="account-new-subpane">
@@ -1054,15 +1054,15 @@
                     <form id="createaccount-form" class="plc-form">
                         <div class="module">
                             <div class="form-group">
-                                <label for="pds-endpoint">hosting server<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">text goes here</span></span></label>
+                                <label for="pds-endpoint">hosting server<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">Your PDS is the server that hosts your data. You can host your own PDS or move to a different provider at any time..</span></span></label>
                                 <input type="text" id="pds-endpoint" name="pdsEndpoint" placeholder="pds.example.com" value="https://pds.goat.navy" required>
                             </div>
 
                             <div class="form-group">
-                                <label for="account-handle">handle<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">text goes here</span></span></label>
+                                <label for="account-handle">handle<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">Your handle is how you will be known in ATProto. You can change your handle later and keep all your data and social connections.</span></span></label>
                                 <div class="flex-row-8">
                                     <input type="text" id="account-handle-subdomain" name="handleSubdomain" placeholder="username" required class="flex-1">
-                                    <span class="at-symbol">@</span>
+                                    <span class="at-symbol">.</span>
                                     <select id="account-handle-domain" name="handleDomain" required class="flex-1">
                                         <option value="">Select domain...</option>
                                     </select>
@@ -1074,24 +1074,24 @@
 
                         <div class="module">
                             <div class="form-group">
-                                <label for="account-email">email<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">text goes here</span></span></label>
+                                <label for="account-email">email<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">This is the email address your PDS will use for logins and notifications. It isn't shown publicly.</span></span></label>
                                 <input type="email" id="account-email" name="email" placeholder="user@example.com" required>
                             </div>
 
                             <div class="form-group">
-                                <label for="account-password">password<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">text goes here</span></span></label>
+                                <label for="account-password">password<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">The password you will use to login to your PDS</span></span></label>
                                 <input type="password" id="account-password" name="password" placeholder="Secure password" required>
                             </div>
 
                             <div class="form-group">
-                                <label for="account-invite-code">invite code <span class="optional-hint">(optional)</span><span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">text goes here</span></span></label>
+                                <label for="account-invite-code">invite code <span class="optional-hint">(optional)</span><span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">Some PDSes require an invite code to sign up with them.</span></span></label>
                                 <input type="text" id="account-invite-code" name="inviteCode" placeholder="Enter invite code if required">
                             </div>
                         </div>
 
                         <div class="module">
                             <div class="form-group">
-                                <label for="social-import-username">picture &amp; bio from <span class="optional-hint">(optional)</span><span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">text goes here</span></span></label>
+                                <label for="social-import-username">picture &amp; bio from <span class="optional-hint">(optional)</span><span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">We can grab your photo and bio to save you time. You can change this later.</span></span></label>
                                 <div class="social-import-group">
                                     <select id="social-import-platform" name="socialPlatform">
                                         <option value="farcaster">Farcaster</option>
@@ -1129,7 +1129,7 @@
 
                         <div class="module" id="account-find-module">
                             <div class="form-group">
-                                <label for="account-find-handle">find an account by handle<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">text goes here</span></span></label>
+                                <label for="account-find-handle">find an account by handle<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">You can add your account if you don't see it listed. If it's not controlled by your self-custodied key, we'll prompt you to log in when you want to change something about it.</span></span></label>
                                 <input type="text" id="account-find-handle" placeholder="alice.example.com">
                             </div>
                             <div class="form-button-group">
@@ -1279,6 +1279,7 @@
             selectedAccount = account;
             refreshHeaderIdleContent();
             renderAccountDetail();
+            updateTabStates();
         }
 
         // Generate secp256k1 public key from private key
@@ -3540,8 +3541,8 @@
                 const canTakeControl = migrateState.oldPdsReachable;
                 section.innerHTML = `
                     <h2>take control</h2>
-                    <div class="migrate-status-box">Your current key (${escapeHtml(currentDidKey)}) isn't registered on this DID yet. ${canTakeControl
-                        ? 'Sign in to the old PDS once to add it as a rotation key (kept alongside its own, at lower priority) - required before migrating unless the old PDS is unreachable and you already hold a registered key.'
+		    <div class="migrate-status-box">Your current key isn't registered on this DID yet.<br /><br /> ${canTakeControl
+                        ? 'Sign in to your current PDS to add it as a rotation key.'
                         : 'The old PDS is not reachable, and this key is not already registered, so there is no way to take control or migrate this account from here.'}</div>
                     ${canTakeControl ? '<button type="button" class="submit-btn" id="migrate-take-control-btn">Sign in and take control</button>' : ''}
                     <div id="migrate-take-control-status"></div>
@@ -3635,11 +3636,11 @@
             section.className = 'module new-pds-section';
             section.innerHTML = `
                 <h2>new pds</h2>
-                <div class="form-group"><label for="migrate-new-pds-endpoint">endpoint${fieldHelp('text goes here')}</label><input type="text" id="migrate-new-pds-endpoint" placeholder="pds.example.com"></div>
-                <div class="form-group"><label for="migrate-new-handle">handle${fieldHelp('text goes here')}</label><input type="text" id="migrate-new-handle" placeholder="alice.example.com"></div>
-                <div class="form-group"><label for="migrate-new-email">email${fieldHelp('text goes here')}</label><input type="email" id="migrate-new-email"></div>
-                <div class="form-group"><label for="migrate-new-password">password${fieldHelp('text goes here')}</label><input type="password" id="migrate-new-password"></div>
-                <div class="form-group"><label for="migrate-new-invite">invite code <span class="optional-hint">(optional)</span>${fieldHelp('text goes here')}</label><input type="text" id="migrate-new-invite"></div>
+                <div class="form-group"><label for="migrate-new-pds-endpoint">endpoint${fieldHelp('Your new PDS')}</label><input type="text" id="migrate-new-pds-endpoint" placeholder="pds.example.com"></div>
+                <div class="form-group"><label for="migrate-new-handle">handle${fieldHelp('Your handle on the new PDS')}</label><input type="text" id="migrate-new-handle" placeholder="alice.example.com"></div>
+                <div class="form-group"><label for="migrate-new-email">email${fieldHelp('Your email on the new PDS')}</label><input type="email" id="migrate-new-email"></div>
+                <div class="form-group"><label for="migrate-new-password">password${fieldHelp('Your password on the new PDS')}</label><input type="password" id="migrate-new-password"></div>
+                <div class="form-group"><label for="migrate-new-invite">invite code <span class="optional-hint">(optional)</span>${fieldHelp('Some PDSes need an invite code to sign up')}</label><input type="text" id="migrate-new-invite"></div>
                 <div class="form-button-group">
                     <button type="button" class="submit-btn" id="migrate-start-btn">Start migration</button>
                 </div>
@@ -4332,15 +4333,15 @@
             section.className = 'module handle-change-section';
             section.innerHTML = `
                 <h2>change handle</h2>
-                <div class="migrate-status-box">Current handle: ${escapeHtml(handleState.handle)}${handleState.heldKeyRegistered
-                    ? ' — your held key is a registered rotation key, so the identity change will be self-signed.'
-                    : ' — your held key is not a registered rotation key, so the PDS will sign the identity change itself.'}</div>
+                <div class="migrate-status-box">${handleState.heldKeyRegistered
+                    ? ' — The key you selected controls this account, so we can self-sign your handle change.'
+                    : ' — The key you selected does not control this account. We will ask your PDS to sign your handle change.'}</div>
                 <div class="form-group">
-                    <label for="handle-new-handle">new handle${fieldHelp('text goes here')}</label>
+                    <label for="handle-new-handle">new handle${fieldHelp('The handle you want to change to')}</label>
                     <input type="text" id="handle-new-handle" placeholder="alice.example.com">
                 </div>
                 <div class="form-group">
-                    <label for="handle-password">password (for ${escapeHtml(handleState.pds)})${fieldHelp('text goes here')}</label>
+                    <label for="handle-password">password (for ${escapeHtml(handleState.pds)})${fieldHelp('Password for your PDS')}</label>
                     <input type="password" id="handle-password" placeholder="Account password">
                 </div>
                 <div class="form-button-group">
@@ -4510,24 +4511,19 @@
         // confirmed written down.
         function updateTabStates() {
             const unlocked = currentKey !== null && seedPhraseConfirmed;
+            // Handle/Control/Migrate all act on selectedAccount (see
+            // selectAccount's comment) and show nothing useful without one -
+            // gated on it in addition to the key, unlike Account itself.
+            const unlockedWithAccount = unlocked && selectedAccount !== null;
             const createAccountTab = document.getElementById('createaccount-tab');
             const controlTab = document.getElementById('control-tab');
             const migrateTab = document.getElementById('migrate-tab');
             const handleTab = document.getElementById('handle-tab');
 
-            if (unlocked) {
-                // Remove inactive class if key is available
-                if (createAccountTab) createAccountTab.classList.remove('inactive');
-                if (controlTab) controlTab.classList.remove('inactive');
-                if (migrateTab) migrateTab.classList.remove('inactive');
-                if (handleTab) handleTab.classList.remove('inactive');
-            } else {
-                // Add inactive class if no key is available
-                if (createAccountTab) createAccountTab.classList.add('inactive');
-                if (controlTab) controlTab.classList.add('inactive');
-                if (migrateTab) migrateTab.classList.add('inactive');
-                if (handleTab) handleTab.classList.add('inactive');
-            }
+            if (createAccountTab) createAccountTab.classList.toggle('inactive', !unlocked);
+            if (controlTab) controlTab.classList.toggle('inactive', !unlockedWithAccount);
+            if (migrateTab) migrateTab.classList.toggle('inactive', !unlockedWithAccount);
+            if (handleTab) handleTab.classList.toggle('inactive', !unlockedWithAccount);
         }
 
         // Function to toggle key generation sections visibility
@@ -5476,21 +5472,21 @@
                             <div class="account-detail-label">handle</div>
                             <div class="account-detail-value">${escapeHtml(selectedAccount.handle)}</div>
                         </div>
-                        <a href="#" class="account-detail-link" data-goto="handle">Handle →</a>
+                        <a href="#" class="account-detail-link" data-goto="handle">change your handle →</a>
                     </div>
                     <div class="account-detail-row">
                         <div class="flex-1">
                             <div class="account-detail-label">PDS host</div>
                             <div class="account-detail-value">${escapeHtml(selectedAccount.pds)}</div>
                         </div>
-                        <a href="#" class="account-detail-link" data-goto="migrate">Migrate →</a>
+                        <a href="#" class="account-detail-link" data-goto="migrate">migrate to a different PDS →</a>
                     </div>
                     <div class="account-detail-row">
                         <div class="flex-1">
                             <div class="account-detail-label">rotation keys</div>
                             <div class="account-detail-value" id="account-detail-rotation-keys">Loading...</div>
                         </div>
-                        <a href="#" class="account-detail-link" data-goto="control">Control →</a>
+                        <a href="#" class="account-detail-link" data-goto="control">control →</a>
                     </div>
                     <div class="account-detail-row">
                         <div class="flex-1">
