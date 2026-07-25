@@ -522,7 +522,6 @@
             border-bottom: 1px solid var(--hairline);
         }
         .account-detail-row:last-of-type { border-bottom: none; }
-
         .account-detail-label {
             font-family: ui-monospace, 'SF Mono', Consolas, monospace;
             font-size: 11px;
@@ -553,6 +552,12 @@
             color: var(--amber);
             word-break: break-all;
             padding: 2px 0;
+        }
+
+	.page-explanation {
+            font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+            font-size: 11px;
+            color: var(--text-dim);
         }
 
         /* DID:PLC Form Styles */
@@ -4226,6 +4231,7 @@
             section.className = 'module control-keys-section';
             section.innerHTML = `
                 <h2>rotation keys</h2>
+		<div class="page-explanation">These keys control your account. If you created your account here it only uses your own key, so you can move your account without permission from your PDS. Accounts created on other websites often only use keys held by the PDS.<br /><br /></div>
                 <div id="control-key-list"></div>
                 <div class="form-group mt-16">
                     <div id="control-add-self-key-link-wrap"></div>
