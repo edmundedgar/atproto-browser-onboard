@@ -572,6 +572,67 @@
             letter-spacing: normal;
         }
 
+        /* Per-field help: a small "?" button next to a label, showing a
+           tooltip on hover (desktop) or click/tap (everywhere, including
+           mobile where hover doesn't apply) - see the delegated click
+           handler near the bottom of the script for the toggle behavior. */
+        .field-help-wrap {
+            position: relative;
+            display: inline-block;
+            margin-left: 5px;
+            vertical-align: middle;
+        }
+        .field-help {
+            appearance: none;
+            width: 15px;
+            height: 15px;
+            padding: 0;
+            border: 1px solid var(--hairline);
+            border-radius: 50%;
+            background: var(--panel-raised);
+            color: var(--text-dim);
+            font-size: 10px;
+            line-height: 1;
+            font-family: ui-monospace, monospace;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.15s ease, border-color 0.15s ease;
+        }
+        .field-help:hover, .field-help:focus-visible {
+            color: var(--amber);
+            border-color: var(--amber);
+        }
+        .field-help-tip {
+            position: absolute;
+            left: 0;
+            top: calc(100% + 6px);
+            z-index: 20;
+            width: max-content;
+            max-width: 240px;
+            padding: 8px 10px;
+            border: 1px solid var(--hairline);
+            border-radius: 6px;
+            background: var(--panel-raised);
+            color: var(--text);
+            font-size: 12px;
+            font-weight: 400;
+            text-transform: none;
+            line-height: 1.45;
+            box-shadow: 0 8px 24px var(--shadow);
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity 0.12s ease;
+            pointer-events: none;
+        }
+        .field-help-wrap:hover .field-help-tip,
+        .field-help:focus-visible ~ .field-help-tip,
+        .field-help-wrap.open .field-help-tip {
+            visibility: visible;
+            opacity: 1;
+        }
+
         .form-group input,
         .form-group textarea,
         .form-group select {

@@ -115,12 +115,12 @@
                     <form id="createaccount-form" class="plc-form">
                         <div class="module">
                             <div class="form-group">
-                                <label for="pds-endpoint">hosting server</label>
+                                <label for="pds-endpoint">hosting server<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">text goes here</span></span></label>
                                 <input type="text" id="pds-endpoint" name="pdsEndpoint" placeholder="pds.example.com" value="https://pds.goat.navy" required>
                             </div>
 
                             <div class="form-group">
-                                <label for="account-handle">handle</label>
+                                <label for="account-handle">handle<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">text goes here</span></span></label>
                                 <div class="flex-row-8">
                                     <input type="text" id="account-handle-subdomain" name="handleSubdomain" placeholder="username" required class="flex-1">
                                     <span class="at-symbol">@</span>
@@ -135,24 +135,24 @@
 
                         <div class="module">
                             <div class="form-group">
-                                <label for="account-email">email</label>
+                                <label for="account-email">email<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">text goes here</span></span></label>
                                 <input type="email" id="account-email" name="email" placeholder="user@example.com" required>
                             </div>
 
                             <div class="form-group">
-                                <label for="account-password">password</label>
+                                <label for="account-password">password<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">text goes here</span></span></label>
                                 <input type="password" id="account-password" name="password" placeholder="Secure password" required>
                             </div>
 
                             <div class="form-group">
-                                <label for="account-invite-code">invite code <span class="optional-hint">(optional)</span></label>
+                                <label for="account-invite-code">invite code <span class="optional-hint">(optional)</span><span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">text goes here</span></span></label>
                                 <input type="text" id="account-invite-code" name="inviteCode" placeholder="Enter invite code if required">
                             </div>
                         </div>
 
                         <div class="module">
                             <div class="form-group">
-                                <label for="social-import-username">picture &amp; bio from <span class="optional-hint">(optional)</span></label>
+                                <label for="social-import-username">picture &amp; bio from <span class="optional-hint">(optional)</span><span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">text goes here</span></span></label>
                                 <div class="social-import-group">
                                     <select id="social-import-platform" name="socialPlatform">
                                         <option value="farcaster">Farcaster</option>
@@ -190,7 +190,7 @@
 
                         <div class="module" id="account-find-module">
                             <div class="form-group">
-                                <label for="account-find-handle">find an account by handle</label>
+                                <label for="account-find-handle">find an account by handle<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">text goes here</span></span></label>
                                 <input type="text" id="account-find-handle" placeholder="alice.example.com">
                             </div>
                             <div class="form-button-group">
@@ -2296,6 +2296,15 @@
             return div.innerHTML;
         }
 
+        // A "?" button for a form label, showing a tooltip on hover/focus
+        // (desktop) or click (everywhere, including mobile where hover
+        // doesn't apply) - see the delegated click handler below for the
+        // toggle. Place this as the last child inside the <label>, so it
+        // sits inline with the label text.
+        function fieldHelp(text) {
+            return `<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">${escapeHtml(text)}</span></span>`;
+        }
+
         // Builds a status box as a real DOM node - via textContent, never
         // HTML-parsed - so dynamic text (including raw error strings from a
         // PDS, which for this app is effectively attacker-controlled) can
@@ -2683,11 +2692,11 @@
             section.className = 'module new-pds-section';
             section.innerHTML = `
                 <h2>new pds</h2>
-                <div class="form-group"><label for="migrate-new-pds-endpoint">endpoint</label><input type="text" id="migrate-new-pds-endpoint" placeholder="pds.example.com"></div>
-                <div class="form-group"><label for="migrate-new-handle">handle</label><input type="text" id="migrate-new-handle" placeholder="alice.example.com"></div>
-                <div class="form-group"><label for="migrate-new-email">email</label><input type="email" id="migrate-new-email"></div>
-                <div class="form-group"><label for="migrate-new-password">password</label><input type="password" id="migrate-new-password"></div>
-                <div class="form-group"><label for="migrate-new-invite">invite code <span class="optional-hint">(optional)</span></label><input type="text" id="migrate-new-invite"></div>
+                <div class="form-group"><label for="migrate-new-pds-endpoint">endpoint${fieldHelp('text goes here')}</label><input type="text" id="migrate-new-pds-endpoint" placeholder="pds.example.com"></div>
+                <div class="form-group"><label for="migrate-new-handle">handle${fieldHelp('text goes here')}</label><input type="text" id="migrate-new-handle" placeholder="alice.example.com"></div>
+                <div class="form-group"><label for="migrate-new-email">email${fieldHelp('text goes here')}</label><input type="email" id="migrate-new-email"></div>
+                <div class="form-group"><label for="migrate-new-password">password${fieldHelp('text goes here')}</label><input type="password" id="migrate-new-password"></div>
+                <div class="form-group"><label for="migrate-new-invite">invite code <span class="optional-hint">(optional)</span>${fieldHelp('text goes here')}</label><input type="text" id="migrate-new-invite"></div>
                 <div class="form-button-group">
                     <button type="button" class="submit-btn" id="migrate-start-btn">Start migration</button>
                 </div>
@@ -3376,11 +3385,11 @@
                     ? ' — your held key is a registered rotation key, so the identity change will be self-signed.'
                     : ' — your held key is not a registered rotation key, so the PDS will sign the identity change itself.'}</div>
                 <div class="form-group">
-                    <label for="handle-new-handle">new handle</label>
+                    <label for="handle-new-handle">new handle${fieldHelp('text goes here')}</label>
                     <input type="text" id="handle-new-handle" placeholder="alice.example.com">
                 </div>
                 <div class="form-group">
-                    <label for="handle-password">password (for ${escapeHtml(handleState.pds)})</label>
+                    <label for="handle-password">password (for ${escapeHtml(handleState.pds)})${fieldHelp('text goes here')}</label>
                     <input type="password" id="handle-password" placeholder="Account password">
                 </div>
                 <div class="form-button-group">
@@ -4601,6 +4610,44 @@
             if (generateBtn) generateBtn.disabled = true;
             setIdentityHeaderContent('<span class="status-idle">Web Crypto API not supported in this browser</span>');
         }
+
+        // Field-help tooltips (see fieldHelp()): CSS alone handles desktop
+        // hover, this handles click/tap - toggles the clicked one, closes
+        // any other open one, and closes on an outside click or Escape.
+        // One delegated listener covers every tooltip regardless of which
+        // tab/section it's rendered into, including ones built later by a
+        // template literal.
+        //
+        // Also blurs a focused .field-help button when closing - the CSS
+        // shows the tooltip on :focus-visible too (for keyboard users
+        // tabbing to the button without clicking), so leaving it focused
+        // after a click-driven close would keep the tooltip visible via
+        // that rule even with .open removed.
+        function closeAllFieldHelp() {
+            document.querySelectorAll('.field-help-wrap.open').forEach((w) => w.classList.remove('open'));
+            if (document.activeElement && document.activeElement.classList.contains('field-help')) {
+                document.activeElement.blur();
+            }
+        }
+        document.addEventListener('click', (e) => {
+            const btn = e.target.closest('.field-help');
+            if (btn) {
+                e.preventDefault();
+                const wrap = btn.closest('.field-help-wrap');
+                const wasOpen = wrap.classList.contains('open');
+                closeAllFieldHelp();
+                if (!wasOpen) wrap.classList.add('open');
+                return;
+            }
+            if (!e.target.closest('.field-help-tip')) {
+                closeAllFieldHelp();
+            }
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeAllFieldHelp();
+            }
+        });
 
         // Run test case on page load
         testDidPlcIdGeneration();
