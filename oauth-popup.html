@@ -295,6 +295,29 @@
             return { preferences: data.preferences || [] };
         }
 
+        // Used by the Handle tab: this only updates the PDS's own handle
+        // record, not the DID document, so it's a plain authenticated write -
+        // no PLC cosigning involved, unlike take-control/final-cosign/
+        // update-rotation-keys above.
+        async function doUpdateHandle(pending, dpopCtx) {
+            const res = await dpopFetch(`${pending.pds}/xrpc/com.atproto.identity.updateHandle`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ handle: pending.newHandle }),
+            }, dpopCtx);
+            if (!res.ok) throw new Error(`updateHandle failed: ${res.status} ${await res.text()}`);
+            return {};
+        }
+
+        // Also Handle-tab-only: used to find the PDS's own rotation key when
+        // updateHandle needs the temporary-rotation-key workaround (see
+        // updateHandleWithTemporaryPdsRotationKey in index.html).
+        async function doGetRecommendedCredentials(pending, dpopCtx) {
+            const res = await dpopFetch(`${pending.pds}/xrpc/com.atproto.identity.getRecommendedDidCredentials`, { method: 'GET' }, dpopCtx);
+            if (!res.ok) throw new Error(`getRecommendedDidCredentials failed: ${res.status} ${await res.text()}`);
+            return { credentials: await res.json() };
+        }
+
         // Shared by take-control and final-cosign: request the email token,
         // show a small form for the user to enter it, sign with the old PDS,
         // and submit straight to plc.directory.
@@ -367,6 +390,10 @@
                     return doDeactivate(pending, dpopCtx);
                 case 'get-prefs':
                     return doGetPrefs(pending, dpopCtx);
+                case 'update-handle':
+                    return doUpdateHandle(pending, dpopCtx);
+                case 'get-recommended-credentials':
+                    return doGetRecommendedCredentials(pending, dpopCtx);
                 default:
                     throw new Error(`Unknown purpose: ${pending.purpose}`);
             }

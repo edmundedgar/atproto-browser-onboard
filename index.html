@@ -2171,18 +2171,6 @@
             return { success: true, result: result };
         }
 
-        async function callUpdateHandle(pdsEndpoint, accessJwt, handle) {
-            const res = await fetch(`${pdsEndpoint}/xrpc/com.atproto.identity.updateHandle`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessJwt}` },
-                body: JSON.stringify({ handle }),
-            });
-            if (!res.ok) {
-                const errorText = await res.text();
-                throw new Error(`updateHandle failed: ${res.status} ${errorText}`);
-            }
-        }
-
         // Some PDSes (the stock/unpatched reference implementation) refuse to
         // let a self-custodied account update its handle on their own - same
         // underlying assumption as the activate-time rotation-key check, but
@@ -2202,7 +2190,7 @@
         // generalized into one function, since the "thing to retry" differs
         // and the existing activate path is already proven; duplicating this
         // small a pattern is safer than reshaping working code around it.
-        async function updateHandleWithTemporaryPdsRotationKey(pdsEndpoint, accessJwt, didPlcId, currentDidKey, pdsRotationKey, privateKeyHex, handle) {
+        async function updateHandleWithTemporaryPdsRotationKey(didPlcId, currentDidKey, pdsRotationKey, privateKeyHex, handle) {
             console.log('PDS requires its own rotation key to update the handle - adding it temporarily');
 
             const docNow = await fetchDidPlcRecord(didPlcId);
@@ -2218,7 +2206,7 @@
 
             let retryError = null;
             try {
-                await callUpdateHandle(pdsEndpoint, accessJwt, handle);
+                await requestFromMigrationSession('update-handle', { newHandle: handle });
             } catch (error) {
                 retryError = error;
             }
@@ -3282,6 +3270,45 @@
             activated: false,
         };
 
+        // Which rotation key(s) the old PDS itself actually controls, learned
+        // once (from getRecommendedDidCredentials, during authorize below) and
+        // stashed so the cleanup step can still find it even after a page
+        // reload mid-migration - migrateState itself doesn't survive that.
+        // Keyed by PDS+DID rather than just PDS, since a PDS with no
+        // separately configured rotation key falls back to recommending the
+        // account's own signing key, which differs per account (see
+        // doGetRecommendedCredentials in oauth-popup.html).
+        const OLD_PDS_KEYS_STORAGE_KEY = 'atproto-migrate-old-pds-keys';
+
+        function oldPdsKeysStashKey(pdsEndpoint, did) {
+            return `${pdsEndpoint}|${did}`;
+        }
+
+        function stashOldPdsKeys(pdsEndpoint, did, keys) {
+            try {
+                const store = JSON.parse(localStorage.getItem(OLD_PDS_KEYS_STORAGE_KEY) || '{}');
+                store[oldPdsKeysStashKey(pdsEndpoint, did)] = keys;
+                localStorage.setItem(OLD_PDS_KEYS_STORAGE_KEY, JSON.stringify(store));
+            } catch { /* storage unavailable/full - just won't survive a reload */ }
+        }
+
+        function getStashedOldPdsKeys(pdsEndpoint, did) {
+            try {
+                const store = JSON.parse(localStorage.getItem(OLD_PDS_KEYS_STORAGE_KEY) || '{}');
+                return store[oldPdsKeysStashKey(pdsEndpoint, did)] || null;
+            } catch {
+                return null;
+            }
+        }
+
+        function clearStashedOldPdsKeys(pdsEndpoint, did) {
+            try {
+                const store = JSON.parse(localStorage.getItem(OLD_PDS_KEYS_STORAGE_KEY) || '{}');
+                delete store[oldPdsKeysStashKey(pdsEndpoint, did)];
+                localStorage.setItem(OLD_PDS_KEYS_STORAGE_KEY, JSON.stringify(store));
+            } catch { /* not critical if this fails */ }
+        }
+
         // BroadcastChannel rather than window.opener.postMessage: the popup
         // navigates through the authorization server's own origin (which sets
         // Cross-Origin-Opener-Policy: same-origin on its pages), and that
@@ -3591,7 +3618,7 @@
                 section.className = 'module authorize-section';
                 section.innerHTML = `
                     <h2>authorize</h2>
-                    <div class="migrate-status-box">Sign in to the old PDS once, up front - this covers everything the migration needs from it later (creating the new account, transferring preferences, deactivating the old account), so no more sign-in windows will pop up partway through.</div>
+                    <div class="migrate-status-box">Sign into the old PDS.</div>
                     <button type="button" class="submit-btn" id="migrate-authorize-btn">Authorize with old PDS</button>
                     <button type="button" class="clear-btn" id="migrate-skip-authorize-btn">Skip - continue with just the new account's password</button>
                     <div id="migrate-authorize-status"></div>
@@ -3622,6 +3649,19 @@
                     pds: migrateState.oldPds, did: migrateState.did, handle: migrateState.handle,
                 });
                 migrateSessionActive = true;
+
+                // Learn which key(s) are actually the old PDS's own, while
+                // we have a session to ask it - not required for the
+                // migration itself, so a failure here shouldn't block it,
+                // just leave the cleanup step unable to auto-identify
+                // anything later.
+                try {
+                    const { credentials } = await requestFromMigrationSession('get-recommended-credentials', {});
+                    stashOldPdsKeys(migrateState.oldPds, migrateState.did, credentials.rotationKeys || []);
+                } catch (error) {
+                    console.warn("Could not determine the old PDS's own rotation key(s):", error.message);
+                }
+
                 status.replaceChildren(migrateStatusBlock('success', 'Authorized. Leave that window open until the migration finishes.'));
                 renderMigrateNewPdsSection();
             } catch (error) {
@@ -4014,29 +4054,73 @@
         }
 
         // ---- Cleanup: drop the old PDS's key(s), separate explicit step ----
-
-        function renderMigrateCleanupSection() {
+        //
+        // Only offers this when every non-held rotation key is confirmed (via
+        // the stash from runMigrateAuthorize) to belong to the old PDS - if
+        // any key present is neither the held key nor a confirmed old-PDS
+        // key, dropping it here could be dropping something else entirely,
+        // so this punts to Control tab for a manual look instead. If the
+        // only key present is the held one, there's nothing to clean up at
+        // all.
+        async function renderMigrateCleanupSection() {
+            migrateContentDiv.querySelectorAll('.cleanup-section').forEach((el) => el.remove());
             const section = document.createElement('div');
-            section.className = 'module';
+            section.className = 'module cleanup-section';
+            section.innerHTML = `<h2>cleanup</h2><div class="migrate-status-box">Checking remaining rotation keys...</div>`;
+            migrateContentDiv.appendChild(section);
+
+            let rotationKeys;
+            try {
+                const { didDocument } = await fetchDidPlcRecord(migrateState.did);
+                rotationKeys = didDocument.rotationKeys || [];
+            } catch (error) {
+                section.querySelector('.migrate-status-box').outerHTML =
+                    migrateStatusBlock('error', `Could not check the current rotation keys (${error.message}) - review them on the Control tab instead.`).outerHTML;
+                return;
+            }
+
+            const otherKeys = rotationKeys.filter((k) => k !== currentDidKey);
+            if (otherKeys.length === 0) {
+                section.remove();
+                return;
+            }
+
+            const stashedOldPdsKeys = getStashedOldPdsKeys(migrateState.oldPds, migrateState.did) || [];
+            const identifiedKeys = otherKeys.filter((k) => stashedOldPdsKeys.includes(k));
+            const unidentifiedKeys = otherKeys.filter((k) => !stashedOldPdsKeys.includes(k));
+
+            if (unidentifiedKeys.length > 0) {
+                section.innerHTML = `
+                    <h2>cleanup</h2>
+                    <div class="migrate-status-box">This account has ${otherKeys.length} rotation key(s) besides yours, and ${identifiedKeys.length ? 'not all of them are' : 'none of them are'} confirmed to belong to the old PDS. Review and remove the right one(s) yourself on the Control tab rather than risk dropping the wrong one here.</div>
+                    <a href="#" class="account-detail-link" id="migrate-cleanup-goto-control">Go to Control tab →</a>
+                `;
+                document.getElementById('migrate-cleanup-goto-control').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    switchTab('control');
+                });
+                return;
+            }
+
             section.innerHTML = `
                 <h2>cleanup</h2>
                 <div class="migrate-status-box">Once you've confirmed the new account is working, drop the old PDS's rotation key(s) so it can no longer affect this identity. This is a separate, deliberate step - do it once you're sure.</div>
                 <button type="button" class="submit-btn" id="migrate-cleanup-btn">Drop old PDS's key(s)</button>
                 <div id="migrate-cleanup-status"></div>
             `;
-            migrateContentDiv.appendChild(section);
-            document.getElementById('migrate-cleanup-btn').addEventListener('click', runMigrateCleanup);
+            document.getElementById('migrate-cleanup-btn').addEventListener('click', () => runMigrateCleanup(identifiedKeys));
         }
 
-        async function runMigrateCleanup() {
+        async function runMigrateCleanup(keysToRemove) {
             const status = document.getElementById('migrate-cleanup-status');
             status.replaceChildren(migrateStatusBlock('loading', 'Submitting...'));
             try {
                 await submitPlcUpdateForDid(migrateState.did, currentKey, (didDocument) => {
-                    const remainingKeys = (didDocument.rotationKeys || []).filter((k) => k === currentDidKey);
-                    if (remainingKeys.length === 0) throw new Error('Held key is not present in rotationKeys - refusing to proceed (would lock out the account).');
+                    const remainingKeys = (didDocument.rotationKeys || []).filter((k) => !keysToRemove.includes(k));
+                    if (!remainingKeys.includes(currentDidKey)) throw new Error('Held key would not remain in rotationKeys - refusing to proceed (would lock out the account).');
                     return { rotationKeys: remainingKeys };
                 });
+                clearStashedOldPdsKeys(migrateState.oldPds, migrateState.did);
                 status.replaceChildren(migrateStatusBlock('success', 'Old PDS key(s) removed.'));
             } catch (error) {
                 status.replaceChildren(migrateStatusBlock('error', error.message));
@@ -4351,15 +4435,11 @@
             section.innerHTML = `
                 <h2>change handle</h2>
                 <div class="migrate-status-box">${handleState.heldKeyRegistered
-                    ? 'The key you selected controls this account, so we can self-sign your handle change.'
+                    ? 'The key you selected controls this account, so we can self-sign your handle change. We will still ask you to sign in to your PDS, so it can update its own record of your handle.'
                     : 'The key you selected does not control this account. We will ask your PDS to sign your handle change.'}</div>
                 <div class="form-group">
                     <label for="handle-new-handle">new handle${fieldHelp('The handle you want to change to')}</label>
                     <input type="text" id="handle-new-handle" placeholder="alice.example.com">
-                </div>
-                <div class="form-group">
-                    <label for="handle-password">password (for ${escapeHtml(handleState.pds)})${fieldHelp('Password for your PDS')}</label>
-                    <input type="password" id="handle-password" placeholder="Account password">
                 </div>
                 <div class="form-button-group">
                     <button type="button" class="submit-btn" id="handle-change-btn">Change handle</button>
@@ -4373,7 +4453,6 @@
         async function runHandleChange() {
             const status = document.getElementById('handle-change-status');
             const newHandle = document.getElementById('handle-new-handle').value.trim();
-            const password = document.getElementById('handle-password').value;
 
             if (!newHandle) {
                 status.replaceChildren(migrateStatusBlock('error', 'Enter the new handle.'));
@@ -4381,10 +4460,6 @@
             }
             if (newHandle === handleState.handle) {
                 status.replaceChildren(migrateStatusBlock('error', 'That is already the current handle.'));
-                return;
-            }
-            if (!password) {
-                status.replaceChildren(migrateStatusBlock('error', 'Enter the account password.'));
                 return;
             }
 
@@ -4398,28 +4473,25 @@
                     });
                 }
 
-                status.replaceChildren(migrateStatusBlock('loading', 'Signing in to update the PDS record...'));
-                const login = await tryLoginToExistingAccount(handleState.pds, handleState.did, password);
-                if (!login.success) {
-                    throw new Error("That password didn't work for this account.");
-                }
+                status.replaceChildren(migrateStatusBlock('loading', 'Opening sign-in window...'));
+                await openOAuthPopup('migration-session', {
+                    pds: handleState.pds, did: handleState.did, handle: handleState.handle,
+                });
 
                 status.replaceChildren(migrateStatusBlock('loading', 'Updating handle on the PDS...'));
                 try {
-                    await callUpdateHandle(handleState.pds, login.result.accessJwt, newHandle);
+                    await requestFromMigrationSession('update-handle', { newHandle });
                 } catch (error) {
                     if (!handleState.heldKeyRegistered || !isHandleUpdateSignatureFailure(error.message)) {
                         throw error;
                     }
                     status.replaceChildren(migrateStatusBlock('loading', 'Updating handle (temporary workaround)...'));
-                    const creds = await getRecommendedDidCredentials(handleState.pds, login.result.accessJwt);
-                    const pdsRotationKey = creds.rotationKeys?.find((k) => k !== currentDidKey);
+                    const { credentials } = await requestFromMigrationSession('get-recommended-credentials', {});
+                    const pdsRotationKey = credentials.rotationKeys?.find((k) => k !== currentDidKey);
                     if (!pdsRotationKey) {
                         throw new Error(`${error.message} (and could not determine the PDS's rotation key to work around it)`);
                     }
-                    await updateHandleWithTemporaryPdsRotationKey(
-                        handleState.pds, login.result.accessJwt, handleState.did, currentDidKey, pdsRotationKey, currentKey, newHandle
-                    );
+                    await updateHandleWithTemporaryPdsRotationKey(handleState.did, currentDidKey, pdsRotationKey, currentKey, newHandle);
                 }
 
                 // Refresh by the DID we already have, not by re-resolving the
