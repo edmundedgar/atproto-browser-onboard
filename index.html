@@ -4629,6 +4629,24 @@
                 document.activeElement.blur();
             }
         }
+
+        // Defaults to above (see .field-help-tip's CSS) so it doesn't sit
+        // on top of the field it's explaining; flips to below if there's
+        // not enough room above the viewport. .flip-below only changes
+        // which side it renders on, not whether it's shown - visibility is
+        // still driven entirely by :hover/:focus-visible/.open in CSS - so
+        // it's safe to call this before the tooltip is actually visible:
+        // hidden-but-in-flow (opacity/visibility, not display: none) means
+        // it always has real layout geometry to measure.
+        function positionFieldHelpTip(wrap) {
+            const tip = wrap.querySelector('.field-help-tip');
+            if (!tip) return;
+            tip.classList.remove('flip-below');
+            if (tip.getBoundingClientRect().top < 8) {
+                tip.classList.add('flip-below');
+            }
+        }
+
         document.addEventListener('click', (e) => {
             const btn = e.target.closest('.field-help');
             if (btn) {
@@ -4636,7 +4654,10 @@
                 const wrap = btn.closest('.field-help-wrap');
                 const wasOpen = wrap.classList.contains('open');
                 closeAllFieldHelp();
-                if (!wasOpen) wrap.classList.add('open');
+                if (!wasOpen) {
+                    positionFieldHelpTip(wrap);
+                    wrap.classList.add('open');
+                }
                 return;
             }
             if (!e.target.closest('.field-help-tip')) {
@@ -4648,6 +4669,23 @@
                 closeAllFieldHelp();
             }
         });
+        // mouseover (not mouseenter) so this can be delegated at the
+        // document level rather than attached per-tooltip - the
+        // relatedTarget check below only lets it through once per actual
+        // hover-start, same as mouseenter would.
+        document.addEventListener('mouseover', (e) => {
+            const wrap = e.target.closest('.field-help-wrap');
+            if (wrap && !wrap.contains(e.relatedTarget)) {
+                positionFieldHelpTip(wrap);
+            }
+        });
+        // focus doesn't bubble, so this needs the capture phase to work
+        // delegated - covers tabbing to a .field-help button by keyboard.
+        document.addEventListener('focus', (e) => {
+            if (e.target.classList && e.target.classList.contains('field-help')) {
+                positionFieldHelpTip(e.target.closest('.field-help-wrap'));
+            }
+        }, true);
 
         // Run test case on page load
         testDidPlcIdGeneration();

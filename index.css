@@ -562,7 +562,8 @@
         }
 
         .form-group label {
-            display: block;
+            display: flex;
+            align-items: center;
             font-weight: 500;
             color: var(--text-dim);
             margin-bottom: 8px;
@@ -575,12 +576,18 @@
         /* Per-field help: a small "?" button next to a label, showing a
            tooltip on hover (desktop) or click/tap (everywhere, including
            mobile where hover doesn't apply) - see the delegated click
-           handler near the bottom of the script for the toggle behavior. */
+           handler near the bottom of the script for the toggle behavior.
+           margin-left: auto (rather than justify-content: space-between on
+           the label) pushes just this to the label's right edge, whatever
+           else the label contains - e.g. "invite code" plus an
+           .optional-hint span stay packed together on the left rather than
+           also getting spread apart. */
         .field-help-wrap {
             position: relative;
-            display: inline-block;
-            margin-left: 5px;
-            vertical-align: middle;
+            display: inline-flex;
+            margin-left: auto;
+            padding-left: 8px;
+            flex-shrink: 0;
         }
         .field-help {
             appearance: none;
@@ -604,10 +611,15 @@
             color: var(--amber);
             border-color: var(--amber);
         }
+        /* Above by default (so the tooltip doesn't sit on top of the field
+           it's explaining) - flipped to below via .flip-below, added by JS
+           when there isn't room above (see positionFieldHelpTip). Anchored
+           to the wrap's right edge in both cases, since the icon itself is
+           now at the right edge of the label. */
         .field-help-tip {
             position: absolute;
-            left: 0;
-            top: calc(100% + 6px);
+            right: 0;
+            bottom: calc(100% + 6px);
             z-index: 20;
             width: max-content;
             max-width: 240px;
@@ -625,6 +637,10 @@
             opacity: 0;
             transition: opacity 0.12s ease;
             pointer-events: none;
+        }
+        .field-help-tip.flip-below {
+            bottom: auto;
+            top: calc(100% + 6px);
         }
         .field-help-wrap:hover .field-help-tip,
         .field-help:focus-visible ~ .field-help-tip,
