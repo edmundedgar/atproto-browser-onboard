@@ -79,6 +79,14 @@
             resultChannel.postMessage({ type: 'oauth-popup-result', ...result });
         }
 
+        // Leaves the just-set status message on screen briefly rather than
+        // vanishing the window instantly - only called once there's nothing
+        // left for this window to do (a one-shot purpose's result already
+        // reported, or the opener told us the whole session is done).
+        function scheduleAutoClose(delayMs = 1200) {
+            setTimeout(() => window.close(), delayMs);
+        }
+
         // ---- PKCE + DPoP helpers ----
 
         function randomBase64Url(byteLength) {
@@ -421,7 +429,8 @@
             });
             resultChannel.addEventListener('message', (event) => {
                 if (event.data && event.data.type === 'oauth-popup-session-close') {
-                    setContent(statusBlock('success', 'Migration finished - you can close this window.'));
+                    setContent(statusBlock('success', 'All done - closing this window...'));
+                    scheduleAutoClose();
                 }
             });
         }
@@ -457,8 +466,9 @@
                     }
                     setContent(statusBlock('loading', 'Completing the requested action...'));
                     const result = await runPurpose(pending, dpopCtx);
-                    setContent(statusBlock('success', 'Done - you can close this window.'));
+                    setContent(statusBlock('success', 'Done - closing this window...'));
                     reportResult({ purpose: pending.purpose, success: true, ...result });
+                    scheduleAutoClose();
                 } else if (params.has('error')) {
                     throw new Error(params.get('error_description') || params.get('error'));
                 } else {

@@ -4495,6 +4495,7 @@
             }
 
             status.replaceChildren(migrateStatusBlock('loading', 'Submitting...'));
+            let sessionOpened = false;
             try {
                 if (handleState.heldKeyRegistered) {
                     await submitPlcUpdateForDid(handleState.did, currentKey, (didDocument) => {
@@ -4508,6 +4509,7 @@
                 await openOAuthPopup('migration-session', {
                     pds: handleState.pds, did: handleState.did, handle: handleState.handle,
                 });
+                sessionOpened = true;
 
                 status.replaceChildren(migrateStatusBlock('loading', 'Updating handle on the PDS...'));
                 try {
@@ -4557,6 +4559,13 @@
                 document.getElementById('handle-change-status').replaceChildren(migrateStatusBlock('success', `Handle changed to ${newHandle}.`));
             } catch (error) {
                 status.replaceChildren(migrateStatusBlock('error', error.message));
+            } finally {
+                // Tells the popup its job is done so it can close itself -
+                // same signal Migrate sends at the end of its own flow (see
+                // startMigration's finally block).
+                if (sessionOpened) {
+                    migrateResultChannel.postMessage({ type: 'oauth-popup-session-close' });
+                }
             }
         }
 
