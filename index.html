@@ -4232,6 +4232,7 @@
                         <input type="text" id="control-add-key-input" placeholder="did:key:...">
                         <button type="button" class="submit-btn flex-shrink-0" id="control-add-key-btn">Add</button>
                     </div>
+                    <div id="control-add-self-key-link-wrap"></div>
                 </div>
                 <div id="control-edit-status"></div>
                 <div class="form-button-group">
@@ -4304,6 +4305,28 @@
                         });
                     }
                 });
+            });
+
+            renderControlAddSelfKeyLink();
+        }
+
+        // Quick way to add the held key without copy-pasting it - hidden
+        // once it's already in the (unsaved) working list, so this only
+        // ever shows when it'd actually do something. Only populates the
+        // input; Add still has to be clicked, same as pasting it in by hand.
+        function renderControlAddSelfKeyLink() {
+            const wrap = document.getElementById('control-add-self-key-link-wrap');
+            if (!wrap) return;
+            if (!currentDidKey || controlWorkingKeys.includes(currentDidKey)) {
+                wrap.innerHTML = '';
+                wrap.classList.remove('mt-16');
+                return;
+            }
+            wrap.classList.add('mt-16');
+            wrap.innerHTML = `<a href="#" class="account-detail-link" id="control-add-self-key-link">Use your held key →</a>`;
+            document.getElementById('control-add-self-key-link').addEventListener('click', (e) => {
+                e.preventDefault();
+                document.getElementById('control-add-key-input').value = currentDidKey;
             });
         }
 
