@@ -5413,7 +5413,7 @@
             const container = document.getElementById('account-list-items');
             if (!container) return;
             if (knownAccounts.length === 0) {
-                container.innerHTML = '<div class="migrate-status-box">No accounts saved yet — create one, or look one up below.</div>';
+                container.innerHTML = '';
             } else {
                 container.innerHTML = knownAccounts.map((a, i) => `
                     <button type="button" class="account-list-item${selectedAccount && selectedAccount.did === a.did ? ' selected' : ''}" data-index="${i}">
