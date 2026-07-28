@@ -3391,11 +3391,24 @@
         // has no such dependency.
         const migrateResultChannel = new BroadcastChannel('oauth-popup-results');
 
+        // Only used to smuggle this popup's params (pds/newPdsEndpoint in
+        // particular, both real https:// URLs) past IPFS gateways that WAF-
+        // filter query strings containing "http:"/"https:"/"javascript:" as
+        // a substring - confirmed against eth.limo (and eth.link, which now
+        // just proxies to it): a request for this exact page with a plain
+        // ?pds=https%3A%2F%2F... query param comes back 404 "Resource Not
+        // Found" before oauth-popup.html's own script ever runs. Opaque
+        // base64 dodges that regardless of which param happens to hold a
+        // URL, present or future - simpler than tracking that per field.
+        function base64UrlEncodeString(str) {
+            return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+        }
+
         function openOAuthPopup(purpose, params) {
             return new Promise((resolve, reject) => {
                 const url = new URL('/oauth-popup.html', window.location.origin);
                 url.searchParams.set('purpose', purpose);
-                for (const [k, v] of Object.entries(params || {})) if (v) url.searchParams.set(k, v);
+                url.searchParams.set('data', base64UrlEncodeString(JSON.stringify(params || {})));
                 const popup = window.open(url.toString(), 'oauth-popup', 'width=520,height=680');
                 if (!popup) { reject(new Error('Popup blocked - please allow popups for this site and try again.')); return; }
 
