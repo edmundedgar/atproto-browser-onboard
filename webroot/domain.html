@@ -80,9 +80,15 @@
         const customDomain = urlParams.get('domain'); // a plain domain the caller owns, e.g. "alice.example.com"
 
         // Set by index.html when it's running in ?net=sepolia mode - swaps
-        // the DNS target from the real eth.xyz to our own Sepolia test zone.
-        // See ethXyzHandle() and ETH_SERVER_README.md.
+        // the DNS target from the real eth.xyz to our own Sepolia test zone
+        // (see ethXyzHandle()/ETH_SERVER_README.md), and for the GNS branch,
+        // which chain the connected wallet is required to be on (see
+        // REQUIRED_GWEI_CHAIN/connectAndCheckGwei) - both branches read the
+        // same flag, but a given popup only ever exercises one of them.
         const SEPOLIA_TEST_MODE = urlParams.get('net') === 'sepolia';
+        const REQUIRED_GWEI_CHAIN = SEPOLIA_TEST_MODE
+            ? { hex: '0xaa36a7', decimal: 11155111n, label: 'Sepolia' }
+            : { hex: '0x1', decimal: 1n, label: 'Mainnet' };
 
         const contentDiv = document.getElementById('content');
 
@@ -120,12 +126,17 @@
             return SEPOLIA_TEST_MODE ? `${account}.sepolia.id.goat.navy` : `${account}.xyz`;
         }
 
-        // gwei.name is a not-yet-built equivalent of eth.xyz for GNS (.gwei)
-        // names: same idea (publish an on-chain text record, a bot notices
-        // and republishes it as a real DNS TXT record), different registry.
-        // "bot" -> "bot.gwei.name".
+        // gwei.name is the eth.xyz equivalent for GNS (.gwei) names: same
+        // idea (publish an on-chain text record, a watcher notices and
+        // republishes it as a real DNS TXT record), different registry -
+        // see gwei-onchain-sync.py. "bot" -> "bot.gwei.name", or
+        // "bot.sepolia.gwei.name" in test mode (GNS_NAME_NFT_ADDRESS is
+        // deployed at the same address on both networks; SEPOLIA_TEST_MODE
+        // here is driven by index.html's own .sepolia.gwei.name domain
+        // option, not tied to the eth.xyz branch's use of the same flag -
+        // see connectAndCheckGwei for the matching chain requirement).
         function gweiHandle() {
-            return `${gweiName}.gwei.name`;
+            return SEPOLIA_TEST_MODE ? `${gweiName}.sepolia.gwei.name` : `${gweiName}.gwei.name`;
         }
 
         // Same DNS-TXT lookup the main page's own handle resolution uses
@@ -592,6 +603,7 @@
                 : '';
             contentDiv.innerHTML = `
                 <div class="module">
+                    ${SEPOLIA_TEST_MODE ? '<div class="field"><label>network</label><div class="value">Sepolia testnet - not a real handle</div></div>' : ''}
                     <div class="field">
                         <label>gwei name</label>
                         <div class="value">${escapeHtml(gweiName)}.gwei</div>
@@ -635,18 +647,36 @@
             statusDiv.innerHTML = `<div class="status loading">Connecting wallet...</div>`;
 
             try {
+                // Actively switches rather than just erroring on the wrong
+                // chain - GNS_NAME_NFT_ADDRESS is deployed at the same
+                // address on both Mainnet and Sepolia (confirmed via
+                // eth_getCode), so which one is "right" depends entirely on
+                // which .gwei option the user picked on index.html
+                // (REQUIRED_GWEI_CHAIN), not on anything this popup can
+                // infer from the name itself. Mirrors deploy.html's
+                // wallet_switchEthereumChain use for the same reason.
+                try {
+                    await rawProvider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: REQUIRED_GWEI_CHAIN.hex }] });
+                } catch (switchError) {
+                    throw new Error(`Please switch your wallet to ${REQUIRED_GWEI_CHAIN.label} for .gwei - could not switch automatically: ${switchError.message || switchError}`);
+                }
+
                 const provider = new ethers.BrowserProvider(rawProvider);
                 gweiSigner = await provider.getSigner();
                 const network = await provider.getNetwork();
                 console.log('Connected to network:', network.name, 'Chain ID:', network.chainId);
 
-                // No chain restriction here (unlike an earlier version of
-                // this code) - GNS_NAME_NFT_ADDRESS turns out to be deployed
-                // at the same address on Sepolia too (confirmed via
-                // eth_getCode), same as ENS's own registry - so this just
-                // works on whatever chain is connected, same as the ENS
-                // branch above. computeId()/ownerOf() below fail cleanly on
-                // a chain with no deployment at all.
+                // Defensive - some wallets/WalletConnect sessions may not
+                // actually honor wallet_switchEthereumChain (no error, but
+                // no real switch either), so don't just trust the request
+                // above succeeded silently.
+                if (network.chainId !== REQUIRED_GWEI_CHAIN.decimal) {
+                    throw new Error(
+                        `.gwei needs ${REQUIRED_GWEI_CHAIN.label} - your wallet is on ${network.name || `chain ID ${network.chainId}`}. ` +
+                        `Switch networks in your wallet and try again.`
+                    );
+                }
+
                 const readContract = new ethers.Contract(GNS_NAME_NFT_ADDRESS, GNS_NAME_NFT_ABI, provider);
                 gweiTokenId = await readContract.computeId(gweiName);
 
@@ -691,6 +721,7 @@
             contentDiv.innerHTML = `
                 <div class="status success">Already set up — found the expected DID on-chain.</div>
                 <div class="module">
+                    ${SEPOLIA_TEST_MODE ? '<div class="field"><label>network</label><div class="value">Sepolia testnet - not a real handle</div></div>' : ''}
                     <div class="field">
                         <label>gwei name</label>
                         <div class="value">${escapeHtml(gweiName)}.gwei</div>
@@ -736,6 +767,7 @@
         function showSetupButtonGwei() {
             contentDiv.innerHTML = `
                 <div class="module">
+                    ${SEPOLIA_TEST_MODE ? '<div class="field"><label>network</label><div class="value">Sepolia testnet - not a real handle</div></div>' : ''}
                     <div class="field">
                         <label>gwei name</label>
                         <div class="value">${escapeHtml(gweiName)}.gwei</div>
