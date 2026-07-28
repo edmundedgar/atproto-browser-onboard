@@ -738,6 +738,9 @@
             margin-top: 7px;
             font-style: normal;
         }
+        .availability-checking { color: var(--text-dim); }
+        .availability-available { color: var(--ok); }
+        .availability-taken { color: var(--bad); }
 
         .form-button-group {
             display: flex;
@@ -1101,6 +1104,11 @@
                                         <button type="button" class="input-revert-btn" id="account-handle-custom-domain-revert" aria-label="Use a listed domain instead" title="Use a listed domain instead">×</button>
                                     </div>
                                 </div>
+                                <small class="form-help hidden" id="account-domain-help-pds">A subdomain hosted directly by your PDS. Works immediately - no extra setup needed.</small>
+                                <small class="form-help hidden" id="account-domain-help-eth">Uses your existing .eth ENS name. You'll connect a wallet and publish a small on-chain record; eth.xyz then makes it work as a handle over regular DNS.</small>
+                                <small class="form-help hidden" id="account-domain-help-gwei">Uses a .gwei name (a separate ENS-like naming system). You'll connect a wallet and publish a small on-chain record; gwei.name then makes it work as a handle over regular DNS.</small>
+                                <small class="form-help hidden" id="account-domain-help-custom">Use any domain you already control. You'll add a DNS TXT record or a small file to your own site - we'll show you exactly what to add.</small>
+                                <small class="form-help hidden" id="account-availability-status"></small>
                                 <input type="hidden" id="account-handle" name="handle">
                                 <input type="hidden" id="account-did-value" name="did">
                             </div>
@@ -2165,7 +2173,15 @@
         // it doesn't matter what handle was typed into a form field, only
         // that the DID matches.
         async function checkExistingRepo(pdsEndpoint, repoIdentifier) {
-            const response = await fetch(`${pdsEndpoint}/xrpc/com.atproto.repo.describeRepo?repo=${encodeURIComponent(repoIdentifier)}`);
+            // describeRepo has an ETag but no Cache-Control, so browsers can
+            // heuristically cache a "not found" (or a stale "found") answer
+            // and serve it right back for a rapid recheck of the same
+            // identifier - noticed via the new handle-availability check
+            // (create/change a handle, then immediately recheck the same
+            // string) but this function is also used for Migrate/
+            // account-creation resume, where a stale answer would be worse
+            // than a slightly slower request.
+            const response = await fetch(`${pdsEndpoint}/xrpc/com.atproto.repo.describeRepo?repo=${encodeURIComponent(repoIdentifier)}`, { cache: 'no-store' });
             if (response.ok) {
                 const result = await response.json();
                 return { exists: true, did: result.did, handle: result.handle };
@@ -4500,6 +4516,11 @@
                             <button type="button" class="input-revert-btn" id="handle-custom-domain-revert" aria-label="Use a listed domain instead" title="Use a listed domain instead">×</button>
                         </div>
                     </div>
+                    <small class="form-help hidden" id="handle-domain-help-pds">A subdomain hosted directly by your PDS. Works immediately - no extra setup needed.</small>
+                    <small class="form-help hidden" id="handle-domain-help-eth">Uses your existing .eth ENS name. You'll connect a wallet and publish a small on-chain record; eth.xyz then makes it work as a handle over regular DNS.</small>
+                    <small class="form-help hidden" id="handle-domain-help-gwei">Uses a .gwei name (a separate ENS-like naming system). You'll connect a wallet and publish a small on-chain record; gwei.name then makes it work as a handle over regular DNS.</small>
+                    <small class="form-help hidden" id="handle-domain-help-custom">Use any domain you already control. You'll add a DNS TXT record or a small file to your own site - we'll show you exactly what to add.</small>
+                    <small class="form-help hidden" id="handle-availability-status"></small>
                 </div>
                 <div class="form-button-group hidden" id="handle-setup-group"></div>
                 <div class="form-button-group">
@@ -4522,7 +4543,11 @@
             let handleFieldTimeout;
             const debouncedRevalidate = () => {
                 clearTimeout(handleFieldTimeout);
-                handleFieldTimeout = setTimeout(invalidateHandleSetupIfStale, 500);
+                handleFieldTimeout = setTimeout(() => {
+                    invalidateHandleSetupIfStale();
+                    const selectedDomain = domainSelectEl.value;
+                    checkPdsHandleAvailability('handle', isPdsDomainSelected(selectedDomain) ? handleState.pds : null, isPdsDomainSelected(selectedDomain) ? computeHandleTabTargetHandle() : null);
+                }, 500);
             };
             subdomainInput.addEventListener('input', () => { updateDotSeparatorVisibility(); debouncedRevalidate(); });
             customDomainInput.addEventListener('input', debouncedRevalidate);
@@ -4607,6 +4632,7 @@
                 if (isCustom) document.getElementById('handle-new-custom-domain')?.focus();
             }
             updateDotSeparatorVisibility();
+            updateDomainMethodHelp('handle', selectedDomain);
 
             if (setupInfo) {
                 if (setupGroup) {
@@ -4631,6 +4657,7 @@
                 if (changeBtn) changeBtn.disabled = false;
             }
             invalidateHandleSetupIfStale();
+            checkPdsHandleAvailability('handle', isPdsDomainSelected(selectedDomain) ? handleState.pds : null, isPdsDomainSelected(selectedDomain) ? computeHandleTabTargetHandle() : null);
         }
 
         // The × inside the custom-domain input - clears it and swaps the
@@ -5078,6 +5105,121 @@
             return null;
         }
 
+        // Shows the one #<prefix>-domain-help-{pds,eth,gwei,custom} caption
+        // matching the current selection, hides the rest - shared by both
+        // tabs (prefix is "handle" or "account"). The caption text itself
+        // lives in the markup, not here, so it's easy to find and edit.
+        function updateDomainMethodHelp(prefix, selectedDomain) {
+            const activeKey = selectedDomain === ETH_XYZ_DOMAIN_VALUE ? 'eth'
+                : selectedDomain === GWEI_DOMAIN_VALUE ? 'gwei'
+                : selectedDomain === CUSTOM_DOMAIN_VALUE ? 'custom'
+                : selectedDomain ? 'pds'
+                : null;
+            for (const key of ['pds', 'eth', 'gwei', 'custom']) {
+                const el = document.getElementById(`${prefix}-domain-help-${key}`);
+                if (el) el.classList.toggle('hidden', key !== activeKey);
+            }
+        }
+
+        // Per-prefix race guard for checkPdsHandleAvailability, so a check
+        // kicked off from one tab can't clobber a still-in-flight one from
+        // the other.
+        const handleAvailabilityCheckSeq = { handle: 0, account: 0 };
+
+        // Purpose-built handle->DID lookup, used specifically for the
+        // handle-availability check below - NOT checkExistingRepo's
+        // describeRepo call (used elsewhere for DID-based resume
+        // detection, left untouched). describeRepo queried *by handle*
+        // requires the server to resolve the handle first, and a
+        // resolution hiccup on the server's end is indistinguishable from
+        // "genuinely never existed" - seen live against bsky.social's real
+        // production infra reporting a known-taken handle (their own
+        // "edd.bsky.social") as not found. resolveHandle's whole job is
+        // exactly this lookup, so a "not found" from it is a much more
+        // trustworthy signal.
+        //
+        // The lexicon defines a typed HandleNotFound error, but not every
+        // implementation actually returns it - bsky.social and the
+        // reference PDS both return a generic InvalidRequest with the same
+        // message text instead (only tranquil-pds uses the typed error),
+        // so this checks both. Any other failure (network error, rate
+        // limit, unexpected status) is deliberately NOT treated as "not
+        // taken" - see the caller below.
+        async function checkHandleTaken(pdsEndpoint, handle) {
+            const response = await fetch(`${pdsEndpoint}/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(handle)}`, { cache: 'no-store' });
+            if (response.ok) {
+                const result = await response.json();
+                return { taken: true, did: result.did };
+            }
+            const errorBody = await response.json().catch(() => ({}));
+            if (errorBody.error === 'HandleNotFound' || /unable to resolve handle/i.test(errorBody.message || '')) {
+                return { taken: false };
+            }
+            throw new Error(`Could not check handle availability: ${errorBody.message || response.statusText}`);
+        }
+
+        // Live-checks whether `handle` is already taken on `pdsEndpoint`,
+        // rather than only finding out from a failed submit. Only
+        // meaningful for the plain "any PDS-supported domain" method -
+        // .eth.xyz/.gwei.name/custom domain aren't about this PDS's own
+        // namespace, so callers pass null for pdsEndpoint/handle
+        // otherwise, which just hides the status line. Any inconclusive
+        // result (network error, unexpected response) also just hides the
+        // status rather than risk a false "available" - see
+        // checkHandleTaken.
+        async function checkPdsHandleAvailability(prefix, pdsEndpoint, handle) {
+            const statusEl = document.getElementById(`${prefix}-availability-status`);
+            if (!statusEl) return;
+            if (!pdsEndpoint || !handle) {
+                statusEl.classList.add('hidden');
+                return;
+            }
+            const seq = ++handleAvailabilityCheckSeq[prefix];
+            statusEl.classList.remove('hidden', 'availability-available', 'availability-taken');
+
+            // Every PDS checked so far (reference PDS, tranquil-pds) rejects
+            // a subdomain under 3 characters - but resolveHandle doesn't
+            // distinguish "too short to ever be valid" from "genuinely not
+            // found", both come back as the exact identical generic "unable
+            // to resolve" error (confirmed live against bsky.social, whose
+            // real, taken 2-letter handles read back exactly the same as
+            // ones nobody's ever registered) - so a short subdomain would
+            // otherwise show as falsely "available". Catch it ourselves
+            // before ever asking.
+            const front = handle.split('.')[0];
+            if (front.length < 3) {
+                statusEl.classList.add('availability-taken');
+                statusEl.textContent = `"${front}" is too short - most servers require at least 3 characters.`;
+                return;
+            }
+
+            statusEl.classList.add('availability-checking');
+            statusEl.textContent = 'Checking availability...';
+            try {
+                const result = await checkHandleTaken(pdsEndpoint, handle);
+                if (seq !== handleAvailabilityCheckSeq[prefix]) return;
+                statusEl.classList.remove('availability-checking');
+                if (result.taken) {
+                    statusEl.classList.add('availability-taken');
+                    statusEl.textContent = `"${handle}" is already taken.`;
+                } else {
+                    statusEl.classList.add('availability-available');
+                    statusEl.textContent = `"${handle}" is available.`;
+                }
+            } catch (error) {
+                if (seq !== handleAvailabilityCheckSeq[prefix]) return;
+                console.log('Could not check handle availability:', error.message);
+                statusEl.classList.add('hidden');
+            }
+        }
+
+        // selectedDomain === one of the fixed sentinels means .eth.xyz/
+        // .gwei.name/custom domain, none of which are about this PDS's own
+        // namespace - only a plain PDS-provided domain is.
+        function isPdsDomainSelected(selectedDomain) {
+            return !!selectedDomain && selectedDomain !== ETH_XYZ_DOMAIN_VALUE && selectedDomain !== GWEI_DOMAIN_VALUE && selectedDomain !== CUSTOM_DOMAIN_VALUE;
+        }
+
         // Populates a domain <select> with a PDS's availableUserDomains (or a
         // "no domains"/"error" placeholder). This is just the PDS-fetching
         // core - fixed trailing options like .eth.xyz are appended by each
@@ -5246,6 +5388,7 @@
                 if (isCustom) document.getElementById('account-handle-custom-domain')?.focus();
             }
             updateAccountDotSeparatorVisibility();
+            updateDomainMethodHelp('account', selectedDomain);
 
             if (setupInfo) {
                 if (accountSetupGroup) {
@@ -5270,6 +5413,13 @@
                 if (submitCreateAccountBtn) submitCreateAccountBtn.disabled = false;
             }
             invalidateAccountSetupIfStale();
+            refreshAccountHandleAvailability();
+        }
+
+        function refreshAccountHandleAvailability() {
+            const selectedDomain = domainSelect.value;
+            const pdsEndpoint = normalizePdsEndpoint(document.getElementById('pds-endpoint')?.value || '');
+            checkPdsHandleAvailability('account', isPdsDomainSelected(selectedDomain) ? pdsEndpoint : null, isPdsDomainSelected(selectedDomain) ? computeCreateAccountTargetHandle() : null);
         }
 
         if (domainSelect) {
@@ -5509,6 +5659,7 @@
                 subdomainTimeout = setTimeout(() => {
                     invalidateAccountSetupIfStale();
                     updateDidDisplay();
+                    refreshAccountHandleAvailability();
                 }, 500);
             });
         }
@@ -5521,6 +5672,7 @@
                 customDomainTimeout = setTimeout(() => {
                     invalidateAccountSetupIfStale();
                     updateDidDisplay();
+                    refreshAccountHandleAvailability();
                 }, 500);
             });
         }
