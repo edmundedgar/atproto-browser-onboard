@@ -71,8 +71,9 @@
             background: var(--bg);
             min-height: 100vh;
             display: flex;
-            align-items: flex-start;
-            justify-content: center;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
             padding: 56px 20px;
             color: var(--text);
             line-height: 1.6;
@@ -88,6 +89,25 @@
             border-radius: 8px;
             box-shadow: 0 30px 70px var(--shadow);
             zoom: 1.25;
+        }
+
+        /* Deliberately fixed colors, not theme tokens - a warning this
+           blunt should look the same regardless of light/dark theme,
+           not blend in with the page's normal palette. Remove this
+           whole block (and its markup below) once the app has had a
+           real testing pass. */
+        .untested-warning {
+            background: #7a1c1c;
+            color: #fff;
+            text-align: center;
+            font-weight: 700;
+            font-size: 14.5px;
+            line-height: 1.5;
+            padding: 12px 20px;
+            max-width: 700px;
+            width: 100%;
+            margin-bottom: 20px;
+            border-radius: 8px;
         }
 
         .header-slot {
@@ -988,6 +1008,7 @@
     </style>
 </head>
 <body>
+    <div class="untested-warning">⚠ This app hasn't been fully tested yet. If you use it, you might lose your account.</div>
     <div class="container">
         <div class="header-slot">
             <div class="path">~/atproto <span class="amber">$</span> <span id="status-line">self-sovereign identity</span></div>
