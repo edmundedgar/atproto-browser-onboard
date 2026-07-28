@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; img-src data:; base-uri 'none';">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Redirecting...</title>
+    <link rel="icon" href="data:,">
+</head>
+<body>
+    <script>
+        // Fixed redirect_uri (registered in client-metadata.json) for OAuth
+        // flows started from an app that isn't served from this origin - an
+        // .eth/IPFS-hosted index.html, for example. The authorization server
+        // only ever redirects back here, to a stable https:// address it can
+        // validate; this page's only job is bouncing the browser straight on
+        // to oauth-popup.html on the origin the flow actually started from,
+        // carrying the same code/state/error params it received unchanged.
+        //
+        // That origin travels inside `state` itself (see oauth-popup.html's
+        // startOAuth/isCrossOrigin) because nothing else survives this round
+        // trip: the authorization server doesn't preserve unknown query
+        // params, and this page has no access to sessionStorage set on a
+        // different origin. `state` is opaque to the authorization server
+        // and always echoed back exactly as sent, success or error.
+        function base64UrlDecodeString(str) {
+            const padded = str.replace(/-/g, '+').replace(/_/g, '/');
+            const pad = padded.length % 4 ? '='.repeat(4 - (padded.length % 4)) : '';
+            return atob(padded + pad);
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const state = params.get('state') || '';
+        const dot = state.indexOf('.');
+        if (dot === -1) {
+            document.body.textContent = 'Missing return origin in state - cannot continue.';
+        } else {
+            try {
+                const returnOrigin = base64UrlDecodeString(state.slice(dot + 1));
+                if (!/^https:\/\/[^/]+$/.test(returnOrigin)) throw new Error('bad origin');
+                const target = new URL('oauth-popup.html', returnOrigin);
+                target.search = window.location.search;
+                window.location.replace(target.toString());
+            } catch (err) {
+                document.body.textContent = 'Could not parse return origin - cannot continue.';
+            }
+        }
+    </script>
+</body>
+</html>

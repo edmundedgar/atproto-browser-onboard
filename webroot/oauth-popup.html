@@ -105,6 +105,12 @@
             return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
         }
 
+        // Only used to smuggle window.location.origin through `state` when
+        // isCrossOrigin - see the state assignment in startOAuth().
+        function base64UrlEncodeString(str) {
+            return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+        }
+
         async function generateDpopKeypair() {
             return crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, ['sign', 'verify']);
         }
@@ -184,8 +190,25 @@
 
         // ---- Main flow ----
 
-        const clientId = `${window.location.origin}/client-metadata.json`;
-        const redirectUri = `${window.location.origin}/oauth-popup.html`;
+        // Fixed to the one origin actually registered in client-metadata.json's
+        // redirect_uris, regardless of where this page itself is being served
+        // from - lets the rest of the app (index.html, and this popup) live on
+        // a different origin (an .eth/IPFS-hosted one, eventually) while OAuth
+        // still points at a stable https:// address the authorization server
+        // can fetch (client_id) and validate (redirect_uri). When this page
+        // happens to already be on the canonical origin (the normal case
+        // today, ens.goat.navy serving everything), nothing changes -
+        // redirect_uri stays the direct oauth-popup.html registration and no
+        // extra hop happens. Otherwise it goes via oauth-redirect.html, a tiny
+        // stub at the canonical origin that bounces back to wherever this page
+        // actually started (see the state assignment below, and
+        // oauth-redirect.html's own comment).
+        const CANONICAL_ORIGIN = 'https://ens.goat.navy';
+        const isCrossOrigin = window.location.origin !== CANONICAL_ORIGIN;
+        const clientId = `${CANONICAL_ORIGIN}/client-metadata.json`;
+        const redirectUri = isCrossOrigin
+            ? `${CANONICAL_ORIGIN}/oauth-redirect.html`
+            : `${CANONICAL_ORIGIN}/oauth-popup.html`;
 
         // Every rpc:<lxm>?aud=* scope below matches exactly one dpopFetch
         // call elsewhere in this file - keep the two in sync. aud=* (rather
@@ -224,7 +247,15 @@
 
             const codeVerifier = randomBase64Url(64);
             const codeChallenge = await sha256Base64Url(codeVerifier);
-            const state = randomBase64Url(24);
+            // oauth-redirect.html can't read this origin's sessionStorage
+            // (different origin) and no other query param survives the round
+            // trip through the authorization server unmodified, so state -
+            // opaque to the authorization server, always echoed back exactly
+            // as sent - is the only place left to carry "where to bounce
+            // back to" when isCrossOrigin.
+            const state = isCrossOrigin
+                ? `${randomBase64Url(24)}.${base64UrlEncodeString(window.location.origin)}`
+                : randomBase64Url(24);
 
             const dpopCtx = { privateKey: dpopKeypair.privateKey, pubJwk, nonce: null };
 

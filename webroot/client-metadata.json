@@ -3,7 +3,8 @@
     "client_name": "atproto PDS migration tool",
     "client_uri": "https://ens.goat.navy",
     "redirect_uris": [
-        "https://ens.goat.navy/oauth-popup.html"
+        "https://ens.goat.navy/oauth-popup.html",
+        "https://ens.goat.navy/oauth-redirect.html"
     ],
     "grant_types": [
         "authorization_code",

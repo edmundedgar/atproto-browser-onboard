@@ -58,6 +58,13 @@ async def serve_oauth_popup():
     return FileResponse("webroot/oauth-popup.html")
 
 
+@app.get("/oauth-redirect.html")
+async def serve_oauth_redirect():
+    # Fixed redirect_uri for OAuth flows started from an app served on a
+    # different origin than this one - see the file's own comment.
+    return FileResponse("webroot/oauth-redirect.html")
+
+
 @app.get("/domain.css")
 async def serve_domain_css():
     return FileResponse("webroot/domain.css", media_type="text/css")

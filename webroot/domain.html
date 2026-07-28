@@ -58,7 +58,10 @@
         // Public identifier, not a secret - WalletConnect/Reown's own docs
         // show it used directly in client-side code. The actual access
         // control is the "Allowed domains" list in the project's dashboard
-        // at https://dashboard.reown.com (set to ens.goat.navy).
+        // at https://dashboard.reown.com, checked server-side against the
+        // real requesting origin (not just the metadata.url string below) -
+        // add each origin this app is actually served from there, or
+        // wallets will show it as an unverified domain.
         const WALLET_CONNECT_PROJECT_ID = '0b31bcd9e1dcde9b89c831d870922ec6';
 
         // Escapes text before it's interpolated into an innerHTML template -
@@ -331,7 +334,12 @@
                     metadata: {
                         name: 'Link a domain',
                         description: 'Set up your .eth or .gwei name as an ATProto handle',
-                        url: 'https://ens.goat.navy',
+                        // Reflects wherever this page is actually being
+                        // served from, rather than a fixed string - see the
+                        // WALLET_CONNECT_PROJECT_ID comment above for why
+                        // that origin also needs to be on the Reown
+                        // dashboard's allowlist.
+                        url: window.location.origin,
                         icons: [],
                     },
                 });
