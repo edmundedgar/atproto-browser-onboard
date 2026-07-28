@@ -640,13 +640,13 @@
                 const network = await provider.getNetwork();
                 console.log('Connected to network:', network.name, 'Chain ID:', network.chainId);
 
-                if (network.chainId !== 1n) {
-                    throw new Error(
-                        `GNS (.gwei) is deployed on Ethereum mainnet - please switch your wallet to mainnet ` +
-                        `(currently connected to ${network.name || `chain ID ${network.chainId}`}).`
-                    );
-                }
-
+                // No chain restriction here (unlike an earlier version of
+                // this code) - GNS_NAME_NFT_ADDRESS turns out to be deployed
+                // at the same address on Sepolia too (confirmed via
+                // eth_getCode), same as ENS's own registry - so this just
+                // works on whatever chain is connected, same as the ENS
+                // branch above. computeId()/ownerOf() below fail cleanly on
+                // a chain with no deployment at all.
                 const readContract = new ethers.Contract(GNS_NAME_NFT_ADDRESS, GNS_NAME_NFT_ABI, provider);
                 gweiTokenId = await readContract.computeId(gweiName);
 

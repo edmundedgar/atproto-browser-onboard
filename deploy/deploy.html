@@ -96,9 +96,9 @@
     <div class="network-group">
         <h2>Sepolia</h2>
         <div class="btn-row">
-            <button data-net="sepolia" data-targets="gwei" disabled title="GNS (.gwei) has no Sepolia deployment">.gwei</button>
+            <button data-net="sepolia" data-targets="gwei">.gwei</button>
             <button data-net="sepolia" data-targets="eth">.eth</button>
-            <button class="primary" data-net="sepolia" data-targets="gwei,eth" title="GNS (.gwei) has no Sepolia deployment - this will only set .eth">both</button>
+            <button class="primary" data-net="sepolia" data-targets="gwei,eth">both</button>
         </div>
     </div>
 
@@ -129,7 +129,11 @@
             'function contenthash(bytes32 node) view returns (bytes)',
             'function setContenthash(bytes32 node, bytes hash)',
         ];
-        const GNS_NAME_NFT_ADDRESS = '0x9D51D507BC7264d4fE8Ad1cf7Fe191933A0a81d6'; // mainnet only
+        // Same address on Mainnet and Sepolia (confirmed via eth_getCode on
+        // both - deployed deterministically, same as the ENS registry
+        // above) - despite domain.html's own comment on this constant
+        // claiming mainnet-only, which is stale as of this tool.
+        const GNS_NAME_NFT_ADDRESS = '0x9D51D507BC7264d4fE8Ad1cf7Fe191933A0a81d6';
         const GNS_NAME_NFT_ABI = [
             'function computeId(string fullName) view returns (uint256)',
             'function ownerOf(uint256 tokenId) view returns (address)',
@@ -285,11 +289,7 @@
                 document.getElementById('wallet-value').textContent = `${await signer.getAddress()} (${NETWORKS[netKey].label})`;
 
                 if (targets.includes('gwei')) {
-                    if (netKey === 'sepolia') {
-                        log('GNS (.gwei) has no Sepolia deployment - skipping.');
-                    } else {
-                        await setGnsContenthash(provider, signer, contenthashHex);
-                    }
+                    await setGnsContenthash(provider, signer, contenthashHex);
                 }
                 if (targets.includes('eth')) {
                     await setEnsContenthash(provider, signer, contenthashHex);
