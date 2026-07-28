@@ -1,15 +1,19 @@
 # eth_server.py
 
-A small FastAPI app that serves this project's static files - `index.html`,
-`domain.html`, `oauth-popup.html`, their CSS, `bootstrap-config.js`,
-`social-import-config.js`, and `client-metadata.json` (the atproto OAuth
-client ID document - a real static file, not computed per-request; see
-its own comment in `eth_server.py` for why and how to mint a fresh
-tagged one for testing). Every route is a plain `FileResponse` - nothing
-here is dynamic, so the whole app is servable by any static file host if
-you'd rather not run this at all; it exists mainly for convenience during
-development and because the current deployment happens to reverse-proxy
-to it (see Nginx below).
+A small FastAPI app that serves this project's static files, all of which
+live in `webroot/` - `index.html`, `domain.html`, `oauth-popup.html`, their
+CSS, `bootstrap-config.js`, `social-import-config.js`, and
+`client-metadata.json` (the atproto OAuth client ID document - a real
+static file, not computed per-request; see its own comment in
+`eth_server.py` for why and how to mint a fresh tagged one for testing).
+Every route is a plain `FileResponse` - nothing here is dynamic, so
+`webroot/` is servable by any static file host on its own, with nothing
+else in this repo (this script, tests/, docs) along for the ride. That's
+deliberate: the eventual plan is to serve the app straight off IPFS via
+`.eth`/`.gwei` content hashes, no server involved at all - `webroot/` is
+exactly what would get pinned and published. Until then, this script
+exists for local development and because the current live deployment
+happens to reverse-proxy to it (see Nginx below).
 
 ## Domain setup (ENS/.eth, GNS/.gwei, custom domains)
 
@@ -53,6 +57,15 @@ python eth_server.py
 ```
 
 Needs no configuration - see `.env.example`.
+
+The live deployment runs this as a systemd user service
+(`~/.config/systemd/user/eth-onboard.service`, `Restart=always`) rather
+than a bare process - use `systemctl --user restart eth-onboard.service`
+to pick up changes, not a manual kill+relaunch. `Restart=always` means a
+manually started process left running alongside it just occupies the
+port and makes the service's own restarts fail silently (crash-loop) in
+the background without it being obvious from the outside - `systemctl
+--user status eth-onboard.service` shows which is actually true.
 
 ## Nginx
 
