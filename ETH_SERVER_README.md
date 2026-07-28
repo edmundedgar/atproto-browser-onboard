@@ -1,9 +1,15 @@
 # eth_server.py
 
-A small FastAPI app that serves this project's static files (`index.html`,
+A small FastAPI app that serves this project's static files - `index.html`,
 `domain.html`, `oauth-popup.html`, their CSS, `bootstrap-config.js`,
-`social-import-config.js`) plus its atproto OAuth client-metadata
-endpoints (`/client-metadata.json`, `/client-metadata/{tag}.json`).
+`social-import-config.js`, and `client-metadata.json` (the atproto OAuth
+client ID document - a real static file, not computed per-request; see
+its own comment in `eth_server.py` for why and how to mint a fresh
+tagged one for testing). Every route is a plain `FileResponse` - nothing
+here is dynamic, so the whole app is servable by any static file host if
+you'd rather not run this at all; it exists mainly for convenience during
+development and because the current deployment happens to reverse-proxy
+to it (see Nginx below).
 
 ## Domain setup (ENS/.eth, GNS/.gwei, custom domains)
 
@@ -73,8 +79,6 @@ server {
 ## Endpoints
 
 - `GET /`, `/domain.html`, `/oauth-popup.html`, `/domain.css`,
-  `/oauth-popup.css`, `/bootstrap-config.js`, `/social-import-config.js` -
-  static files.
-- `GET /client-metadata.json`, `/client-metadata/{tag}.json` - atproto
-  OAuth client metadata documents.
+  `/oauth-popup.css`, `/bootstrap-config.js`, `/social-import-config.js`,
+  `/client-metadata.json` - static files.
 - `GET /health` - health check.

@@ -1,0 +1,19 @@
+{
+    "client_id": "https://ens.goat.navy/client-metadata.json",
+    "client_name": "atproto PDS migration tool",
+    "client_uri": "https://ens.goat.navy",
+    "redirect_uris": [
+        "https://ens.goat.navy/oauth-popup.html"
+    ],
+    "grant_types": [
+        "authorization_code",
+        "refresh_token"
+    ],
+    "response_types": [
+        "code"
+    ],
+    "scope": "atproto identity:* rpc:com.atproto.identity.updateHandle?aud=* rpc:com.atproto.identity.getRecommendedDidCredentials?aud=* rpc:com.atproto.identity.requestPlcOperationSignature?aud=* rpc:com.atproto.identity.signPlcOperation?aud=* rpc:com.atproto.server.getServiceAuth?aud=* rpc:com.atproto.server.deactivateAccount?aud=* rpc:app.bsky.actor.getPreferences?aud=*",
+    "application_type": "web",
+    "token_endpoint_auth_method": "none",
+    "dpop_bound_access_tokens": true
+}
