@@ -74,7 +74,10 @@
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
-            padding: 56px 20px;
+            /* Extra top clearance for the fixed .untested-warning bar above
+               (up to a few wrapped lines on a narrow screen) - keep in sync
+               with that bar's own padding/line-height if either changes. */
+            padding: 160px 20px 56px;
             color: var(--text);
             line-height: 1.6;
         }
@@ -93,10 +96,17 @@
 
         /* Deliberately fixed colors, not theme tokens - a warning this
            blunt should look the same regardless of light/dark theme,
-           not blend in with the page's normal palette. Remove this
-           whole block (and its markup below) once the app has had a
-           real testing pass. */
+           not blend in with the page's normal palette. Fixed rather than
+           sticky/in-flow so it stays visible no matter how far into a tab's
+           content the page is scrolled - body's own top padding above
+           reserves clearance for it instead. Remove this whole block (and
+           its markup below) once the app has had a real testing pass. */
         .untested-warning {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
             background: #7a1c1c;
             color: #fff;
             text-align: center;
@@ -104,10 +114,6 @@
             font-size: 14.5px;
             line-height: 1.5;
             padding: 12px 20px;
-            max-width: 700px;
-            width: 100%;
-            margin-bottom: 20px;
-            border-radius: 8px;
         }
 
         .header-slot {
@@ -996,8 +1002,10 @@
                to the unscaled baseline instead of fighting it field-by-field. */
             .container { zoom: 1; }
             /* The desktop side padding (20px) eats a much bigger share of a
-               narrow phone screen - shrink it so the card uses the space. */
-            body { padding: 24px 8px; }
+               narrow phone screen - shrink it so the card uses the space.
+               Top padding stays generous (more than desktop, not less) -
+               .untested-warning wraps to more lines on a narrow screen. */
+            body { padding: 190px 8px 24px; }
             /* This button's text is long enough to already be most of the
                way to full width on a phone - close the gap. */
             .confirm-seed-section .generate-btn { width: 100%; }
