@@ -934,6 +934,28 @@
         .flex-1 { flex: 1; }
         .flex-row-8 { display: flex; gap: 8px; align-items: center; }
         .at-symbol { font-size: 16px; color: var(--text-dim); }
+        .input-with-revert { position: relative; }
+        .input-with-revert input { padding-right: 34px; }
+        .input-revert-btn {
+            position: absolute;
+            top: 50%;
+            right: 5px;
+            transform: translateY(-50%);
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            border-radius: 4px;
+            background: none;
+            color: var(--text-dim);
+            font-size: 17px;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .input-revert-btn:hover { color: var(--text); background: var(--hairline); }
+        .input-revert-btn:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
         .mt-16 { margin-top: 16px; }
         .flex-shrink-0 { flex-shrink: 0; }
         .eth-ready-note { color: #28a745; font-weight: bold; padding: 12px; }
@@ -1069,11 +1091,15 @@
                             <div class="form-group">
                                 <label for="account-handle">handle<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">Your handle is how you will be known in ATProto. You can change your handle later and keep all your data and social connections.</span></span></label>
                                 <div class="flex-row-8">
-                                    <input type="text" id="account-handle-subdomain" name="handleSubdomain" placeholder="username" required class="flex-1">
-                                    <span class="at-symbol">.</span>
-                                    <select id="account-handle-domain" name="handleDomain" required class="flex-1">
+                                    <input type="text" id="account-handle-subdomain" name="handleSubdomain" placeholder="username" class="flex-1">
+                                    <span class="at-symbol" id="account-handle-dot-separator">.</span>
+                                    <select id="account-handle-domain" name="handleDomain" class="flex-1">
                                         <option value="">Select domain...</option>
                                     </select>
+                                    <div class="input-with-revert flex-1 hidden" id="account-handle-custom-domain-group">
+                                        <input type="text" id="account-handle-custom-domain" placeholder="example.com">
+                                        <button type="button" class="input-revert-btn" id="account-handle-custom-domain-revert" aria-label="Use a listed domain instead" title="Use a listed domain instead">×</button>
+                                    </div>
                                 </div>
                                 <input type="hidden" id="account-handle" name="handle">
                                 <input type="hidden" id="account-did-value" name="did">
@@ -1111,11 +1137,7 @@
                             </div>
                         </div>
 
-                        <div class="form-button-group hidden" id="setup-eth-group">
-                            <button type="button" class="submit-btn" id="setup-eth-btn">
-                                Set up .eth
-                            </button>
-                        </div>
+                        <div class="form-button-group hidden" id="account-setup-group"></div>
 
                         <div class="form-button-group">
                             <button type="submit" class="submit-btn" id="submit-createaccount-btn">
@@ -4465,25 +4487,281 @@
             section.className = 'module handle-change-section';
             section.innerHTML = `
                 <h2>change handle</h2>
-                <div class="migrate-status-box">${handleState.heldKeyRegistered
-                    ? 'The key you selected controls this account, so we can self-sign your handle change. We will still ask you to sign in to your PDS, so it can update its own record of your handle.'
-                    : 'The key you selected does not control this account. We will ask your PDS to sign your handle change.'}</div>
                 <div class="form-group">
-                    <label for="handle-new-handle">new handle${fieldHelp('The handle you want to change to')}</label>
-                    <input type="text" id="handle-new-handle" placeholder="alice.example.com">
+                    <label for="handle-new-subdomain">new handle${fieldHelp('The handle you want to change to')}</label>
+                    <div class="flex-row-8">
+                        <input type="text" id="handle-new-subdomain" placeholder="username" class="flex-1">
+                        <span class="at-symbol" id="handle-dot-separator">.</span>
+                        <select id="handle-new-domain" class="flex-1">
+                            <option value="">Select domain...</option>
+                        </select>
+                        <div class="input-with-revert flex-1 hidden" id="handle-custom-domain-group">
+                            <input type="text" id="handle-new-custom-domain" placeholder="example.com">
+                            <button type="button" class="input-revert-btn" id="handle-custom-domain-revert" aria-label="Use a listed domain instead" title="Use a listed domain instead">×</button>
+                        </div>
+                    </div>
                 </div>
+                <div class="form-button-group hidden" id="handle-setup-group"></div>
                 <div class="form-button-group">
                     <button type="button" class="submit-btn" id="handle-change-btn">Change handle</button>
                 </div>
+                <div class="form-help">${handleState.heldKeyRegistered
+                    ? 'The key you selected controls this account, so we can self-sign your handle change. We will still ask you to sign in to your PDS, so it can update its own record of your handle.'
+                    : 'The key you selected does not control this account. We will ask your PDS to sign your handle change.'}</div>
                 <div id="handle-change-status"></div>
             `;
             handleContentDiv.appendChild(section);
             document.getElementById('handle-change-btn').addEventListener('click', runHandleChange);
+
+            const subdomainInput = document.getElementById('handle-new-subdomain');
+            const customDomainInput = document.getElementById('handle-new-custom-domain');
+            const domainSelectEl = document.getElementById('handle-new-domain');
+
+            domainSelectEl.addEventListener('change', handleTabDomainChange);
+
+            let handleFieldTimeout;
+            const debouncedRevalidate = () => {
+                clearTimeout(handleFieldTimeout);
+                handleFieldTimeout = setTimeout(invalidateHandleSetupIfStale, 500);
+            };
+            subdomainInput.addEventListener('input', () => { updateDotSeparatorVisibility(); debouncedRevalidate(); });
+            customDomainInput.addEventListener('input', debouncedRevalidate);
+            document.getElementById('handle-custom-domain-revert').addEventListener('click', revertHandleCustomDomain);
+
+            handleSetupConfirmedHandle = null;
+            updateHandleDomainSelect();
+        }
+
+        // Toggles the "." between the subdomain and domain fields - hidden
+        // only when a custom domain is selected with a blank subdomain (a
+        // bare root domain as the handle), so it doesn't visually read as
+        // e.g. ".example.com".
+        function updateDotSeparatorVisibility() {
+            const dotSeparator = document.getElementById('handle-dot-separator');
+            const domainSelectEl = document.getElementById('handle-new-domain');
+            const subdomainInput = document.getElementById('handle-new-subdomain');
+            if (!dotSeparator || !domainSelectEl || !subdomainInput) return;
+            const isCustom = domainSelectEl.value === CUSTOM_DOMAIN_VALUE;
+            dotSeparator.classList.toggle('hidden', isCustom && !subdomainInput.value.trim());
+        }
+
+        let handleDomainSelectRequestId = { id: 0 };
+
+        // Populates #handle-new-domain from the account's current PDS
+        // (handleState.pds is already known by the time the Handle tab
+        // renders, unlike create-account's PDS field which the user is still
+        // typing into - so this is called once, synchronously, rather than
+        // wired to a debounced input listener).
+        async function updateHandleDomainSelect() {
+            const domainSelectEl = document.getElementById('handle-new-domain');
+            if (!domainSelectEl) return;
+
+            const applied = await populateDomainSelect(domainSelectEl, handleState.pds, handleDomainSelectRequestId);
+            if (!applied) return;
+
+            const ethXyzOption = document.createElement('option');
+            ethXyzOption.value = ETH_XYZ_DOMAIN_VALUE;
+            ethXyzOption.textContent = ETH_XYZ_DOMAIN_VALUE;
+            domainSelectEl.appendChild(ethXyzOption);
+
+            const gweiOption = document.createElement('option');
+            gweiOption.value = GWEI_DOMAIN_VALUE;
+            gweiOption.textContent = GWEI_DOMAIN_VALUE;
+            domainSelectEl.appendChild(gweiOption);
+
+            const customOption = document.createElement('option');
+            customOption.value = CUSTOM_DOMAIN_VALUE;
+            customOption.textContent = 'Custom domain...';
+            domainSelectEl.appendChild(customOption);
+
+            handleTabDomainChange();
+        }
+
+        // Same shape as create-account's handleDomainChange (both offer the
+        // same four choices: PDS domain / .eth.xyz / .gwei.name / custom
+        // domain), scoped to the Handle tab's own elements and gating the
+        // Change handle button instead of Create Account.
+        function handleSetupMethodFor(selectedDomain) {
+            return setupMethodFor(selectedDomain, { ethHandler: setupHandleEth, gweiHandler: setupHandleGwei, customHandler: setupHandleCustomDomain });
+        }
+
+        function handleTabDomainChange() {
+            const domainSelectEl = document.getElementById('handle-new-domain');
+            const customGroup = document.getElementById('handle-custom-domain-group');
+            const setupGroup = document.getElementById('handle-setup-group');
+            const changeBtn = document.getElementById('handle-change-btn');
+            if (!domainSelectEl) return;
+
+            const selectedDomain = domainSelectEl.value;
+            const isCustom = selectedDomain === CUSTOM_DOMAIN_VALUE;
+            const setupInfo = handleSetupMethodFor(selectedDomain);
+
+            // The custom-domain input takes the select's own place in the
+            // row rather than appearing in a separate box underneath it -
+            // only one of the two is ever visible at a time. .eth.xyz and
+            // .gwei.name are just other fixed select options, same as any
+            // PDS domain - no extra field needed beyond the subdomain.
+            domainSelectEl.classList.toggle('hidden', isCustom);
+            if (customGroup) {
+                customGroup.classList.toggle('hidden', !isCustom);
+                if (isCustom) document.getElementById('handle-new-custom-domain')?.focus();
+            }
+            updateDotSeparatorVisibility();
+
+            if (setupInfo) {
+                if (setupGroup) {
+                    setupGroup.classList.remove('hidden');
+                    // Rebuild whenever the method actually changes, not
+                    // just when the group is empty - switching between
+                    // .eth.xyz/.gwei.name/custom domain without ever
+                    // clicking the button needs a relabel and a different
+                    // click handler.
+                    if (setupGroup.dataset.forMethod !== setupInfo.method) {
+                        setupGroup.dataset.forMethod = setupInfo.method;
+                        setupGroup.innerHTML = `<button type="button" class="submit-btn" id="handle-setup-btn">${setupInfo.label}</button>`;
+                        document.getElementById('handle-setup-btn').addEventListener('click', setupInfo.handler);
+                    }
+                }
+                if (changeBtn) changeBtn.disabled = true;
+            } else {
+                if (setupGroup) {
+                    setupGroup.classList.add('hidden');
+                    delete setupGroup.dataset.forMethod;
+                }
+                if (changeBtn) changeBtn.disabled = false;
+            }
+            invalidateHandleSetupIfStale();
+        }
+
+        // The × inside the custom-domain input - clears it and swaps the
+        // select back in, in place, so a mis-click into "Custom domain..."
+        // is one click to undo rather than needing to hunt the dropdown
+        // back open.
+        function revertHandleCustomDomain() {
+            const domainSelectEl = document.getElementById('handle-new-domain');
+            const customInput = document.getElementById('handle-new-custom-domain');
+            if (customInput) customInput.value = '';
+            if (domainSelectEl) domainSelectEl.value = '';
+            handleTabDomainChange();
+        }
+
+        // Same window name + size as openOAuthPopup's oauth-popup.html
+        // window (see below) - a small dedicated popup rather than a full
+        // new tab, and reusing one window across repeated setup attempts
+        // rather than accumulating a new tab each time.
+        function openDomainPopup(url) {
+            return window.open(url, 'domain-setup', 'width=520,height=680');
+        }
+
+        function setupHandleEth() {
+            const status = document.getElementById('handle-change-status');
+            const subdomain = document.getElementById('handle-new-subdomain').value.trim();
+            if (!subdomain) {
+                status.replaceChildren(migrateStatusBlock('error', 'Enter a handle first.'));
+                return;
+            }
+            const account = `${subdomain}.eth`;
+            openDomainPopup(`domain.html?did=${encodeURIComponent(handleState.did)}&account=${encodeURIComponent(account)}${SEPOLIA_TEST_MODE ? '&net=sepolia' : ''}`);
+        }
+
+        function setupHandleGwei() {
+            const status = document.getElementById('handle-change-status');
+            const subdomain = document.getElementById('handle-new-subdomain').value.trim();
+            if (!subdomain) {
+                status.replaceChildren(migrateStatusBlock('error', 'Enter a handle first.'));
+                return;
+            }
+            openDomainPopup(`domain.html?did=${encodeURIComponent(handleState.did)}&gwei=${encodeURIComponent(subdomain)}`);
+        }
+
+        function setupHandleCustomDomain() {
+            const status = document.getElementById('handle-change-status');
+            const subdomain = document.getElementById('handle-new-subdomain').value.trim();
+            const customDomain = document.getElementById('handle-new-custom-domain').value.trim();
+            if (!customDomain) {
+                status.replaceChildren(migrateStatusBlock('error', 'Enter your domain first.'));
+                return;
+            }
+            const handle = subdomain ? `${subdomain}.${customDomain}` : customDomain;
+            openDomainPopup(`domain.html?did=${encodeURIComponent(handleState.did)}&domain=${encodeURIComponent(handle)}`);
+        }
+
+        // Computes the handle currently implied by the form fields for
+        // whichever method is selected, or null if not enough is filled in
+        // yet - used both to (re)start polling and by runHandleChange to
+        // read the final value, so the "how do subdomain/domain/custom
+        // combine into one handle" rule only lives in one place
+        // (computeTargetHandleFor, shared with create-account).
+        function computeHandleTabTargetHandle() {
+            return computeTargetHandleFor('handle-new-subdomain', 'handle-new-domain', 'handle-new-custom-domain');
+        }
+
+        // Checking itself now happens exclusively inside the domain.html popup
+        // (see startManualDomainCheck there) - it posts back a confirmation
+        // once the user has explicitly triggered a successful check, rather
+        // than this page also polling the same DNS-over-HTTPS resolver on
+        // its own. It used to: as soon as the popup and this page's own
+        // poller both started querying a not-yet-published record, the
+        // resolver would cache that negative answer for its zone's whole
+        // negative-cache TTL (minutes), long outlasting how quickly the
+        // record could actually go live. See the message listener below.
+        //
+        // Tracks which handle string was actually confirmed, so a field
+        // edit (or switching methods) after confirmation can tell a stale
+        // "ready" state apart from a fresh one.
+        let handleSetupConfirmedHandle = null;
+
+        // #handle-setup-btn opens domain.html with whatever the fields
+        // currently say - greyed out until the field(s) that method
+        // actually needs are filled in, rather than letting the user open
+        // the popup and only then find out (setupHandleEth/
+        // setupHandleCustomDomain's own "enter a handle/domain first"
+        // errors are still there as a backstop, but shouldn't normally be
+        // reachable now).
+        function updateHandleSetupBtnDisabled() {
+            const setupBtn = document.getElementById('handle-setup-btn');
+            if (!setupBtn) return;
+            const domainSelectEl = document.getElementById('handle-new-domain');
+            const isCustom = domainSelectEl?.value === CUSTOM_DOMAIN_VALUE;
+            const subdomain = document.getElementById('handle-new-subdomain')?.value.trim() || '';
+            const customDomain = document.getElementById('handle-new-custom-domain')?.value.trim() || '';
+            // .eth.xyz and .gwei.name always need a subdomain; a custom
+            // domain can stand alone as the handle (the root-domain case),
+            // so only the domain field itself is required there.
+            setupBtn.disabled = isCustom ? !customDomain : !subdomain;
+        }
+
+        // Called on every domain-select change and every (debounced)
+        // subdomain/custom-domain edit - refreshes the Set up button's
+        // disabled state for whatever's currently filled in, and if the
+        // currently implied handle no longer matches whatever was last
+        // confirmed, drops back to an unconfirmed state (re-shows the
+        // "Set up" button, disables Change handle) so the user re-runs the
+        // check for the new value.
+        function invalidateHandleSetupIfStale() {
+            updateHandleSetupBtnDisabled();
+            const domainSelectEl = document.getElementById('handle-new-domain');
+            if (!domainSelectEl) return;
+            const selectedDomain = domainSelectEl.value;
+            const setupInfo = handleSetupMethodFor(selectedDomain);
+            const handle = setupInfo ? computeHandleTabTargetHandle() : null;
+            if (handle && handle === handleSetupConfirmedHandle) return;
+
+            handleSetupConfirmedHandle = null;
+            if (!setupInfo) return;
+            const setupGroup = document.getElementById('handle-setup-group');
+            if (setupGroup && setupGroup.querySelector('.eth-ready-note')) {
+                setupGroup.innerHTML = `<button type="button" class="submit-btn" id="handle-setup-btn">${setupInfo.label}</button>`;
+                document.getElementById('handle-setup-btn').addEventListener('click', setupInfo.handler);
+                updateHandleSetupBtnDisabled();
+                const changeBtn = document.getElementById('handle-change-btn');
+                if (changeBtn) changeBtn.disabled = true;
+            }
         }
 
         async function runHandleChange() {
             const status = document.getElementById('handle-change-status');
-            const newHandle = document.getElementById('handle-new-handle').value.trim();
+            const newHandle = computeHandleTabTargetHandle();
 
             if (!newHandle) {
                 status.replaceChildren(migrateStatusBlock('error', 'Enter the new handle.'));
@@ -4750,23 +5028,79 @@
             socialImportPlatform.addEventListener('change', checkSocialImport);
         }
 
-        // Update domain select dropdown with availableUserDomains from PDS
-        // Guards against overlapping calls (e.g. debounced input firing just
-        // before blur) clobbering each other's result - only the most recent
-        // call is allowed to actually write to the select.
-        let domainSelectRequestId = 0;
+        // Sentinel values for the fixed (non-PDS-provided) domain-select
+        // options, shared by the create-account and change-handle tabs so
+        // both branch on the same constants rather than repeating the
+        // string literals.
+        const ETH_XYZ_DOMAIN_VALUE = '.eth.xyz';
+        const GWEI_DOMAIN_VALUE = '.gwei.name';
+        const CUSTOM_DOMAIN_VALUE = '__custom__';
 
-        async function updateDomainSelect(pdsEndpoint) {
-            const domainSelect = document.getElementById('account-handle-domain');
-            if (!domainSelect) return;
+        // Combines a subdomain + selected domain into the final handle
+        // string, for whichever of the two tabs' field IDs is passed in -
+        // both tabs offer the same four choices (a PDS domain, .eth.xyz,
+        // .gwei.name, or a custom domain), so the combination rule only
+        // needs writing once. Returns null if not enough is filled in yet
+        // to produce a real handle.
+        function computeTargetHandleFor(subdomainId, domainSelectId, customDomainId) {
+            const domainSelectEl = document.getElementById(domainSelectId);
+            if (!domainSelectEl) return null;
+            const subdomain = document.getElementById(subdomainId).value.trim();
+            const selectedDomain = domainSelectEl.value;
 
-            const requestId = ++domainSelectRequestId;
-            const currentSelection = domainSelect.value;
+            if (selectedDomain === ETH_XYZ_DOMAIN_VALUE) {
+                if (!subdomain) return null;
+                return ethXyzDnsDomain(`${subdomain}.eth`);
+            }
+            if (selectedDomain === GWEI_DOMAIN_VALUE) {
+                if (!subdomain) return null;
+                return `${subdomain}.gwei.name`;
+            }
+            if (selectedDomain === CUSTOM_DOMAIN_VALUE) {
+                const customDomain = document.getElementById(customDomainId).value.trim();
+                if (!customDomain) return null;
+                return subdomain ? `${subdomain}.${customDomain}` : customDomain;
+            }
+            if (!subdomain || !selectedDomain) return null;
+            // PDS-provided domains already come with their own leading dot
+            // (e.g. ".id.goat.navy") - only add one if it's missing.
+            return selectedDomain.startsWith('.') ? `${subdomain}${selectedDomain}` : `${subdomain}.${selectedDomain}`;
+        }
 
-            domainSelect.innerHTML = '<option value="">Select domain...</option>';
+        // Maps a domain-select value to what its "Set up ..." button should
+        // say and do, for whichever of the two tabs' setup handlers are
+        // passed in. Returns null for a plain PDS domain, which needs no
+        // setup step at all.
+        function setupMethodFor(selectedDomain, { ethHandler, gweiHandler, customHandler }) {
+            if (selectedDomain === ETH_XYZ_DOMAIN_VALUE) return { method: 'eth', label: 'Set up .eth', handler: ethHandler };
+            if (selectedDomain === GWEI_DOMAIN_VALUE) return { method: 'gwei', label: 'Set up .gwei', handler: gweiHandler };
+            if (selectedDomain === CUSTOM_DOMAIN_VALUE) return { method: 'custom', label: 'Set up custom domain', handler: customHandler };
+            return null;
+        }
+
+        // Populates a domain <select> with a PDS's availableUserDomains (or a
+        // "no domains"/"error" placeholder). This is just the PDS-fetching
+        // core - fixed trailing options like .eth.xyz are appended by each
+        // caller afterward, since which fixed options apply differs per tab
+        // (create-account only offers .eth.xyz today; change-handle also
+        // offers a custom domain). Shared between tabs the same way
+        // resolveAccountForManagement (~line 3424) is already shared by the
+        // Migrate and Control tabs.
+        //
+        // requestIdBox is a private { id: 0 } counter owned by the caller, so
+        // concurrent calls from different tabs/inputs can't clobber each
+        // other's in-flight result the way a single shared counter would.
+        // Returns whether the select was actually populated (false if the
+        // endpoint was blank, or a newer call already won the race) - callers
+        // use this to decide whether it's safe to append trailing options.
+        async function populateDomainSelect(selectEl, pdsEndpoint, requestIdBox) {
+            if (!selectEl) return false;
+
+            const requestId = ++requestIdBox.id;
+            selectEl.innerHTML = '<option value="">Select domain...</option>';
 
             if (!pdsEndpoint || !pdsEndpoint.trim()) {
-                return;
+                return false;
             }
 
             let availableDomains = [];
@@ -4785,11 +5119,11 @@
 
             // A newer call has started since ours began - its result should
             // win, so leave the select alone.
-            if (requestId !== domainSelectRequestId) return;
+            if (requestId !== requestIdBox.id) return false;
 
             // Replace (not append to) the initial placeholder option, so an
             // error/empty state doesn't leave two value="" options behind.
-            const firstOption = domainSelect.firstElementChild;
+            const firstOption = selectEl.firstElementChild;
             if (placeholderText) {
                 firstOption.textContent = placeholderText;
                 firstOption.disabled = true;
@@ -4798,19 +5132,41 @@
                     const option = document.createElement('option');
                     option.value = domain;
                     option.textContent = domain;
-                    domainSelect.appendChild(option);
+                    selectEl.appendChild(option);
                 });
             }
+            return true;
+        }
 
-            // Always add .eth.xyz as an option, even on error/no-domains.
+        let domainSelectRequestId = { id: 0 };
+
+        async function updateDomainSelect(pdsEndpoint) {
+            const domainSelect = document.getElementById('account-handle-domain');
+            if (!domainSelect) return;
+
+            const currentSelection = domainSelect.value;
+            const applied = await populateDomainSelect(domainSelect, pdsEndpoint, domainSelectRequestId);
+            if (!applied) return;
+
+            // Always add the fixed options, even on error/no-domains.
             const ethXyzOption = document.createElement('option');
-            ethXyzOption.value = '.eth.xyz';
-            ethXyzOption.textContent = '.eth.xyz';
+            ethXyzOption.value = ETH_XYZ_DOMAIN_VALUE;
+            ethXyzOption.textContent = ETH_XYZ_DOMAIN_VALUE;
             domainSelect.appendChild(ethXyzOption);
 
-            // Restore selection if it was .eth.xyz
-            if (currentSelection === '.eth.xyz') {
-                domainSelect.value = '.eth.xyz';
+            const gweiOption = document.createElement('option');
+            gweiOption.value = GWEI_DOMAIN_VALUE;
+            gweiOption.textContent = GWEI_DOMAIN_VALUE;
+            domainSelect.appendChild(gweiOption);
+
+            const customOption = document.createElement('option');
+            customOption.value = CUSTOM_DOMAIN_VALUE;
+            customOption.textContent = 'Custom domain...';
+            domainSelect.appendChild(customOption);
+
+            // Restore selection if it was one of the fixed options.
+            if ([ETH_XYZ_DOMAIN_VALUE, GWEI_DOMAIN_VALUE, CUSTOM_DOMAIN_VALUE].includes(currentSelection)) {
+                domainSelect.value = currentSelection;
             }
 
             // Trigger change event to update UI state (if function is defined)
@@ -4847,40 +5203,90 @@
             }
         }
         
-        // Handle domain selection changes for .eth.xyz
+        // Handle domain selection changes - four-way, same choices as the
+        // Handle tab (see handleTabDomainChange): a PDS domain, .eth.xyz,
+        // .gwei.name, or a custom domain.
         const domainSelect = document.getElementById('account-handle-domain');
-        const setupEthGroup = document.getElementById('setup-eth-group');
-        const setupEthBtn = document.getElementById('setup-eth-btn');
+        const accountSetupGroup = document.getElementById('account-setup-group');
         const submitCreateAccountBtn = document.getElementById('submit-createaccount-btn');
+
+        // Toggles the "." between the subdomain and domain fields - hidden
+        // only when a custom domain is selected with a blank subdomain (a
+        // bare root domain as the handle). Mirrors updateDotSeparatorVisibility.
+        function updateAccountDotSeparatorVisibility() {
+            const dotSeparator = document.getElementById('account-handle-dot-separator');
+            const subdomainInput = document.getElementById('account-handle-subdomain');
+            if (!dotSeparator || !domainSelect || !subdomainInput) return;
+            const isCustom = domainSelect.value === CUSTOM_DOMAIN_VALUE;
+            dotSeparator.classList.toggle('hidden', isCustom && !subdomainInput.value.trim());
+        }
+
+        function accountSetupMethodFor(selectedDomain) {
+            return setupMethodFor(selectedDomain, { ethHandler: setupAccountEth, gweiHandler: setupAccountGwei, customHandler: setupAccountCustomDomain });
+        }
+
+        // Same combination rule as the Handle tab's computeHandleTabTargetHandle.
+        function computeCreateAccountTargetHandle() {
+            return computeTargetHandleFor('account-handle-subdomain', 'account-handle-domain', 'account-handle-custom-domain');
+        }
 
         function handleDomainChange() {
             const selectedDomain = domainSelect.value;
-            const isEthXyz = selectedDomain === '.eth.xyz';
+            const isCustom = selectedDomain === CUSTOM_DOMAIN_VALUE;
+            const setupInfo = accountSetupMethodFor(selectedDomain);
 
-            if (isEthXyz) {
-                // Show "Set up .eth" button and disable Create Account
-                if (setupEthGroup) {
-                    setupEthGroup.classList.remove('hidden');
-                    // Reset to button (in case it was changed to success message)
-                    if (!setupEthGroup.querySelector('button')) {
-                        setupEthGroup.innerHTML = '<button type="button" class="submit-btn" id="setup-eth-btn">Set up .eth</button>';
-                        const btn = document.getElementById('setup-eth-btn');
-                        if (btn) {
-                            btn.addEventListener('click', setupEth);
-                        }
+            // The custom-domain input takes the select's own place in the
+            // row rather than appearing in a separate box underneath it -
+            // only one of the two is ever visible at a time. Same swap as
+            // the Handle tab's #handle-custom-domain-group.
+            domainSelect.classList.toggle('hidden', isCustom);
+            const customGroup = document.getElementById('account-handle-custom-domain-group');
+            if (customGroup) {
+                customGroup.classList.toggle('hidden', !isCustom);
+                if (isCustom) document.getElementById('account-handle-custom-domain')?.focus();
+            }
+            updateAccountDotSeparatorVisibility();
+
+            if (setupInfo) {
+                if (accountSetupGroup) {
+                    accountSetupGroup.classList.remove('hidden');
+                    // Rebuild whenever the method actually changes, not just
+                    // when the group is empty - switching between
+                    // .eth.xyz/.gwei.name/custom domain without ever
+                    // clicking the button needs a relabel and a different
+                    // click handler.
+                    if (accountSetupGroup.dataset.forMethod !== setupInfo.method) {
+                        accountSetupGroup.dataset.forMethod = setupInfo.method;
+                        accountSetupGroup.innerHTML = `<button type="button" class="submit-btn" id="account-setup-btn">${setupInfo.label}</button>`;
+                        document.getElementById('account-setup-btn').addEventListener('click', setupInfo.handler);
                     }
                 }
                 if (submitCreateAccountBtn) submitCreateAccountBtn.disabled = true;
             } else {
-                // Hide "Set up .eth" button and enable Create Account
-                if (setupEthGroup) setupEthGroup.classList.add('hidden');
+                if (accountSetupGroup) {
+                    accountSetupGroup.classList.add('hidden');
+                    delete accountSetupGroup.dataset.forMethod;
+                }
                 if (submitCreateAccountBtn) submitCreateAccountBtn.disabled = false;
             }
+            invalidateAccountSetupIfStale();
         }
 
         if (domainSelect) {
             domainSelect.addEventListener('change', handleDomainChange);
         }
+
+        // The × inside the custom-domain input - clears it and swaps the
+        // select back in, in place. Mirrors revertHandleCustomDomain.
+        function revertAccountCustomDomain() {
+            const customInput = document.getElementById('account-handle-custom-domain');
+            if (customInput) customInput.value = '';
+            if (domainSelect) domainSelect.value = '';
+            handleDomainChange();
+        }
+
+        const accountCustomDomainRevertBtn = document.getElementById('account-handle-custom-domain-revert');
+        if (accountCustomDomainRevertBtn) accountCustomDomainRevertBtn.addEventListener('click', revertAccountCustomDomain);
 
         // ?net=sepolia switches the .eth.xyz flow to our own Sepolia test
         // DNS zone (sepolia.id.goat.navy) instead of the real eth.xyz -
@@ -4888,209 +5294,145 @@
         // without spending mainnet gas. See ETH_SERVER_README.md.
         const SEPOLIA_TEST_MODE = new URLSearchParams(window.location.search).get('net') === 'sepolia';
 
-        // accountName already ends in ".eth" (see setupEth/startEthXyzPolling).
+        // accountName already ends in ".eth" (see setupAccountEth).
         function ethXyzDnsDomain(accountName) {
             return SEPOLIA_TEST_MODE ? `${accountName}.sepolia.id.goat.navy` : `${accountName}.xyz`;
         }
 
-        // Variables for .eth.xyz polling
-        let ethXyzPollInterval = null;
-        let expectedEthXyzDid = null;
-
-        // Function to stop polling
-        function stopEthXyzPolling() {
-            if (ethXyzPollInterval) {
-                clearInterval(ethXyzPollInterval);
-                ethXyzPollInterval = null;
-            }
-            expectedEthXyzDid = null;
+        // #account-setup-btn opens domain.html with whatever the fields
+        // currently say - greyed out until the field(s) that method
+        // actually needs are filled in. Mirrors updateHandleSetupBtnDisabled.
+        function updateAccountSetupBtnDisabled() {
+            const setupBtn = document.getElementById('account-setup-btn');
+            if (!setupBtn) return;
+            const isCustom = domainSelect.value === CUSTOM_DOMAIN_VALUE;
+            const subdomain = document.getElementById('account-handle-subdomain')?.value.trim() || '';
+            const customDomain = document.getElementById('account-handle-custom-domain')?.value.trim() || '';
+            setupBtn.disabled = isCustom ? !customDomain : !subdomain;
         }
 
-        // Polls for the _atproto DNS TXT record eth.xyz publishes once the
-        // on-chain ENS text record (set via eth.html) is live - a plain DNS
-        // lookup via resolveHandleToDid, no server round-trip needed, since
-        // eth.xyz is just another domain once the record is in real DNS.
-        async function pollEthXyzDid(domain, expectedDid) {
-            try {
-                const foundDid = await resolveHandleToDid(domain);
+        // Checking now happens exclusively inside the domain.html popup (see
+        // startManualDomainCheck there), which posts back a confirmation
+        // once the user has explicitly triggered a successful check -
+        // rather than this page also polling the same DNS-over-HTTPS
+        // resolver on its own the moment a method is selected. It used to:
+        // querying a not-yet-published record poisons that resolver's
+        // negative-answer cache for its zone's whole negative-cache TTL
+        // (minutes), long outlasting how quickly the record could actually
+        // go live. See the message listener near the bottom of this script.
+        let expectedCreateAccountDid = null;
 
-                if (foundDid === expectedDid) {
-                    // Found the expected DID - stop polling and update UI
-                    stopEthXyzPolling();
-
-                    // Replace button with success message
-                    if (setupEthGroup) {
-                        setupEthGroup.innerHTML = '<div class="eth-ready-note">.eth.xyz address ready</div>';
-                    }
-
-                    // Enable Create Account button
-                    if (submitCreateAccountBtn) {
-                        submitCreateAccountBtn.disabled = false;
-                    }
-
-                    console.log('Found expected DID at .eth.xyz domain:', foundDid);
-                    return true;
-                } else if (foundDid) {
-                    // DID found but doesn't match - log for debugging
-                    console.log('DID found but does not match expected:', foundDid, 'expected:', expectedDid);
-                }
-            } catch (error) {
-                // Silently fail - will retry on next poll
-                console.log('Polling .eth.xyz DID (not found yet):', error.message);
+        // Drops any earlier confirmation and puts the setup button back -
+        // called whenever the implied handle could have changed (domain
+        // switched, or the subdomain/custom-domain edited) so a stale
+        // "ready" state can't linger for a handle that's no longer what's
+        // in the form. Unlike the Handle tab's equivalent, this doesn't
+        // compare against what was actually confirmed - the confirmation
+        // token here is a DID (derived from the whole form, not just the
+        // handle), and there's no cheap synchronous way to recompute
+        // "would this edit actually produce a different DID", so it always
+        // invalidates rather than trying to tell a no-op edit apart from a
+        // real one.
+        function invalidateAccountSetupIfStale() {
+            updateAccountSetupBtnDisabled();
+            expectedCreateAccountDid = null;
+            const setupInfo = accountSetupMethodFor(domainSelect.value);
+            if (!setupInfo) return;
+            if (accountSetupGroup && accountSetupGroup.querySelector('.eth-ready-note')) {
+                accountSetupGroup.innerHTML = `<button type="button" class="submit-btn" id="account-setup-btn">${setupInfo.label}</button>`;
+                document.getElementById('account-setup-btn').addEventListener('click', setupInfo.handler);
+                updateAccountSetupBtnDisabled();
+                if (submitCreateAccountBtn) submitCreateAccountBtn.disabled = true;
             }
-            return false;
         }
 
-        // Function to start polling for .eth.xyz DID
-        function startEthXyzPolling() {
-            // Stop any existing polling
-            stopEthXyzPolling();
-
-            // Calculate expected DID from form data
+        // Shared by setupAccountEth/setupAccountGwei/setupAccountCustomDomain:
+        // builds the genesis DID:PLC operation for the current form fields
+        // plus the given handle, signs it, and derives the DID that
+        // operation would produce - the same "would-be DID" domain.html
+        // needs to know what to check for, computed fresh (not yet
+        // submitted anywhere) each time a setup button is clicked.
+        async function computeAccountDidPlcId(handle) {
             const form = document.getElementById('createaccount-form');
-            if (!form) return;
-
             const formData = new FormData(form);
             const data = Object.fromEntries(formData.entries());
-
-            const subdomain = data.handleSubdomain?.trim() || '';
-            const domain = data.handleDomain?.trim() || '';
-
-            if (!subdomain || !domain || domain !== '.eth.xyz') {
-                return;
-            }
-
-            // Only proceed if we have a private key
-            if (!currentKey) {
-                return;
-            }
-
-            // Strip .xyz to get the account name (the underlying ENS name),
-            // same as setupEth() below.
-            const domainWithoutXyz = domain.slice(0, -4); // ".eth"
-            const accountName = domainWithoutXyz.startsWith('.') ? `${subdomain}${domainWithoutXyz}` : `${subdomain}.${domainWithoutXyz}`;
-
-            // The atproto handle actually being claimed - see ethXyzDnsDomain().
-            const handle = ethXyzDnsDomain(accountName);
-            const fullDomain = handle; // e.g., "bot.reality.eth.xyz" (or the Sepolia test domain)
-
-            // Calculate expected DID
-            (async () => {
-                try {
-                    const initialOperation = createDidPlcInitialOperation({
-                        ...data,
-                        handle: handle
-                    }, currentDidKey);
-
-                    const signedInitialOperation = await signDidPlcOperation(initialOperation, currentKey);
-                    const didPlcId = await generateDidPlcId(signedInitialOperation);
-
-                    expectedEthXyzDid = didPlcId;
-
-                    // Start polling every 15 seconds
-                    ethXyzPollInterval = setInterval(async () => {
-                        await pollEthXyzDid(fullDomain, expectedEthXyzDid);
-                    }, 15000);
-
-                    // Poll immediately
-                    await pollEthXyzDid(fullDomain, expectedEthXyzDid);
-
-                } catch (error) {
-                    console.error('Error calculating DID for polling:', error);
-                }
-            })();
+            const initialOperation = createDidPlcInitialOperation({ ...data, handle }, currentDidKey);
+            const signedInitialOperation = await signDidPlcOperation(initialOperation, currentKey);
+            return generateDidPlcId(signedInitialOperation);
         }
-        
-        // Update handleDomainChange to start polling
-        const originalHandleDomainChange = handleDomainChange;
-        handleDomainChange = function() {
-            originalHandleDomainChange();
-            const selectedDomain = domainSelect.value;
-            const isEthXyz = selectedDomain === '.eth.xyz';
 
-            if (isEthXyz) {
-                // Start polling for .eth.xyz DID
-                startEthXyzPolling();
-            } else {
-                // Stop polling
-                stopEthXyzPolling();
-            }
-        };
-        
-        // Function to calculate DID and open eth.html
-        async function setupEth() {
-            // Check if a private key has been generated or loaded
+        async function setupAccountEth() {
             if (!currentKey) {
                 const status = getCurrentStatusElement();
-                if (status) {
-                    status.replaceChildren(statusBlock('error', 'no key loaded — generate or restore one on the key tab first'));
-                }
+                if (status) status.replaceChildren(statusBlock('error', 'no key loaded — generate or restore one on the key tab first'));
                 return;
             }
-            
-            const form = document.getElementById('createaccount-form');
-            if (!form) return;
-            
-            const formData = new FormData(form);
-            const data = Object.fromEntries(formData.entries());
-            
-            // Combine subdomain and domain into full handle
-            const subdomain = data.handleSubdomain?.trim() || '';
-            const domain = data.handleDomain?.trim() || '';
-            if (!subdomain || !domain) {
+            const subdomain = document.getElementById('account-handle-subdomain').value.trim();
+            if (!subdomain) {
                 const status = getCurrentStatusElement();
-                if (status) {
-                    status.replaceChildren(statusBlock('error', 'enter a handle and choose a domain'));
-                }
+                if (status) status.replaceChildren(statusBlock('error', 'enter a handle first'));
                 return;
             }
-            
-            // Only add dot if domain doesn't already start with one
-            const handleForDomain = domain.startsWith('.') ? `${subdomain}${domain}` : `${subdomain}.${domain}`;
-
-            // For .eth.xyz, strip .xyz to get just .eth for the account name
-            // parameter - eth.html works with the underlying ENS name, not
-            // the eth.xyz-hosted handle.
-            let accountName = handleForDomain;
-            if (domain.endsWith('.xyz')) {
-                const domainWithoutXyz = domain.slice(0, -4); // Remove '.xyz'
-                accountName = domainWithoutXyz.startsWith('.') ? `${subdomain}${domainWithoutXyz}` : `${subdomain}.${domainWithoutXyz}`;
-            }
-
-            // The atproto handle actually being claimed - see ethXyzDnsDomain().
-            const handle = domain === '.eth.xyz' ? ethXyzDnsDomain(accountName) : handleForDomain;
-            
+            const accountName = `${subdomain}.eth`;
             try {
-                // Create initial DID:PLC operation
-                const initialOperation = createDidPlcInitialOperation({
-                    ...data,
-                    handle: handle
-                }, currentDidKey);
-                
-                // Sign the operation
-                const signedInitialOperation = await signDidPlcOperation(initialOperation, currentKey);
-                
-                // Generate DID:PLC ID from the signed operation
-                const didPlcId = await generateDidPlcId(signedInitialOperation);
-                
-                // Open eth.html in a new window with the DID and account name as parameters
-                const ethUrl = `eth.html?did=${encodeURIComponent(didPlcId)}&account=${encodeURIComponent(accountName)}${SEPOLIA_TEST_MODE ? '&net=sepolia' : ''}`;
-                window.open(ethUrl, '_blank');
-                
+                const didPlcId = await computeAccountDidPlcId(ethXyzDnsDomain(accountName));
+                expectedCreateAccountDid = didPlcId;
+                openDomainPopup(`domain.html?did=${encodeURIComponent(didPlcId)}&account=${encodeURIComponent(accountName)}${SEPOLIA_TEST_MODE ? '&net=sepolia' : ''}`);
             } catch (error) {
                 console.error('Error calculating DID for .eth setup:', error);
                 const status = getCurrentStatusElement();
-                if (status) {
-                    status.replaceChildren(statusBlock('error', `couldn't calculate DID: ${error.message}`));
-                }
+                if (status) status.replaceChildren(statusBlock('error', `couldn't calculate DID: ${error.message}`));
             }
         }
-        
-        // Add event listener for setup-eth-btn
-        if (setupEthBtn) {
-            setupEthBtn.addEventListener('click', setupEth);
+
+        async function setupAccountGwei() {
+            if (!currentKey) {
+                const status = getCurrentStatusElement();
+                if (status) status.replaceChildren(statusBlock('error', 'no key loaded — generate or restore one on the key tab first'));
+                return;
+            }
+            const subdomain = document.getElementById('account-handle-subdomain').value.trim();
+            if (!subdomain) {
+                const status = getCurrentStatusElement();
+                if (status) status.replaceChildren(statusBlock('error', 'enter a handle first'));
+                return;
+            }
+            try {
+                const didPlcId = await computeAccountDidPlcId(`${subdomain}.gwei.name`);
+                expectedCreateAccountDid = didPlcId;
+                openDomainPopup(`domain.html?did=${encodeURIComponent(didPlcId)}&gwei=${encodeURIComponent(subdomain)}`);
+            } catch (error) {
+                console.error('Error calculating DID for .gwei setup:', error);
+                const status = getCurrentStatusElement();
+                if (status) status.replaceChildren(statusBlock('error', `couldn't calculate DID: ${error.message}`));
+            }
         }
-        
+
+        async function setupAccountCustomDomain() {
+            if (!currentKey) {
+                const status = getCurrentStatusElement();
+                if (status) status.replaceChildren(statusBlock('error', 'no key loaded — generate or restore one on the key tab first'));
+                return;
+            }
+            const subdomain = document.getElementById('account-handle-subdomain').value.trim();
+            const customDomain = document.getElementById('account-handle-custom-domain').value.trim();
+            if (!customDomain) {
+                const status = getCurrentStatusElement();
+                if (status) status.replaceChildren(statusBlock('error', 'enter your domain first'));
+                return;
+            }
+            const handle = subdomain ? `${subdomain}.${customDomain}` : customDomain;
+            try {
+                const didPlcId = await computeAccountDidPlcId(handle);
+                expectedCreateAccountDid = didPlcId;
+                openDomainPopup(`domain.html?did=${encodeURIComponent(didPlcId)}&domain=${encodeURIComponent(handle)}`);
+            } catch (error) {
+                console.error('Error calculating DID for custom domain setup:', error);
+                const status = getCurrentStatusElement();
+                if (status) status.replaceChildren(statusBlock('error', `couldn't calculate DID: ${error.message}`));
+            }
+        }
+
         // Function to calculate and update DID display
         // The scheme is optional in the hosting-server field - default to
         // https rather than making the user type it.
@@ -5109,15 +5451,11 @@
             const form = document.getElementById('createaccount-form');
             if (!form) return;
 
-            const formData = new FormData(form);
-            const data = Object.fromEntries(formData.entries());
+            const handle = computeCreateAccountTargetHandle();
+            const pdsEndpoint = normalizePdsEndpoint(document.getElementById('pds-endpoint')?.value || '');
 
-            const subdomain = data.handleSubdomain?.trim() || '';
-            const domain = data.handleDomain?.trim() || '';
-            const pdsEndpoint = normalizePdsEndpoint(data.pdsEndpoint);
-            
-            // Need at least subdomain, domain, and PDS endpoint to calculate DID
-            if (!subdomain || !domain || !pdsEndpoint) {
+            // Need at least a handle and a PDS endpoint to calculate DID
+            if (!handle || !pdsEndpoint) {
                 const didValueField = document.getElementById('account-did-value');
                 if (didValueField) {
                     didValueField.value = '';
@@ -5127,8 +5465,8 @@
             }
 
             try {
-                // Combine subdomain and domain into full handle
-                const handle = domain.startsWith('.') ? `${subdomain}${domain}` : `${subdomain}.${domain}`;
+                const formData = new FormData(form);
+                const data = Object.fromEntries(formData.entries());
 
                 // Create initial DID:PLC operation
                 const initialOperation = createDidPlcInitialOperation({
@@ -5158,23 +5496,35 @@
                 setIdentityHeaderContent('<span class="status-idle">could not calculate DID</span>');
             }
         }
-        
-        // Also listen for input changes on subdomain to restart polling and update DID
+
+        // Also listen for input changes on subdomain/custom-domain to
+        // invalidate any earlier setup confirmation (the implied handle
+        // just changed) and update DID
         const handleSubdomainInput = document.getElementById('account-handle-subdomain');
         if (handleSubdomainInput) {
             let subdomainTimeout;
             handleSubdomainInput.addEventListener('input', function() {
+                updateAccountDotSeparatorVisibility();
                 clearTimeout(subdomainTimeout);
                 subdomainTimeout = setTimeout(() => {
-                    const selectedDomain = domainSelect.value;
-                    if (selectedDomain === '.eth.xyz') {
-                        startEthXyzPolling();
-                    }
+                    invalidateAccountSetupIfStale();
                     updateDidDisplay();
                 }, 500);
             });
         }
-        
+
+        const accountCustomDomainInput = document.getElementById('account-handle-custom-domain');
+        if (accountCustomDomainInput) {
+            let customDomainTimeout;
+            accountCustomDomainInput.addEventListener('input', function() {
+                clearTimeout(customDomainTimeout);
+                customDomainTimeout = setTimeout(() => {
+                    invalidateAccountSetupIfStale();
+                    updateDidDisplay();
+                }, 500);
+            });
+        }
+
         // Listen for changes to domain select
         if (domainSelect) {
             domainSelect.addEventListener('change', function() {
@@ -5204,18 +5554,19 @@
             // has to see or type https://, it's only added here for actual use.
             data.pdsEndpoint = normalizePdsEndpoint(data.pdsEndpoint);
 
-            // Combine subdomain and domain into full handle
-            const subdomain = data.handleSubdomain?.trim() || '';
-            const domain = data.handleDomain?.trim() || '';
-            if (!subdomain || !domain) {
+            // Combine subdomain and domain into full handle - same rule as
+            // the Handle tab (see computeTargetHandleFor): a custom domain
+            // can stand alone as the handle with a blank subdomain (the
+            // root-domain case), every other method needs one.
+            const targetHandle = computeCreateAccountTargetHandle();
+            if (!targetHandle) {
                 if (status) {
                     status.replaceChildren(statusBlock('error', 'enter a handle and choose a domain'));
                 }
                 return;
             }
-            // Only add dot if domain doesn't already start with one
-            data.handle = domain.startsWith('.') ? `${subdomain}${domain}` : `${subdomain}.${domain}`;
-            
+            data.handle = targetHandle;
+
             // Update the hidden handle field
             const handleField = document.getElementById('account-handle');
             if (handleField) {
@@ -5497,9 +5848,8 @@
                 const domainSelect = document.getElementById('account-handle-domain');
                 if (domainSelect) {
                     domainSelect.innerHTML = '<option value="">Select domain...</option>';
-                    // Stop polling
-                    stopEthXyzPolling();
-                    // Trigger change event to reset UI state
+                    // Trigger change event to reset UI state (also drops any
+                    // earlier setup confirmation - see handleDomainChange)
                     handleDomainChange();
                 }
                 const status = getCurrentStatusElement();
@@ -5774,6 +6124,38 @@
                 positionFieldHelpTip(e.target.closest('.field-help-wrap'));
             }
         }, true);
+
+        // domain.html popups (opened by setupAccountEth/setupAccountGwei/
+        // setupAccountCustomDomain/setupHandleEth/setupHandleGwei/
+        // setupHandleCustomDomain via openDomainPopup, all on our own
+        // origin - no OAuth-style cross-origin redirect involved, so
+        // window.opener stays valid) post this once the user has
+        // successfully checked their domain there. The Handle tab matches
+        // by did+handle against whichever setup it's waiting on, so a
+        // message about a setup the user has since edited or abandoned is
+        // silently ignored rather than resurrecting stale state.
+        // Create-account matches by did alone - expectedCreateAccountDid is
+        // already invalidated on every relevant field edit (see
+        // invalidateAccountSetupIfStale), so there's no separate "expected
+        // handle" to compare against here.
+        window.addEventListener('message', (event) => {
+            if (event.origin !== window.location.origin) return;
+            const msg = event.data;
+            if (!msg || msg.type !== 'atproto-onboard-domain-confirmed') return;
+
+            if (msg.did === expectedCreateAccountDid) {
+                if (accountSetupGroup) accountSetupGroup.innerHTML = '<div class="eth-ready-note">ready</div>';
+                if (submitCreateAccountBtn) submitCreateAccountBtn.disabled = false;
+            }
+
+            if (handleState.did && msg.did === handleState.did && msg.handle === computeHandleTabTargetHandle()) {
+                handleSetupConfirmedHandle = msg.handle;
+                const setupGroup = document.getElementById('handle-setup-group');
+                if (setupGroup) setupGroup.innerHTML = '<div class="eth-ready-note">ready</div>';
+                const changeBtn = document.getElementById('handle-change-btn');
+                if (changeBtn) changeBtn.disabled = false;
+            }
+        });
 
         // Run test case on page load
         testDidPlcIdGeneration();

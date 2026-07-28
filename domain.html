@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src https: wss://relay.walletconnect.com wss://relay.walletconnect.org; script-src 'self' https://cdn.jsdelivr.net https://esm.sh 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' https://fonts.reown.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src https://verify.walletconnect.com https://verify.walletconnect.org https://secure.walletconnect.com https://secure.walletconnect.org;">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Link a domain</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="domain.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header-slot">
+            <div class="path"><span id="header-path">~/atproto <span class="amber">$</span> link a domain</span> <span class="header-checking" id="header-checking"></span></div>
+        </div>
+        <div class="content" id="content"></div>
+    </div>
+
+    <!-- Sets the header's real domain name before either library script
+         below has a chance to load - both are classic/blocking or
+         import-graph-blocking enough that waiting for them left the header
+         stuck on its static "link a domain" placeholder for a noticeable
+         moment. This tiny script has no dependencies of its own (just URL
+         params + DOM writes), so it runs immediately as the parser reaches
+         it, before either the ethers.js <script src> below (which blocks
+         parsing outright) or the module script (whose own top-level code
+         only runs once the whole document has finished parsing). Small,
+         necessary duplication of the account/customDomain -> handle formula
+         also used in the module script below (see ethXyzHandle()) - this
+         has to be self-contained since it can't depend on module scope. -->
+    <script>
+        (function () {
+            var params = new URLSearchParams(window.location.search);
+            var did = params.get('did');
+            var account = params.get('account');
+            var gweiName = params.get('gwei');
+            var customDomain = params.get('domain');
+            var sepolia = params.get('net') === 'sepolia';
+            var name = account
+                ? (sepolia ? account + '.sepolia.id.goat.navy' : account + '.xyz')
+                : (gweiName ? gweiName + '.gwei.name' : customDomain);
+            if (!did || !name) return;
+            document.title = 'Link ' + name;
+            var amber = document.createElement('span');
+            amber.className = 'amber';
+            amber.textContent = '$';
+            // replaceChildren() accepts plain strings as well as nodes,
+            // inserting them as text nodes - safe against the URL-derived
+            // "name" without needing a separate escaping helper.
+            document.getElementById('header-path').replaceChildren('~/atproto ', amber, ' link ' + name);
+        })();
+    </script>
+
+    <!-- Load ethers.js -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6/dist/ethers.umd.min.js"></script>
+
+    <script type="module">
+        // Public identifier, not a secret - WalletConnect/Reown's own docs
+        // show it used directly in client-side code. The actual access
+        // control is the "Allowed domains" list in the project's dashboard
+        // at https://dashboard.reown.com (set to ens.goat.navy).
+        const WALLET_CONNECT_PROJECT_ID = '0b31bcd9e1dcde9b89c831d870922ec6';
+
+        // Escapes text before it's interpolated into an innerHTML template -
+        // did/account come straight from the URL and are otherwise unescaped.
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str ?? '';
+            return div.innerHTML;
+        }
+
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const did = urlParams.get('did');
+        const account = urlParams.get('account'); // the underlying .eth name, e.g. "bot.reality.eth"
+        const gweiName = urlParams.get('gwei'); // the underlying .gwei name (GNS), e.g. "bot"
+        const customDomain = urlParams.get('domain'); // a plain domain the caller owns, e.g. "alice.example.com"
+
+        // Set by index.html when it's running in ?net=sepolia mode - swaps
+        // the DNS target from the real eth.xyz to our own Sepolia test zone.
+        // See ethXyzHandle() and ETH_SERVER_README.md.
+        const SEPOLIA_TEST_MODE = urlParams.get('net') === 'sepolia';
+
+        const contentDiv = document.getElementById('content');
+
+        // The header's actual domain name/title are already set by the tiny
+        // synchronous script above, before this module (and the ethers.js
+        // script tag before it) even finished loading - nothing to do here.
+
+        // Toggles the small fading "checking..." next to the header path -
+        // shown only while a poll loop is actually running, not during the
+        // (ENS-only) wallet-connect/on-chain-tx steps beforehand.
+        function setHeaderChecking(active) {
+            const el = document.getElementById('header-checking');
+            if (!el) return;
+            el.textContent = active ? 'checking...' : '';
+            el.classList.toggle('active', active);
+        }
+
+        // eth.xyz republishes an ENS text record under this key as a real DNS
+        // TXT record at _atproto.<name>.eth.xyz - confirmed against a live
+        // eth.xyz-hosted atproto handle (94086.eth.xyz, did:plc:ilizbj4e74nomfmyyn7e67fd):
+        // the on-chain text record at key "_atproto." (trailing dot - that's
+        // what eth.xyz itself expects, not a typo) held "did=<did>", and
+        // querying _atproto.94086.eth.xyz as a plain DNS TXT record - the
+        // same lookup our own handle resolution already does - returned the
+        // identical value. No IPFS, no contenthash, no server-side pinning:
+        // just one on-chain text-record transaction, then eth.xyz's own
+        // infrastructure handles publishing it to real DNS.
+        const ATPROTO_TEXT_RECORD_KEY = '_atproto.';
+
+        function ethXyzHandle() {
+            // "bot.reality.eth" -> "bot.reality.eth.xyz" (or, in test mode,
+            // "bot.reality.eth.sepolia.id.goat.navy" - our own test DNS zone,
+            // since the real eth.xyz has no reason to know about a
+            // Sepolia-only name).
+            return SEPOLIA_TEST_MODE ? `${account}.sepolia.id.goat.navy` : `${account}.xyz`;
+        }
+
+        // gwei.name is a not-yet-built equivalent of eth.xyz for GNS (.gwei)
+        // names: same idea (publish an on-chain text record, a bot notices
+        // and republishes it as a real DNS TXT record), different registry.
+        // "bot" -> "bot.gwei.name".
+        function gweiHandle() {
+            return `${gweiName}.gwei.name`;
+        }
+
+        // Same DNS-TXT lookup the main page's own handle resolution uses
+        // (see resolveHandleToDid in index.html) - eth.xyz is just another
+        // domain once the record is live in real DNS, nothing ENS-specific
+        // about reading it back.
+        async function resolveAtprotoTxtRecord(handle) {
+            try {
+                const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(`_atproto.${handle}`)}&type=TXT`, {
+                    headers: { Accept: 'application/dns-json' },
+                });
+                if (!res.ok) return null;
+                const data = await res.json();
+                for (const answer of data.Answer || []) {
+                    const raw = (answer.data || '').replace(/^"|"$/g, '');
+                    if (raw.startsWith('did=')) return raw.slice(4);
+                }
+            } catch { /* not resolvable yet */ }
+            return null;
+        }
+
+        // The other half of the same dual-check index.html's own
+        // resolveHandleToDid does (DNS TXT first, well-known fallback) -
+        // composed from resolveAtprotoTxtRecord above rather than
+        // duplicated whole, since domain.html has no way to import that
+        // function from index.html (no build step, no shared module).
+        async function resolveWellKnownDid(handle) {
+            try {
+                const res = await fetch(`https://${handle}/.well-known/atproto-did`);
+                if (res.ok) {
+                    const text = (await res.text()).trim();
+                    if (text.startsWith('did:')) return text;
+                }
+            } catch { /* not resolvable yet */ }
+            return null;
+        }
+
+        async function resolveCustomDomainDid(handle) {
+            return (await resolveAtprotoTxtRecord(handle)) ?? (await resolveWellKnownDid(handle));
+        }
+
+        // ---- Generic manual "check now" UI, shared by the ENS and
+        // custom-domain branches below ----
+        //
+        // Both branches used to start polling automatically as soon as
+        // their instructions rendered. Over a public DNS-over-HTTPS
+        // resolver (Cloudflare, used by resolveAtprotoTxtRecord /
+        // resolveWellKnownDid's sibling checks), querying a record that
+        // doesn't exist yet gets a *negative* answer cached for the zone's
+        // whole negative-cache TTL (minutes) - so a poll that starts before
+        // the user has actually finished their side can end up reporting
+        // "not found" for minutes after the record is really live.
+        // Waiting for an explicit click means the first-ever query for a
+        // given name only happens once the user believes it's ready.
+        function startManualDomainCheck({ containerId, idleLabel, targetLabel, checkFn, hintFn }) {
+            let pollInterval = null;
+
+            function container() {
+                return document.getElementById(containerId);
+            }
+
+            function renderIdle() {
+                const el = container();
+                if (!el) return;
+                el.innerHTML = `<button class="primary" type="button">${escapeHtml(idleLabel)}</button>`;
+                el.querySelector('button').addEventListener('click', runFirstCheck);
+            }
+
+            async function runFirstCheck() {
+                const el = container();
+                setHeaderChecking(true);
+                if (el) el.innerHTML = `<div class="status loading">Checking...</div>`;
+                // A short pause before the very first query - mostly
+                // cosmetic (it reads as "checking", not "instantly wrong"),
+                // but also gives a same-instant DNS/file save a beat to land
+                // before we ask.
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+                if (await checkFn()) { onSuccess(); return; }
+                onFailure(1);
+            }
+
+            function onSuccess() {
+                setHeaderChecking(false);
+                const el = container();
+                if (el) {
+                    el.innerHTML = `<div class="status success">✓ ${escapeHtml(targetLabel)} is live — your ATProto handle is ready to use.${window.opener ? ' This window will close automatically.' : ''}</div>`;
+                }
+                if (window.opener) {
+                    try {
+                        window.opener.postMessage({ type: 'atproto-onboard-domain-confirmed', did, handle: targetLabel }, window.location.origin);
+                    } catch { /* opener gone or unreachable - nothing more we can do here */ }
+                    setTimeout(() => window.close(), 2500);
+                }
+            }
+
+            function onFailure(attempts) {
+                const el = container();
+                if (el) {
+                    el.innerHTML = `
+                        <div class="status error">${hintFn(attempts)}</div>
+                        <button class="primary" type="button" data-role="cancel">Cancel</button>
+                    `;
+                    el.querySelector('[data-role="cancel"]').addEventListener('click', cancel);
+                }
+                setHeaderChecking(true);
+                let attemptCount = attempts;
+                pollInterval = setInterval(async () => {
+                    attemptCount++;
+                    if (await checkFn()) { clearInterval(pollInterval); pollInterval = null; onSuccess(); return; }
+                    const statusEl = container()?.querySelector('.status');
+                    if (statusEl) statusEl.innerHTML = hintFn(attemptCount);
+                }, 10000);
+            }
+
+            function cancel() {
+                if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+                setHeaderChecking(false);
+                renderIdle();
+            }
+
+            renderIdle();
+        }
+
+        if (!did || (!account && !gweiName && !customDomain)) {
+            const missingParams = [];
+            if (!did) missingParams.push('did');
+            if (!account && !gweiName && !customDomain) missingParams.push('account, gwei, or domain');
+
+            contentDiv.innerHTML = `
+                <div class="status error">Missing required parameter${missingParams.length > 1 ? 's' : ''}: ${escapeHtml(missingParams.join(', '))}. Please return to the account creation page and try again.</div>
+            `;
+        } else if (account) {
+            showConnectPrompt();
+        } else if (gweiName) {
+            showGweiConnectPrompt();
+        } else {
+            showCustomDomainInstructions();
+        }
+
+        function showConnectPrompt() {
+            const injectedButton = typeof window.ethereum !== 'undefined'
+                ? `<button id="connect-btn" class="primary">Connect wallet</button>`
+                : '';
+            contentDiv.innerHTML = `
+                <div class="module">
+                    <div class="field">
+                        <label>account name</label>
+                        <div class="value">${escapeHtml(account)}</div>
+                    </div>
+                    <div class="field">
+                        <label>did:plc identifier</label>
+                        <div class="value">${escapeHtml(did)}</div>
+                    </div>
+                </div>
+                ${injectedButton}
+                <button id="connect-wc-btn" class="primary">Connect via WalletConnect</button>
+                <div id="connect-status"></div>
+            `;
+            const connectBtn = document.getElementById('connect-btn');
+            if (connectBtn) connectBtn.addEventListener('click', () => connectAndCheck(window.ethereum));
+            document.getElementById('connect-wc-btn').addEventListener('click', connectViaWalletConnect);
+        }
+
+        // ENS Registry address (same for Mainnet and Sepolia)
+        const ENS_REGISTRY_ADDRESS = '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e';
+
+        const REGISTRY_ABI = [
+            "function resolver(bytes32 node) view returns (address)",
+            "function owner(bytes32 node) view returns (address)"
+        ];
+        const RESOLVER_ABI = [
+            "function text(bytes32 node, string key) view returns (string)",
+            "function setText(bytes32 node, string key, string value)"
+        ];
+
+        // Set once a wallet is connected, reused by the setup transaction so
+        // it doesn't have to re-derive any of this.
+        let signer, namehash, resolverAddress;
+
+        function setConnectButtonsDisabled(disabled) {
+            const connectBtn = document.getElementById('connect-btn');
+            const wcBtn = document.getElementById('connect-wc-btn');
+            if (connectBtn) connectBtn.disabled = disabled;
+            if (wcBtn) wcBtn.disabled = disabled;
+        }
+
+        // wcProvider is created once and reused - re-initializing on every
+        // click would open a redundant pairing each time.
+        let wcProvider = null;
+
+        async function getWalletConnectProvider() {
+            if (!wcProvider) {
+                // Loaded lazily, only once a wallet connection is actually
+                // requested - a static top-level import here would block
+                // this whole module's execution (including the header
+                // update above) on this CDN fetch resolving first, which is
+                // both pointless for the custom-domain path (no wallet ever
+                // needed) and made the header visibly stick on its static
+                // placeholder text while esm.sh loaded.
+                const { EthereumProvider } = await import("https://esm.sh/@walletconnect/ethereum-provider@2.23.10");
+                wcProvider = await EthereumProvider.init({
+                    projectId: WALLET_CONNECT_PROJECT_ID,
+                    chains: [1],
+                    optionalChains: [11155111, 17000],
+                    showQrModal: true,
+                    metadata: {
+                        name: 'Link a domain',
+                        description: 'Set up your .eth or .gwei name as an ATProto handle',
+                        url: 'https://ens.goat.navy',
+                        icons: [],
+                    },
+                });
+            }
+            return wcProvider;
+        }
+
+        async function connectViaWalletConnect() {
+            const statusDiv = document.getElementById('connect-status');
+            setConnectButtonsDisabled(true);
+            statusDiv.innerHTML = `<div class="status loading">Opening WalletConnect...</div>`;
+
+            try {
+                const provider = await getWalletConnectProvider();
+                if (!provider.session) {
+                    statusDiv.innerHTML = `<div class="status loading">Scan the QR code with your wallet...</div>`;
+                    await provider.connect();
+                }
+                await connectAndCheck(provider);
+            } catch (error) {
+                console.error('Error connecting via WalletConnect:', error);
+                statusDiv.innerHTML = `<div class="status error">${escapeHtml(error.message)}</div>`;
+                setConnectButtonsDisabled(false);
+            }
+        }
+
+        async function connectAndCheck(rawProvider) {
+            const statusDiv = document.getElementById('connect-status');
+            setConnectButtonsDisabled(true);
+            statusDiv.innerHTML = `<div class="status loading">Connecting wallet...</div>`;
+
+            try {
+                const provider = new ethers.BrowserProvider(rawProvider);
+                signer = await provider.getSigner();
+                const network = await provider.getNetwork();
+                console.log('Connected to network:', network.name, 'Chain ID:', network.chainId);
+
+                namehash = ethers.namehash(account);
+                const registry = new ethers.Contract(ENS_REGISTRY_ADDRESS, REGISTRY_ABI, provider);
+
+                const testnetUrlFor = (chainId) =>
+                    chainId === 11155111n ? 'https://sepolia.app.ens.domains' :
+                    chainId === 17000n ? 'https://holesky.app.ens.domains' :
+                    'https://app.ens.domains';
+
+                const owner = await registry.owner(namehash);
+                if (ethers.getAddress(owner) === ethers.getAddress(ethers.ZeroAddress)) {
+                    const networkName = network.name || `Chain ID ${network.chainId}`;
+                    throw new Error(
+                        `Domain "${account}" is not registered on ${networkName}.\n\n` +
+                        `Please register the domain first:\n` +
+                        `1. Go to ${testnetUrlFor(network.chainId)}\n` +
+                        `2. Search for "${account}"\n` +
+                        `3. Register the domain if available\n\n` +
+                        `Make sure you're on the ${networkName} network.`
+                    );
+                }
+
+                resolverAddress = ethers.getAddress(await registry.resolver(namehash));
+                if (resolverAddress === ethers.getAddress(ethers.ZeroAddress)) {
+                    const networkName = network.name || `Chain ID ${network.chainId}`;
+                    throw new Error(
+                        `No resolver set for this domain on ${networkName}.\n\n` +
+                        `Please set a resolver first:\n` +
+                        `1. Go to ${testnetUrlFor(network.chainId)}\n` +
+                        `2. Search for "${account}"\n` +
+                        `3. Go to the "Records" tab\n` +
+                        `4. Set a resolver (you can use the Public Resolver)\n\n` +
+                        `Make sure you're on the ${networkName} network when setting the resolver.`
+                    );
+                }
+
+                statusDiv.innerHTML = `<div class="status loading">Checking existing record...</div>`;
+                const readResolver = new ethers.Contract(resolverAddress, RESOLVER_ABI, provider);
+                const existing = await readResolver.text(namehash, ATPROTO_TEXT_RECORD_KEY);
+                const expectedValue = `did=${did}`;
+
+                if (existing === expectedValue) {
+                    showAlreadySet();
+                } else if (existing) {
+                    showDifferentValueWarning(existing);
+                } else {
+                    showSetupButton();
+                }
+            } catch (error) {
+                console.error('Error connecting/checking record:', error);
+                statusDiv.innerHTML = `<div class="status error">${escapeHtml(error.message)}</div>`;
+                setConnectButtonsDisabled(false);
+            }
+        }
+
+        function showAlreadySet() {
+            contentDiv.innerHTML = `
+                <div class="status success">Already set up — found the expected DID on-chain.</div>
+                <div class="module">
+                    <div class="field">
+                        <label>account name</label>
+                        <div class="value">${escapeHtml(account)}</div>
+                    </div>
+                    <div class="field">
+                        <label>did:plc identifier</label>
+                        <div class="value">${escapeHtml(did)}</div>
+                    </div>
+                </div>
+                <div id="dns-status"></div>
+            `;
+            startEthDnsCheck();
+        }
+
+        function showDifferentValueWarning(existingValue) {
+            contentDiv.innerHTML = `
+                <div class="status error">This domain already has a different _atproto record set.</div>
+                <div class="module">
+                    <div class="field">
+                        <label>account name</label>
+                        <div class="value">${escapeHtml(account)}</div>
+                    </div>
+                    <div class="field">
+                        <label>did:plc identifier (yours)</label>
+                        <div class="value">${escapeHtml(did)}</div>
+                    </div>
+                    <div class="field">
+                        <label>currently published value (someone else's, or stale)</label>
+                        <div class="value">${escapeHtml(existingValue)}</div>
+                    </div>
+                </div>
+                <div class="module">
+                    <div class="value value-wrap">
+                        Continuing will replace it with your DID. Whoever currently controls that value will stop being able to use this domain as their handle - only do this if that's you, or you're intentionally taking over the domain.
+                    </div>
+                </div>
+                <button id="setup-btn" class="primary">Continue and replace it</button>
+                <div id="setup-status"></div>
+            `;
+            document.getElementById('setup-btn').addEventListener('click', runSetText);
+        }
+
+        function showSetupButton() {
+            contentDiv.innerHTML = `
+                <div class="module">
+                    <div class="field">
+                        <label>account name</label>
+                        <div class="value">${escapeHtml(account)}</div>
+                    </div>
+                    <div class="field">
+                        <label>did:plc identifier</label>
+                        <div class="value">${escapeHtml(did)}</div>
+                    </div>
+                </div>
+                <button id="setup-btn" class="primary">Set up _atproto record</button>
+                <div id="setup-status"></div>
+            `;
+            document.getElementById('setup-btn').addEventListener('click', runSetText);
+        }
+
+        async function runSetText() {
+            const setupBtn = document.getElementById('setup-btn');
+            const statusDiv = document.getElementById('setup-status');
+            if (setupBtn) setupBtn.disabled = true;
+
+            try {
+                statusDiv.innerHTML = `<div class="status loading">Please confirm the transaction in your wallet...</div>`;
+                const resolver = new ethers.Contract(resolverAddress, RESOLVER_ABI, signer);
+                const tx = await resolver.setText(namehash, ATPROTO_TEXT_RECORD_KEY, `did=${did}`);
+
+                statusDiv.innerHTML = `
+                    <div class="status loading">Transaction sent! Waiting for confirmation...
+                        <small>Transaction hash: ${escapeHtml(tx.hash)}</small>
+                    </div>
+                `;
+                const receipt = await tx.wait();
+                if (receipt.status !== 1) throw new Error('Transaction failed');
+
+                contentDiv.innerHTML = `
+                    <div class="status success">Record set on-chain! Confirmed in block ${receipt.blockNumber}.</div>
+                    <div class="module">
+                        <div class="field">
+                            <label>account name</label>
+                            <div class="value">${escapeHtml(account)}</div>
+                        </div>
+                        <div class="field">
+                            <label>did:plc identifier</label>
+                            <div class="value">${escapeHtml(did)}</div>
+                        </div>
+                    </div>
+                    <div id="dns-status"></div>
+                `;
+                startEthDnsCheck();
+            } catch (error) {
+                console.error('Error setting record:', error);
+                statusDiv.innerHTML = `<div class="status error">${escapeHtml(error.message)}</div>`;
+                if (setupBtn) setupBtn.disabled = false;
+            }
+        }
+
+        // eth.xyz needs to notice the on-chain change and republish it to
+        // its own DNS zone before this resolves - by their own docs, that's
+        // normally automatic but can be nudged with a "Refresh Records"
+        // click on the profile page, which is exactly what the manual
+        // "Check now" click doubles as here.
+        function startEthDnsCheck() {
+            const handle = ethXyzHandle();
+            startManualDomainCheck({
+                containerId: 'dns-status',
+                idleLabel: 'Check now',
+                targetLabel: handle,
+                checkFn: async () => (await resolveAtprotoTxtRecord(handle)) === did,
+                hintFn: (attempts) => {
+                    if (attempts < 4) return `Didn't find it yet. We'll keep checking automatically every 10 seconds.`;
+                    return SEPOLIA_TEST_MODE
+                        ? `This won't resolve on its own in test mode - run <code>sync-one-sepolia-ens.py ${escapeHtml(account)}</code> on the server to publish it. We'll keep checking automatically.`
+                        : `Still not found. Visit <a href="https://${escapeHtml(handle)}" target="_blank" rel="noopener">your eth.xyz profile</a> and click "Refresh Records" if this doesn't finish on its own. We'll keep checking automatically.`;
+                },
+            });
+        }
+
+        // ---- GNS (.gwei) branch - gwei.domains is an "ownerless fork of
+        // wei-names" (github.com/lucadonnoh/gwei-names, forked from
+        // github.com/z0r0z/wei-names), giving .gwei the same kind of
+        // on-chain-text-record mechanism ENS gives .eth - gwei.name (this
+        // project's own DNS side, see sync-gwei-atproto-did-files.py) is
+        // meant to be its equivalent of eth.xyz, once the bot that watches
+        // for on-chain changes and republishes them as DNS TXT records
+        // exists. This only wires up the on-chain half.
+        //
+        // Structurally unlike ENS: no separate Registry+Resolver - a single
+        // NameNFT contract (Ethereum mainnet) is both, and it's an ERC721
+        // keyed by tokenId rather than by an ENS-style namehash node
+        // directly (though text() also accepts a node/bytes32 for
+        // ENS-compatible reads). Verified against the real deployed
+        // contract via a handful of read-only eth_call checks before
+        // wiring this up - name()/symbol() return "Gwei Name Service"/
+        // "GWEI", and computeId("test") === computeId("test.gwei"),
+        // confirming both the address and that the ".gwei" suffix is
+        // optional/stripped the same way ENS's namehash works.
+        const GNS_NAME_NFT_ADDRESS = '0x9D51D507BC7264d4fE8Ad1cf7Fe191933A0a81d6';
+        const GNS_NAME_NFT_ABI = [
+            "function computeId(string fullName) view returns (uint256)",
+            "function ownerOf(uint256 tokenId) view returns (address)",
+            "function text(uint256 tokenId, string key) view returns (string)",
+            "function setText(uint256 tokenId, string key, string value)",
+        ];
+
+        // Set once a wallet is connected, reused by the setup transaction.
+        let gweiSigner, gweiTokenId, gweiWriteContract;
+
+        function showGweiConnectPrompt() {
+            const injectedButton = typeof window.ethereum !== 'undefined'
+                ? `<button id="connect-btn" class="primary">Connect wallet</button>`
+                : '';
+            contentDiv.innerHTML = `
+                <div class="module">
+                    <div class="field">
+                        <label>gwei name</label>
+                        <div class="value">${escapeHtml(gweiName)}.gwei</div>
+                    </div>
+                    <div class="field">
+                        <label>did:plc identifier</label>
+                        <div class="value">${escapeHtml(did)}</div>
+                    </div>
+                </div>
+                ${injectedButton}
+                <button id="connect-wc-btn" class="primary">Connect via WalletConnect</button>
+                <div id="connect-status"></div>
+            `;
+            const connectBtn = document.getElementById('connect-btn');
+            if (connectBtn) connectBtn.addEventListener('click', () => connectAndCheckGwei(window.ethereum));
+            document.getElementById('connect-wc-btn').addEventListener('click', connectViaWalletConnectGwei);
+        }
+
+        async function connectViaWalletConnectGwei() {
+            const statusDiv = document.getElementById('connect-status');
+            setConnectButtonsDisabled(true);
+            statusDiv.innerHTML = `<div class="status loading">Opening WalletConnect...</div>`;
+
+            try {
+                const provider = await getWalletConnectProvider();
+                if (!provider.session) {
+                    statusDiv.innerHTML = `<div class="status loading">Scan the QR code with your wallet...</div>`;
+                    await provider.connect();
+                }
+                await connectAndCheckGwei(provider);
+            } catch (error) {
+                console.error('Error connecting via WalletConnect:', error);
+                statusDiv.innerHTML = `<div class="status error">${escapeHtml(error.message)}</div>`;
+                setConnectButtonsDisabled(false);
+            }
+        }
+
+        async function connectAndCheckGwei(rawProvider) {
+            const statusDiv = document.getElementById('connect-status');
+            setConnectButtonsDisabled(true);
+            statusDiv.innerHTML = `<div class="status loading">Connecting wallet...</div>`;
+
+            try {
+                const provider = new ethers.BrowserProvider(rawProvider);
+                gweiSigner = await provider.getSigner();
+                const network = await provider.getNetwork();
+                console.log('Connected to network:', network.name, 'Chain ID:', network.chainId);
+
+                if (network.chainId !== 1n) {
+                    throw new Error(
+                        `GNS (.gwei) is deployed on Ethereum mainnet - please switch your wallet to mainnet ` +
+                        `(currently connected to ${network.name || `chain ID ${network.chainId}`}).`
+                    );
+                }
+
+                const readContract = new ethers.Contract(GNS_NAME_NFT_ADDRESS, GNS_NAME_NFT_ABI, provider);
+                gweiTokenId = await readContract.computeId(gweiName);
+
+                let owner;
+                try {
+                    owner = await readContract.ownerOf(gweiTokenId);
+                } catch {
+                    throw new Error(
+                        `"${gweiName}.gwei" isn't registered yet.\n\n` +
+                        `Please register it first at https://gwei.domains, then come back here.`
+                    );
+                }
+                const signerAddress = await gweiSigner.getAddress();
+                if (ethers.getAddress(owner) !== ethers.getAddress(signerAddress)) {
+                    throw new Error(
+                        `You connected as ${signerAddress}, but "${gweiName}.gwei" is owned by ${owner}.\n\n` +
+                        `Connect the wallet that owns it.`
+                    );
+                }
+
+                statusDiv.innerHTML = `<div class="status loading">Checking existing record...</div>`;
+                const existing = await readContract.text(gweiTokenId, ATPROTO_TEXT_RECORD_KEY);
+                const expectedValue = `did=${did}`;
+
+                gweiWriteContract = new ethers.Contract(GNS_NAME_NFT_ADDRESS, GNS_NAME_NFT_ABI, gweiSigner);
+
+                if (existing === expectedValue) {
+                    showAlreadySetGwei();
+                } else if (existing) {
+                    showDifferentValueWarningGwei(existing);
+                } else {
+                    showSetupButtonGwei();
+                }
+            } catch (error) {
+                console.error('Error connecting/checking GNS record:', error);
+                statusDiv.innerHTML = `<div class="status error">${escapeHtml(error.message)}</div>`;
+                setConnectButtonsDisabled(false);
+            }
+        }
+
+        function showAlreadySetGwei() {
+            contentDiv.innerHTML = `
+                <div class="status success">Already set up — found the expected DID on-chain.</div>
+                <div class="module">
+                    <div class="field">
+                        <label>gwei name</label>
+                        <div class="value">${escapeHtml(gweiName)}.gwei</div>
+                    </div>
+                    <div class="field">
+                        <label>did:plc identifier</label>
+                        <div class="value">${escapeHtml(did)}</div>
+                    </div>
+                </div>
+                <div id="dns-status"></div>
+            `;
+            startGweiDnsCheck();
+        }
+
+        function showDifferentValueWarningGwei(existingValue) {
+            contentDiv.innerHTML = `
+                <div class="status error">This name already has a different _atproto record set.</div>
+                <div class="module">
+                    <div class="field">
+                        <label>gwei name</label>
+                        <div class="value">${escapeHtml(gweiName)}.gwei</div>
+                    </div>
+                    <div class="field">
+                        <label>did:plc identifier (yours)</label>
+                        <div class="value">${escapeHtml(did)}</div>
+                    </div>
+                    <div class="field">
+                        <label>currently published value (someone else's, or stale)</label>
+                        <div class="value">${escapeHtml(existingValue)}</div>
+                    </div>
+                </div>
+                <div class="module">
+                    <div class="value value-wrap">
+                        Continuing will replace it with your DID. Whoever currently controls that value will stop being able to use this name as their handle - only do this if that's you, or you're intentionally taking over the name.
+                    </div>
+                </div>
+                <button id="setup-btn" class="primary">Continue and replace it</button>
+                <div id="setup-status"></div>
+            `;
+            document.getElementById('setup-btn').addEventListener('click', runSetTextGwei);
+        }
+
+        function showSetupButtonGwei() {
+            contentDiv.innerHTML = `
+                <div class="module">
+                    <div class="field">
+                        <label>gwei name</label>
+                        <div class="value">${escapeHtml(gweiName)}.gwei</div>
+                    </div>
+                    <div class="field">
+                        <label>did:plc identifier</label>
+                        <div class="value">${escapeHtml(did)}</div>
+                    </div>
+                </div>
+                <button id="setup-btn" class="primary">Set up _atproto record</button>
+                <div id="setup-status"></div>
+            `;
+            document.getElementById('setup-btn').addEventListener('click', runSetTextGwei);
+        }
+
+        async function runSetTextGwei() {
+            const setupBtn = document.getElementById('setup-btn');
+            const statusDiv = document.getElementById('setup-status');
+            if (setupBtn) setupBtn.disabled = true;
+
+            try {
+                statusDiv.innerHTML = `<div class="status loading">Please confirm the transaction in your wallet...</div>`;
+                const tx = await gweiWriteContract.setText(gweiTokenId, ATPROTO_TEXT_RECORD_KEY, `did=${did}`);
+
+                statusDiv.innerHTML = `
+                    <div class="status loading">Transaction sent! Waiting for confirmation...
+                        <small>Transaction hash: ${escapeHtml(tx.hash)}</small>
+                    </div>
+                `;
+                const receipt = await tx.wait();
+                if (receipt.status !== 1) throw new Error('Transaction failed');
+
+                contentDiv.innerHTML = `
+                    <div class="status success">Record set on-chain! Confirmed in block ${receipt.blockNumber}.</div>
+                    <div class="module">
+                        <div class="field">
+                            <label>gwei name</label>
+                            <div class="value">${escapeHtml(gweiName)}.gwei</div>
+                        </div>
+                        <div class="field">
+                            <label>did:plc identifier</label>
+                            <div class="value">${escapeHtml(did)}</div>
+                        </div>
+                    </div>
+                    <div id="dns-status"></div>
+                `;
+                startGweiDnsCheck();
+            } catch (error) {
+                console.error('Error setting GNS record:', error);
+                statusDiv.innerHTML = `<div class="status error">${escapeHtml(error.message)}</div>`;
+                if (setupBtn) setupBtn.disabled = false;
+            }
+        }
+
+        // Same DNS-TXT check as eth.xyz's - resolveAtprotoTxtRecord is a
+        // plain "_atproto.<handle>" lookup, nothing ENS/GNS-specific about
+        // it once the record is (eventually) live in real DNS.
+        function startGweiDnsCheck() {
+            const handle = gweiHandle();
+            startManualDomainCheck({
+                containerId: 'dns-status',
+                idleLabel: 'Check now',
+                targetLabel: handle,
+                checkFn: async () => (await resolveAtprotoTxtRecord(handle)) === did,
+                hintFn: (attempts) => attempts < 4
+                    ? `Didn't find it yet. We'll keep checking automatically every 10 seconds.`
+                    : `Still not found. gwei.name's bot may take a little while to notice the on-chain change and republish it. We'll keep checking automatically.`,
+            });
+        }
+
+        // ---- Custom domain branch (not ENS - a domain the caller already
+        // owns and controls DNS/webserver for directly) ----
+
+        function showCustomDomainInstructions() {
+            contentDiv.innerHTML = `
+                <div class="module">
+                    <div class="field">
+                        <label>handle</label>
+                        <div class="value">${escapeHtml(customDomain)}</div>
+                    </div>
+                    <div class="field">
+                        <label>did:plc identifier</label>
+                        <div class="value">${escapeHtml(did)}</div>
+                    </div>
+                </div>
+                <div class="module">
+                    <div class="field">
+                        <label>option 1: DNS TXT record</label>
+                        <div class="value">record name: <code>_atproto.${escapeHtml(customDomain)}</code></div>
+                        <div class="value">record type: <code>TXT</code></div>
+                        <div class="value">record value: <code>did=${escapeHtml(did)}</code></div>
+                    </div>
+                </div>
+                <div class="module">
+                    <div class="field">
+                        <label>option 2: well-known file</label>
+                        <div class="value">serve this file: <code>https://${escapeHtml(customDomain)}/.well-known/atproto-did</code></div>
+                        <div class="value">file contents (exactly, no extra text): <code>${escapeHtml(did)}</code></div>
+                    </div>
+                </div>
+                <div class="module">
+                    <div class="value value-wrap">
+                        You only need one of these, not both. We can't do this step for you - it happens on your own domain's DNS provider or webserver. Once you've done either, press the button below to check.
+                    </div>
+                </div>
+                <div id="custom-domain-status"></div>
+            `;
+            startManualDomainCheck({
+                containerId: 'custom-domain-status',
+                idleLabel: "I've set this up",
+                targetLabel: customDomain,
+                checkFn: async () => (await resolveCustomDomainDid(customDomain)) === did,
+                hintFn: (attempts) => attempts >= 4
+                    ? `Still not found. Double check the record name/value or file URL above, and that DNS/your webserver has finished propagating. We'll keep checking automatically.`
+                    : `Didn't find it yet. We'll keep checking automatically every 10 seconds.`,
+            });
+        }
+    </script>
+</body>
+</html>

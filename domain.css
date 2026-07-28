@@ -78,6 +78,21 @@
             color: var(--text-dim);
         }
         .path .amber { color: var(--amber); }
+        .header-checking {
+            font-size: 12px;
+            color: var(--text-dim);
+            opacity: 0;
+        }
+        .header-checking.active {
+            animation: header-checking-fade 2s ease-in-out infinite;
+        }
+        @keyframes header-checking-fade {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 0.85; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .header-checking.active { animation: none; opacity: 0.6; }
+        }
 
         .content {
             padding: 0 48px 48px;

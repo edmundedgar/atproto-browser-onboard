@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 Static file server for the atproto onboarding tool, plus its OAuth client
-metadata endpoints. ENS/.eth setup (eth.html) talks to Ethereum and DNS
-directly from the browser now - see eth.html's own comments - so this has
-nothing ENS-specific left to do.
+metadata endpoints. Domain setup (domain.html) talks to Ethereum/DNS
+directly from the browser - see domain.html's own comments - so this has
+nothing domain-specific left to do.
 """
 
 from fastapi import FastAPI, Request
@@ -32,9 +32,9 @@ async def serve_index():
     return FileResponse("index.html")
 
 
-@app.get("/eth.html")
-async def serve_eth():
-    return FileResponse("eth.html")
+@app.get("/domain.html")
+async def serve_domain():
+    return FileResponse("domain.html")
 
 
 @app.get("/bootstrap-config.js")
@@ -52,9 +52,9 @@ async def serve_oauth_popup():
     return FileResponse("oauth-popup.html")
 
 
-@app.get("/eth.css")
-async def serve_eth_css():
-    return FileResponse("eth.css", media_type="text/css")
+@app.get("/domain.css")
+async def serve_domain_css():
+    return FileResponse("domain.css", media_type="text/css")
 
 
 @app.get("/oauth-popup.css")

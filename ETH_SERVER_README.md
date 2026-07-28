@@ -1,36 +1,44 @@
 # eth_server.py
 
 A small FastAPI app that serves this project's static files (`index.html`,
-`eth.html`, `oauth-popup.html`, their CSS, `bootstrap-config.js`,
+`domain.html`, `oauth-popup.html`, their CSS, `bootstrap-config.js`,
 `social-import-config.js`) plus its atproto OAuth client-metadata
 endpoints (`/client-metadata.json`, `/client-metadata/{tag}.json`).
 
-## ENS / .eth setup
+## Domain setup (ENS/.eth, GNS/.gwei, custom domains)
 
 There used to be a whole IPFS-pinning subsystem here (`/atproto-did/{domain}`,
 Filebase, a local `ipfs` daemon) that generated a `.well-known/atproto-did`
 file, pinned it, and pointed an ENS name's contenthash at it via
 `.eth.link`. That's gone.
 
-`eth.html` now talks to Ethereum and DNS directly from the browser instead:
+`domain.html` (opened as a popup from `index.html`, same as `oauth-popup.html`)
+talks to Ethereum and DNS directly from the browser instead:
 
-- It sets a plain ENS text record (key `_atproto.`, value `did=<did>`) on
-  the user's `.eth` name via a single `setText` transaction, using
-  whatever wallet the browser has connected (MetaMask, etc.) - no server
-  round-trip, no content to generate or pin.
-- [eth.xyz](https://eth.xyz) republishes that text record as a real DNS
+- For `.eth.xyz`: it sets a plain ENS text record (key `_atproto.`, value
+  `did=<did>`) on the user's `.eth` name via a single `setText` transaction,
+  using whatever wallet the browser has connected (MetaMask, etc.) - no
+  server round-trip, no content to generate or pin.
+  [eth.xyz](https://eth.xyz) republishes that text record as a real DNS
   TXT record at `_atproto.<name>.eth.xyz`, so `<name>.eth.xyz` works as
   an atproto handle exactly like a domain with a `_atproto` TXT record
   configured the ordinary way (this project's own handle resolution
   already checks DNS TXT records first, before falling back to
   `.well-known` HTTPS - see `resolveHandleToDid` in `index.html`).
+- For `.gwei.name`: the same idea against [GNS](https://gwei.domains) (an
+  ENS fork) instead of ENS itself - see the comments in `domain.html`'s
+  GNS branch for the contract details.
+- For any other custom domain the caller already controls: `domain.html`
+  just shows the DNS TXT record / `.well-known/atproto-did` file to set up
+  by hand - no wallet or on-chain step, since there's no registry to talk to.
 - Reading back the current value (to check whether it's already set, and
-  to what) is a plain `resolver.text(node, "_atproto.")` call, also from
-  the browser - no server involved.
+  to what) is a plain `resolver.text(node, "_atproto.")` call (ENS/GNS) or
+  a DNS/HTTPS lookup (custom domains), also from the browser - no server
+  involved.
 
-This was verified against a real `.eth.xyz`-hosted atproto account
-(`94086.eth.xyz`) before being built: its on-chain text record and its
-live DNS TXT record both hold the exact same `did=...` value.
+The ENS mechanism was verified against a real `.eth.xyz`-hosted atproto
+account (`94086.eth.xyz`) before being built: its on-chain text record and
+its live DNS TXT record both hold the exact same `did=...` value.
 
 ## Running
 
@@ -64,7 +72,7 @@ server {
 
 ## Endpoints
 
-- `GET /`, `/eth.html`, `/oauth-popup.html`, `/eth.css`,
+- `GET /`, `/domain.html`, `/oauth-popup.html`, `/domain.css`,
   `/oauth-popup.css`, `/bootstrap-config.js`, `/social-import-config.js` -
   static files.
 - `GET /client-metadata.json`, `/client-metadata/{tag}.json` - atproto
