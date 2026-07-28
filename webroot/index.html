@@ -3432,8 +3432,17 @@
         // at all, so this order matters).
         async function resolveHandleToDid(handle) {
             try {
+                // no-store: this exact URL gets refetched on a poll/retry
+                // loop while waiting for a just-published record to
+                // propagate (e.g. resolveAccountForManagement's callers) -
+                // without it, Chromium's heuristic caching of this
+                // no-explicit-cache-control response can pin the first
+                // (empty) answer for the rest of the loop, indistinguishable
+                // from the record genuinely not existing yet. Same class of
+                // bug as checkExistingRepo's identical fix.
                 const dnsRes = await fetch(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(`_atproto.${handle}`)}&type=TXT`, {
                     headers: { Accept: 'application/dns-json' },
+                    cache: 'no-store',
                 });
                 if (dnsRes.ok) {
                     const dnsData = await dnsRes.json();
@@ -3445,7 +3454,7 @@
             } catch { /* fall through to well-known method */ }
 
             try {
-                const wellKnownRes = await fetch(`https://${handle}/.well-known/atproto-did`);
+                const wellKnownRes = await fetch(`https://${handle}/.well-known/atproto-did`, { cache: 'no-store' });
                 if (wellKnownRes.ok) {
                     const text = (await wellKnownRes.text()).trim();
                     if (text.startsWith('did:')) return text;
