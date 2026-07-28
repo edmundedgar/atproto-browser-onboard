@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deploy cloudless to ENS/GNS</title>
+<link rel="icon" href="data:,">
+<style>
+    :root {
+        --bg: #15161b;
+        --panel: #1b1d24;
+        --text: #e7e4dc;
+        --text-dim: #8d8f9b;
+        --hairline: #303240;
+        --amber: #d4a24c;
+        --ok: #9cbf8e;
+        --bad: #c07b6e;
+    }
+    * { box-sizing: border-box; }
+    body {
+        font-family: ui-monospace, 'SF Mono', Consolas, monospace;
+        background: var(--bg);
+        color: var(--text);
+        max-width: 640px;
+        margin: 56px auto;
+        padding: 0 20px;
+        line-height: 1.6;
+    }
+    h1 { font-size: 18px; font-weight: 600; margin: 0 0 4px; }
+    .sub { color: var(--text-dim); font-size: 13px; margin-bottom: 28px; }
+    .module {
+        background: var(--panel);
+        border: 1px solid var(--hairline);
+        border-radius: 8px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
+    }
+    .field { margin-bottom: 8px; font-size: 13.5px; }
+    .field label { color: var(--text-dim); margin-right: 8px; }
+    .field .value { color: var(--amber); word-break: break-all; }
+    .field .value.dim { color: var(--text-dim); }
+    .network-group { margin-bottom: 20px; }
+    .network-group h2 {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-dim);
+        margin: 0 0 8px;
+        font-weight: 600;
+    }
+    .btn-row { display: flex; gap: 8px; }
+    button {
+        font-family: inherit;
+        font-size: 13.5px;
+        background: var(--panel);
+        color: var(--text);
+        border: 1px solid var(--hairline);
+        border-radius: 6px;
+        padding: 10px 14px;
+        cursor: pointer;
+        flex: 1;
+    }
+    button:hover:not(:disabled) { border-color: var(--amber); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    button.primary { border-color: var(--amber); color: var(--amber); }
+    #status {
+        white-space: pre-wrap;
+        font-size: 12.5px;
+        color: var(--text-dim);
+        min-height: 1.6em;
+    }
+    #status .ok { color: var(--ok); }
+    #status .bad { color: var(--bad); }
+    a { color: var(--amber); }
+</style>
+</head>
+<body>
+    <h1>deploy cloudless</h1>
+    <div class="sub">reads deploy/cid.json, sets the ENS/GNS contenthash record via MetaMask</div>
+
+    <div class="module">
+        <div class="field"><label>CID</label><span class="value" id="cid-value">loading cid.json...</span></div>
+        <div class="field"><label>published</label><span class="value dim" id="published-value">-</span></div>
+        <div class="field"><label>wallet</label><span class="value dim" id="wallet-value">not connected</span></div>
+    </div>
+
+    <div class="network-group">
+        <h2>Mainnet</h2>
+        <div class="btn-row">
+            <button data-net="mainnet" data-targets="gwei">.gwei</button>
+            <button data-net="mainnet" data-targets="eth">.eth</button>
+            <button class="primary" data-net="mainnet" data-targets="gwei,eth">both</button>
+        </div>
+    </div>
+
+    <div class="network-group">
+        <h2>Sepolia</h2>
+        <div class="btn-row">
+            <button data-net="sepolia" data-targets="gwei" disabled title="GNS (.gwei) has no Sepolia deployment">.gwei</button>
+            <button data-net="sepolia" data-targets="eth">.eth</button>
+            <button class="primary" data-net="sepolia" data-targets="gwei,eth" title="GNS (.gwei) has no Sepolia deployment - this will only set .eth">both</button>
+        </div>
+    </div>
+
+    <div id="status"></div>
+
+    <!-- Plain classic script, not type="module" - this page has no need for
+         WalletConnect's lazy ESM import (domain.html's reason for using
+         modules), so it can stay simple enough to also work opened straight
+         off disk (file://) if cid.json is ever fetched some other way -
+         though as shipped, cid.json is same-origin-fetched, which file://
+         does not support in Chromium, so this is normally served over
+         http(s) like the rest of the app (see eth_server.py). -->
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6/dist/ethers.umd.min.js"></script>
+    <script>
+        // Names this tool manages - hardcoded, not a general-purpose "any
+        // domain" tool like domain.html, since this is a personal deploy
+        // script for one operator's own names.
+        const ETH_NAME = 'cloudless.eth';
+        const GNS_BARE_NAME = 'cloudless'; // computeId('cloudless') === computeId('cloudless.gwei')
+
+        // Same as domain.html - see its own comments for provenance/details.
+        const ENS_REGISTRY_ADDRESS = '0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e'; // same address on Mainnet and Sepolia
+        const REGISTRY_ABI = [
+            'function owner(bytes32 node) view returns (address)',
+            'function resolver(bytes32 node) view returns (address)',
+        ];
+        const RESOLVER_ABI = [
+            'function contenthash(bytes32 node) view returns (bytes)',
+            'function setContenthash(bytes32 node, bytes hash)',
+        ];
+        const GNS_NAME_NFT_ADDRESS = '0x9D51D507BC7264d4fE8Ad1cf7Fe191933A0a81d6'; // mainnet only
+        const GNS_NAME_NFT_ABI = [
+            'function computeId(string fullName) view returns (uint256)',
+            'function ownerOf(uint256 tokenId) view returns (address)',
+            'function contenthash(uint256 tokenId) view returns (bytes)',
+            'function setContenthash(uint256 tokenId, bytes hash)',
+        ];
+
+        const NETWORKS = {
+            mainnet: { chainIdHex: '0x1', chainIdDec: 1n, label: 'Mainnet' },
+            sepolia: { chainIdHex: '0xaa36a7', chainIdDec: 11155111n, label: 'Sepolia' },
+        };
+
+        // ---- CID -> EIP-1577 contenthash bytes ----
+        //
+        // No external CID/multiformats library - this only ever needs to
+        // handle exactly what `ipfs add -r --cid-version=1` produces
+        // (base32 multibase, CIDv1, dag-pb, sha2-256), so a general-purpose
+        // dependency would be more surface than the problem needs. Verified
+        // against Python's base64.b32decode on several real CIDs from this
+        // project before relying on it here.
+        const BASE32_ALPHABET = 'abcdefghijklmnopqrstuvwxyz234567';
+        function base32Decode(body) {
+            const bytes = [];
+            let bits = 0, buffer = 0;
+            for (const ch of body) {
+                const idx = BASE32_ALPHABET.indexOf(ch);
+                if (idx === -1) throw new Error(`Invalid base32 character in CID: ${ch}`);
+                // Arithmetic, not << - JS bitwise ops truncate to 32 bits,
+                // which a ~290-bit accumulator (58 chars x 5 bits) would hit.
+                buffer = (buffer * 32 + idx) % 4294967296;
+                bits += 5;
+                if (bits >= 8) {
+                    bits -= 8;
+                    bytes.push(Math.floor(buffer / Math.pow(2, bits)) & 0xff);
+                }
+            }
+            return new Uint8Array(bytes);
+        }
+        function cidToContenthash(cidStr) {
+            if (!cidStr.startsWith('b')) throw new Error('Expected a base32 (multibase "b"...) CIDv1 string');
+            const cidBytes = base32Decode(cidStr.slice(1).toLowerCase());
+            // ipfs-ns protocol code per EIP-1577, unsigned-varint encoded
+            // (0xe3 >= 0x80, so it takes two bytes: 0xe3 0x01).
+            const out = new Uint8Array(2 + cidBytes.length);
+            out[0] = 0xe3;
+            out[1] = 0x01;
+            out.set(cidBytes, 2);
+            return '0x' + Array.from(out).map((b) => b.toString(16).padStart(2, '0')).join('');
+        }
+
+        // ---- UI plumbing ----
+        const statusEl = document.getElementById('status');
+        function log(text, cls) {
+            const line = document.createElement('div');
+            if (cls) line.className = cls;
+            line.textContent = text;
+            statusEl.appendChild(line);
+        }
+        function setButtonsDisabled(disabled) {
+            document.querySelectorAll('button:not([data-always-disabled])').forEach((b) => { b.disabled = disabled; });
+        }
+
+        let currentCid = null;
+        async function loadCid() {
+            try {
+                const res = await fetch('./cid.json', { cache: 'no-store' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                currentCid = data.cid;
+                document.getElementById('cid-value').textContent = data.cid;
+                document.getElementById('published-value').textContent = data.publishedAt || '-';
+            } catch (err) {
+                document.getElementById('cid-value').textContent = `could not load cid.json (${err.message}) - run scripts/publish-to-ipfs.sh first`;
+            }
+        }
+        loadCid();
+
+        async function ensureChain(netKey) {
+            const net = NETWORKS[netKey];
+            try {
+                await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: net.chainIdHex }] });
+            } catch (err) {
+                throw new Error(`Could not switch MetaMask to ${net.label}: ${err.message || err}`);
+            }
+        }
+
+        async function setEnsContenthash(provider, signer, contenthashHex) {
+            const node = ethers.namehash(ETH_NAME);
+            const registry = new ethers.Contract(ENS_REGISTRY_ADDRESS, REGISTRY_ABI, provider);
+            const owner = await registry.owner(node);
+            const signerAddr = await signer.getAddress();
+            if (ethers.getAddress(owner) !== ethers.getAddress(signerAddr)) {
+                throw new Error(`${ETH_NAME} is owned by ${owner}, not the connected wallet (${signerAddr}).`);
+            }
+            const resolverAddress = await registry.resolver(node);
+            if (ethers.getAddress(resolverAddress) === ethers.ZeroAddress) {
+                throw new Error(`No resolver set for ${ETH_NAME}.`);
+            }
+            const readResolver = new ethers.Contract(resolverAddress, RESOLVER_ABI, provider);
+            const existing = await readResolver.contenthash(node);
+            if (existing.toLowerCase() === contenthashHex.toLowerCase()) {
+                log(`${ETH_NAME}: already set to this CID, skipping.`);
+                return;
+            }
+            const writeResolver = new ethers.Contract(resolverAddress, RESOLVER_ABI, signer);
+            const tx = await writeResolver.setContenthash(node, contenthashHex);
+            log(`${ETH_NAME}: tx sent (${tx.hash}), waiting for confirmation...`);
+            await tx.wait();
+            log(`${ETH_NAME}: confirmed.`, 'ok');
+        }
+
+        async function setGnsContenthash(provider, signer, contenthashHex) {
+            const readContract = new ethers.Contract(GNS_NAME_NFT_ADDRESS, GNS_NAME_NFT_ABI, provider);
+            const tokenId = await readContract.computeId(GNS_BARE_NAME);
+            let owner;
+            try {
+                owner = await readContract.ownerOf(tokenId);
+            } catch {
+                throw new Error(`"${GNS_BARE_NAME}.gwei" isn't registered.`);
+            }
+            const signerAddr = await signer.getAddress();
+            if (ethers.getAddress(owner) !== ethers.getAddress(signerAddr)) {
+                throw new Error(`"${GNS_BARE_NAME}.gwei" is owned by ${owner}, not the connected wallet (${signerAddr}).`);
+            }
+            const existing = await readContract.contenthash(tokenId);
+            if (existing.toLowerCase() === contenthashHex.toLowerCase()) {
+                log(`${GNS_BARE_NAME}.gwei: already set to this CID, skipping.`);
+                return;
+            }
+            const writeContract = new ethers.Contract(GNS_NAME_NFT_ADDRESS, GNS_NAME_NFT_ABI, signer);
+            const tx = await writeContract.setContenthash(tokenId, contenthashHex);
+            log(`${GNS_BARE_NAME}.gwei: tx sent (${tx.hash}), waiting for confirmation...`);
+            await tx.wait();
+            log(`${GNS_BARE_NAME}.gwei: confirmed.`, 'ok');
+        }
+
+        async function deploy(netKey, targets) {
+            statusEl.replaceChildren();
+            setButtonsDisabled(true);
+            try {
+                if (!window.ethereum) throw new Error('No injected wallet found (MetaMask not detected).');
+                if (!currentCid) throw new Error('No CID loaded from cid.json yet - run scripts/publish-to-ipfs.sh first.');
+                const contenthashHex = cidToContenthash(currentCid);
+
+                await window.ethereum.request({ method: 'eth_requestAccounts' });
+                await ensureChain(netKey);
+                const provider = new ethers.BrowserProvider(window.ethereum);
+                const signer = await provider.getSigner();
+                const network = await provider.getNetwork();
+                if (network.chainId !== NETWORKS[netKey].chainIdDec) {
+                    throw new Error(`Wallet is on chain ${network.chainId}, expected ${NETWORKS[netKey].chainIdDec} (${NETWORKS[netKey].label}).`);
+                }
+                document.getElementById('wallet-value').textContent = `${await signer.getAddress()} (${NETWORKS[netKey].label})`;
+
+                if (targets.includes('gwei')) {
+                    if (netKey === 'sepolia') {
+                        log('GNS (.gwei) has no Sepolia deployment - skipping.');
+                    } else {
+                        await setGnsContenthash(provider, signer, contenthashHex);
+                    }
+                }
+                if (targets.includes('eth')) {
+                    await setEnsContenthash(provider, signer, contenthashHex);
+                }
+                log('Done.', 'ok');
+            } catch (err) {
+                console.error(err);
+                log(`Error: ${err.message || err}`, 'bad');
+            } finally {
+                setButtonsDisabled(false);
+            }
+        }
+
+        document.querySelectorAll('button[data-net]').forEach((btn) => {
+            btn.addEventListener('click', () => deploy(btn.dataset.net, btn.dataset.targets.split(',')));
+        });
+    </script>
+</body>
+</html>

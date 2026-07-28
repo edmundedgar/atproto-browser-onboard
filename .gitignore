@@ -3,3 +3,4 @@ venv/
 logic.js
 node_modules/
 __pycache__/
+deploy/cid.json

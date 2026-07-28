@@ -87,5 +87,10 @@ echo
 echo "Pinned: $CID"
 echo "  https://ipfs.filebase.io/ipfs/$CID/"
 echo "  https://$CID.ipfs.dweb.link/"
+
+DEPLOY_DIR="$REPO_DIR/deploy"
+mkdir -p "$DEPLOY_DIR"
+PUBLISHED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+printf '{\n  "cid": "%s",\n  "publishedAt": "%s"\n}\n' "$CID" "$PUBLISHED_AT" > "$DEPLOY_DIR/cid.json"
 echo
-echo "Point your ENS/GNS contenthash at this CID (see ETH_SERVER_README.md)."
+echo "Wrote $DEPLOY_DIR/cid.json - open deploy.html to set the ENS/GNS contenthash."

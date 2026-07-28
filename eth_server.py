@@ -11,11 +11,18 @@ contained set of files the app actually needs at runtime (the eventual
 plan is to serve them straight off IPFS via .eth/.gwei content hashes,
 no server involved at all), kept separate from this script, tests/, and
 docs, which aren't part of what gets published.
+
+deploy/ is the one exception: it's also mounted here, but deliberately
+NOT part of webroot/ - it's an operator-only tool (deploy.html, plus the
+cid.json scripts/publish-to-ipfs.sh writes) for pointing ENS/GNS at
+whatever's currently pinned, with no reason to ever be part of the
+published site itself.
 """
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -95,6 +102,11 @@ async def serve_client_metadata():
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy"}
+
+
+# See the module docstring - deploy/ is operator tooling, not part of the
+# published site. Reachable at /deploy/deploy.html and /deploy/cid.json.
+app.mount("/deploy", StaticFiles(directory="deploy"), name="deploy")
 
 
 if __name__ == "__main__":
