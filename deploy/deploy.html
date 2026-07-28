@@ -63,6 +63,7 @@
     button:hover:not(:disabled) { border-color: var(--amber); }
     button:disabled { opacity: 0.4; cursor: not-allowed; }
     button.primary { border-color: var(--amber); color: var(--amber); }
+    .tick { color: var(--ok); font-weight: 700; }
     #status {
         white-space: pre-wrap;
         font-size: 12.5px;
@@ -81,6 +82,7 @@
     <div class="module">
         <div class="field"><label>CID</label><span class="value" id="cid-value">loading cid.json...</span></div>
         <div class="field"><label>published</label><span class="value dim" id="published-value">-</span></div>
+        <div class="field"><label>on-chain</label><span class="value dim" id="check-status">-</span></div>
         <div class="field"><label>wallet</label><span class="value dim" id="wallet-value">not connected</span></div>
     </div>
 
@@ -205,10 +207,88 @@
                 currentCid = data.cid;
                 document.getElementById('cid-value').textContent = data.cid;
                 document.getElementById('published-value').textContent = data.publishedAt || '-';
+                refreshStatuses();
             } catch (err) {
                 document.getElementById('cid-value').textContent = `could not load cid.json (${err.message}) - run scripts/publish-to-ipfs.sh first`;
             }
         }
+
+        // ---- Read-only on-chain status, independent of any wallet - runs
+        // on load (and again after a deploy) so the checkmarks reflect
+        // reality without needing to connect a wallet just to look. Public
+        // RPC endpoints, same provider (publicnode.com) as .env's
+        // ETH_RPC_URL for mainnet.
+        const READ_RPC_URL = {
+            mainnet: 'https://ethereum-rpc.publicnode.com',
+            sepolia: 'https://ethereum-sepolia-rpc.publicnode.com',
+        };
+
+        async function readEnsContenthashReadOnly(netKey) {
+            const provider = new ethers.JsonRpcProvider(READ_RPC_URL[netKey]);
+            const node = ethers.namehash(ETH_NAME);
+            const registry = new ethers.Contract(ENS_REGISTRY_ADDRESS, REGISTRY_ABI, provider);
+            const resolverAddress = await registry.resolver(node);
+            if (ethers.getAddress(resolverAddress) === ethers.ZeroAddress) return null;
+            const resolver = new ethers.Contract(resolverAddress, RESOLVER_ABI, provider);
+            return await resolver.contenthash(node);
+        }
+
+        async function readGnsContenthashReadOnly(netKey) {
+            const provider = new ethers.JsonRpcProvider(READ_RPC_URL[netKey]);
+            const contract = new ethers.Contract(GNS_NAME_NFT_ADDRESS, GNS_NAME_NFT_ABI, provider);
+            const tokenId = await contract.computeId(GNS_BARE_NAME);
+            return await contract.contenthash(tokenId);
+        }
+
+        function setTick(netKey, targetsAttr, upToDate) {
+            const btn = document.querySelector(`button[data-net="${netKey}"][data-targets="${targetsAttr}"]`);
+            if (!btn) return;
+            let tick = btn.querySelector('.tick');
+            if (upToDate) {
+                if (!tick) {
+                    tick = document.createElement('span');
+                    tick.className = 'tick';
+                    tick.textContent = ' ✓';
+                    btn.appendChild(tick);
+                }
+            } else if (tick) {
+                tick.remove();
+            }
+        }
+
+        async function checkStatus(netKey, target, readFn, expectedHex) {
+            try {
+                const existing = await readFn(netKey);
+                const upToDate = !!existing && existing !== '0x' && existing.toLowerCase() === expectedHex.toLowerCase();
+                setTick(netKey, target, upToDate);
+                return upToDate;
+            } catch (err) {
+                // Not registered on this chain, no resolver set, RPC hiccup,
+                // etc. - all just read as "not up to date", nothing to
+                // surface here specifically (the deploy buttons themselves
+                // give a real error if a target genuinely can't be set).
+                console.error(`status check failed for ${netKey}/${target}:`, err);
+                setTick(netKey, target, false);
+                return false;
+            }
+        }
+
+        async function refreshStatuses() {
+            if (!currentCid) return;
+            const checkEl = document.getElementById('check-status');
+            checkEl.textContent = 'checking...';
+            const expectedHex = cidToContenthash(currentCid);
+            const [mEth, mGwei, sEth, sGwei] = await Promise.all([
+                checkStatus('mainnet', 'eth', readEnsContenthashReadOnly, expectedHex),
+                checkStatus('mainnet', 'gwei', readGnsContenthashReadOnly, expectedHex),
+                checkStatus('sepolia', 'eth', readEnsContenthashReadOnly, expectedHex),
+                checkStatus('sepolia', 'gwei', readGnsContenthashReadOnly, expectedHex),
+            ]);
+            setTick('mainnet', 'gwei,eth', mEth && mGwei);
+            setTick('sepolia', 'gwei,eth', sEth && sGwei);
+            checkEl.textContent = 'checked just now';
+        }
+
         loadCid();
 
         async function ensureChain(netKey) {
@@ -295,6 +375,7 @@
                     await setEnsContenthash(provider, signer, contenthashHex);
                 }
                 log('Done.', 'ok');
+                await refreshStatuses();
             } catch (err) {
                 console.error(err);
                 log(`Error: ${err.message || err}`, 'bad');
