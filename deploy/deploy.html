@@ -81,6 +81,8 @@
 
     <div class="module">
         <div class="field"><label>CID</label><span class="value" id="cid-value">loading cid.json...</span></div>
+        <div class="field"><label>CID (v0, Qm...)</label><span class="value" id="cid-v0-value">-</span></div>
+        <div class="field"><label>ipfs://</label><a class="value" id="cid-ipfs-link" href="#">-</a></div>
         <div class="field"><label>published</label><span class="value dim" id="published-value">-</span></div>
         <div class="field"><label>on-chain</label><span class="value dim" id="check-status">-</span></div>
         <div class="field"><label>wallet</label><span class="value dim" id="wallet-value">not connected</span></div>
@@ -186,6 +188,36 @@
             return '0x' + Array.from(out).map((b) => b.toString(16).padStart(2, '0')).join('');
         }
 
+        // CIDv0 (the old "Qm..." form) is just the base58btc-encoded
+        // multihash on its own, with no version/codec prefix - only
+        // representable when that prefix is CIDv1 + dag-pb (0x01 0x70),
+        // which is what `ipfs add` always produces (same assumption
+        // cidToContenthash above already makes). Purely a display
+        // convenience: some tools/browsers (e.g. Freedom Browser) print the
+        // Qm form, so showing it here makes it easy to eyeball whether a
+        // freshly pinned CID has actually propagated somewhere.
+        const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+        function base58Encode(bytes) {
+            let leadingZeros = 0;
+            while (leadingZeros < bytes.length && bytes[leadingZeros] === 0) leadingZeros++;
+            let num = 0n;
+            for (const b of bytes) num = num * 256n + BigInt(b);
+            let out = '';
+            while (num > 0n) {
+                out = BASE58_ALPHABET[Number(num % 58n)] + out;
+                num /= 58n;
+            }
+            return '1'.repeat(leadingZeros) + out;
+        }
+        function cidV1ToCidV0(cidStr) {
+            if (!cidStr.startsWith('b')) throw new Error('Expected a base32 (multibase "b"...) CIDv1 string');
+            const cidBytes = base32Decode(cidStr.slice(1).toLowerCase());
+            if (cidBytes[0] !== 0x01 || cidBytes[1] !== 0x70) {
+                throw new Error('Not a CIDv1 dag-pb CID - no CIDv0 form exists');
+            }
+            return base58Encode(cidBytes.slice(2));
+        }
+
         // ---- UI plumbing ----
         const statusEl = document.getElementById('status');
         function log(text, cls) {
@@ -206,6 +238,19 @@
                 const data = await res.json();
                 currentCid = data.cid;
                 document.getElementById('cid-value').textContent = data.cid;
+                try {
+                    document.getElementById('cid-v0-value').textContent = cidV1ToCidV0(data.cid);
+                } catch (err) {
+                    document.getElementById('cid-v0-value').textContent = `n/a (${err.message})`;
+                }
+                // Bypasses the .gwei/.eth contenthash lookup entirely - lets
+                // a freshly pinned CID be checked directly in an
+                // ipfs://-resolving browser (Freedom Browser, etc.) without
+                // waiting for the on-chain contenthash update and its
+                // propagation to be picked up.
+                const ipfsLink = document.getElementById('cid-ipfs-link');
+                ipfsLink.href = `ipfs://${data.cid}/`;
+                ipfsLink.textContent = `ipfs://${data.cid}/`;
                 document.getElementById('published-value').textContent = data.publishedAt || '-';
                 refreshStatuses();
             } catch (err) {
