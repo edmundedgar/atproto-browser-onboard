@@ -276,6 +276,14 @@
             showCustomDomainInstructions();
         }
 
+        // Same test/main split as testnetUrlFor (used post-connection, once
+        // the wallet's actual chainId is known) - this one's needed before
+        // any wallet is involved at all, so it goes by SEPOLIA_TEST_MODE
+        // instead.
+        function ensAppBaseUrl() {
+            return SEPOLIA_TEST_MODE ? 'https://sepolia.app.ens.domains' : 'https://app.ens.domains';
+        }
+
         function showConnectPrompt() {
             const injectedButton = typeof window.ethereum !== 'undefined'
                 ? `<button id="connect-btn" class="primary">Connect wallet</button>`
@@ -294,10 +302,45 @@
                 ${injectedButton}
                 <button id="connect-wc-btn" class="primary">Connect via WalletConnect</button>
                 <div id="connect-status"></div>
+                <div class="module">
+                    <div class="field">
+                        <label>or set it up manually</label>
+                        <div class="value value-wrap">
+                            Prefer not to connect a wallet here? Set the record yourself on the regular
+                            <a href="${ensAppBaseUrl()}/${encodeURIComponent(account)}" target="_blank" rel="noopener">ENS app</a>:
+                            open the "Records" tab for <code>${escapeHtml(account)}</code>, add a text record with
+                            key <code>${escapeHtml(ATPROTO_TEXT_RECORD_KEY)}</code> and value <code>did=${escapeHtml(did)}</code>.
+                        </div>
+                    </div>
+                </div>
+                <button id="manual-setup-done-btn" class="primary">I've set this up</button>
             `;
             const connectBtn = document.getElementById('connect-btn');
             if (connectBtn) connectBtn.addEventListener('click', () => connectAndCheck(window.ethereum));
             document.getElementById('connect-wc-btn').addEventListener('click', connectViaWalletConnect);
+            document.getElementById('manual-setup-done-btn').addEventListener('click', showManualEthCheck);
+        }
+
+        // Same end state as the wallet-driven runSetText()/showAlreadySet()
+        // success path (down to reusing startEthDnsCheck), just reached by
+        // taking the user's word for it instead of confirming via an
+        // on-chain read first - there's nothing to read yet from here since
+        // no wallet was ever connected.
+        function showManualEthCheck() {
+            contentDiv.innerHTML = `
+                <div class="module">
+                    <div class="field">
+                        <label>account name</label>
+                        <div class="value">${escapeHtml(account)}</div>
+                    </div>
+                    <div class="field">
+                        <label>did:plc identifier</label>
+                        <div class="value">${escapeHtml(did)}</div>
+                    </div>
+                </div>
+                <div id="dns-status"></div>
+            `;
+            startEthDnsCheck();
         }
 
         // ENS Registry address (same for Mainnet and Sepolia)
@@ -340,7 +383,14 @@
                 wcProvider = await EthereumProvider.init({
                     projectId: WALLET_CONNECT_PROJECT_ID,
                     chains: [1],
-                    optionalChains: [11155111, 17000],
+                    // Declaring optional chains a wallet doesn't recognize
+                    // can sink the whole session request rather than being
+                    // gracefully ignored (confirmed against Trust Wallet:
+                    // adding Sepolia here unconditionally broke mainnet-only
+                    // connections with "requested chains are not
+                    // supported") - only ask for it when the user actually
+                    // picked a Sepolia-mode option on index.html.
+                    ...(SEPOLIA_TEST_MODE ? { optionalChains: [11155111] } : {}),
                     showQrModal: true,
                     metadata: {
                         name: 'Link a domain',
@@ -392,9 +442,7 @@
                 const registry = new ethers.Contract(ENS_REGISTRY_ADDRESS, REGISTRY_ABI, provider);
 
                 const testnetUrlFor = (chainId) =>
-                    chainId === 11155111n ? 'https://sepolia.app.ens.domains' :
-                    chainId === 17000n ? 'https://holesky.app.ens.domains' :
-                    'https://app.ens.domains';
+                    chainId === 11155111n ? 'https://sepolia.app.ens.domains' : 'https://app.ens.domains';
 
                 const owner = await registry.owner(namehash);
                 if (ethers.getAddress(owner) === ethers.getAddress(ethers.ZeroAddress)) {
@@ -616,10 +664,43 @@
                 ${injectedButton}
                 <button id="connect-wc-btn" class="primary">Connect via WalletConnect</button>
                 <div id="connect-status"></div>
+                <div class="module">
+                    <div class="field">
+                        <label>or set it up manually</label>
+                        <div class="value value-wrap">
+                            Prefer not to connect a wallet here? Set the record yourself on the regular
+                            <a href="https://gwei.domains" target="_blank" rel="noopener">gwei.domains app</a>:
+                            search for <code>${escapeHtml(gweiName)}.gwei</code>, add a text record with
+                            key <code>${escapeHtml(ATPROTO_TEXT_RECORD_KEY)}</code> and value <code>did=${escapeHtml(did)}</code>.
+                        </div>
+                    </div>
+                </div>
+                <button id="manual-setup-done-btn" class="primary">I've set this up</button>
             `;
             const connectBtn = document.getElementById('connect-btn');
             if (connectBtn) connectBtn.addEventListener('click', () => connectAndCheckGwei(window.ethereum));
             document.getElementById('connect-wc-btn').addEventListener('click', connectViaWalletConnectGwei);
+            document.getElementById('manual-setup-done-btn').addEventListener('click', showManualGweiCheck);
+        }
+
+        // Same end state as showAlreadySetGwei/runSetTextGwei's success
+        // path, minus the on-chain read - see showManualEthCheck's comment.
+        function showManualGweiCheck() {
+            contentDiv.innerHTML = `
+                <div class="module">
+                    ${SEPOLIA_TEST_MODE ? '<div class="field"><label>network</label><div class="value">Sepolia testnet - not a real handle</div></div>' : ''}
+                    <div class="field">
+                        <label>gwei name</label>
+                        <div class="value">${escapeHtml(gweiName)}.gwei</div>
+                    </div>
+                    <div class="field">
+                        <label>did:plc identifier</label>
+                        <div class="value">${escapeHtml(did)}</div>
+                    </div>
+                </div>
+                <div id="dns-status"></div>
+            `;
+            startGweiDnsCheck();
         }
 
         async function connectViaWalletConnectGwei() {
