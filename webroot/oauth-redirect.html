@@ -49,7 +49,14 @@
         } else {
             try {
                 const returnOrigin = base64UrlDecodeString(state.slice(dot + 1));
-                if (!/^https:\/\/[^/]+$/.test(returnOrigin)) throw new Error('bad origin');
+                // https: is the normal case; ipfs: is allowed too so this
+                // still works when index.html was loaded natively over IPFS
+                // (Freedom Browser, etc.) rather than from a gateway - the
+                // returned value only ever becomes a same-scheme navigation
+                // target for our own oauth-popup.html below, never fetched
+                // or otherwise trusted, so widening past https costs
+                // nothing as long as it stays this narrow.
+                if (!/^(https:\/\/|ipfs:\/\/)[^/]+$/.test(returnOrigin)) throw new Error('bad origin');
                 const target = new URL('oauth-popup.html', returnOrigin);
                 target.search = '';
                 target.searchParams.set('relay', base64UrlEncodeString(window.location.search.slice(1)));
