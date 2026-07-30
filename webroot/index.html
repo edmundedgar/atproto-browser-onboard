@@ -988,6 +988,9 @@
         .mt-16 { margin-top: 16px; }
         .flex-shrink-0 { flex-shrink: 0; }
         .eth-ready-note { color: #28a745; font-weight: bold; padding: 12px; }
+        .check-link { margin-left: 10px; font-size: 0.9em; color: var(--amber); cursor: pointer; background: none; border: none; padding: 0; text-decoration: underline; }
+        .check-link:hover { color: var(--amber-bright); }
+        .check-link:disabled { color: var(--text-dim); cursor: default; text-decoration: none; }
         .social-import-checking { color: #a0a0a0; }
         .social-import-found { color: #00ff88; }
         .social-import-not-found { color: #ff4444; }
@@ -4703,8 +4706,9 @@
                     // click handler.
                     if (setupGroup.dataset.forMethod !== setupInfo.method) {
                         setupGroup.dataset.forMethod = setupInfo.method;
-                        setupGroup.innerHTML = `<button type="button" class="submit-btn" id="handle-setup-btn">${setupInfo.label}</button>`;
+                        setupGroup.innerHTML = `<button type="button" class="submit-btn" id="handle-setup-btn">${setupInfo.label}</button><button type="button" class="check-link" id="handle-setup-check-link">Check</button>`;
                         document.getElementById('handle-setup-btn').addEventListener('click', setupInfo.handler);
+                        document.getElementById('handle-setup-check-link').addEventListener('click', checkHandleDomainSetupNow);
                     }
                 }
                 if (changeBtn) changeBtn.disabled = true;
@@ -4813,6 +4817,34 @@
         // "ready" state apart from a fresh one.
         let handleSetupConfirmedHandle = null;
 
+        // Shared by the postMessage handler below and the manual "Check"
+        // link's own success path - see markAccountDomainSetupConfirmed's
+        // twin for create-account.
+        function markHandleDomainSetupConfirmed(handle) {
+            handleSetupConfirmedHandle = handle;
+            const setupGroup = document.getElementById('handle-setup-group');
+            if (setupGroup) setupGroup.innerHTML = '<div class="eth-ready-note">ready</div>';
+            const changeBtn = document.getElementById('handle-change-btn');
+            if (changeBtn) changeBtn.disabled = false;
+        }
+
+        // Manual fallback for the domain.html popup's postMessage - see
+        // checkAccountDomainSetupNow's twin for create-account for why this
+        // exists.
+        async function checkHandleDomainSetupNow() {
+            if (!handleState.did) return;
+            const handle = computeHandleTabTargetHandle();
+            if (!handle) return;
+            const link = document.getElementById('handle-setup-check-link');
+            if (link) { link.disabled = true; link.textContent = 'Checking...'; }
+            const resolvedDid = await resolveHandleToDid(handle);
+            if (resolvedDid === handleState.did) {
+                markHandleDomainSetupConfirmed(handle);
+                return;
+            }
+            if (link && document.body.contains(link)) { link.disabled = false; link.textContent = 'Not found yet - check again'; }
+        }
+
         // #handle-setup-btn opens domain.html with whatever the fields
         // currently say - greyed out until the field(s) that method
         // actually needs are filled in, rather than letting the user open
@@ -4853,8 +4885,9 @@
             if (!setupInfo) return;
             const setupGroup = document.getElementById('handle-setup-group');
             if (setupGroup && setupGroup.querySelector('.eth-ready-note')) {
-                setupGroup.innerHTML = `<button type="button" class="submit-btn" id="handle-setup-btn">${setupInfo.label}</button>`;
+                setupGroup.innerHTML = `<button type="button" class="submit-btn" id="handle-setup-btn">${setupInfo.label}</button><button type="button" class="check-link" id="handle-setup-check-link">Check</button>`;
                 document.getElementById('handle-setup-btn').addEventListener('click', setupInfo.handler);
+                document.getElementById('handle-setup-check-link').addEventListener('click', checkHandleDomainSetupNow);
                 updateHandleSetupBtnDisabled();
                 const changeBtn = document.getElementById('handle-change-btn');
                 if (changeBtn) changeBtn.disabled = true;
@@ -5494,8 +5527,9 @@
                     // click handler.
                     if (accountSetupGroup.dataset.forMethod !== setupInfo.method) {
                         accountSetupGroup.dataset.forMethod = setupInfo.method;
-                        accountSetupGroup.innerHTML = `<button type="button" class="submit-btn" id="account-setup-btn">${setupInfo.label}</button>`;
+                        accountSetupGroup.innerHTML = `<button type="button" class="submit-btn" id="account-setup-btn">${setupInfo.label}</button><button type="button" class="check-link" id="account-setup-check-link">Check</button>`;
                         document.getElementById('account-setup-btn').addEventListener('click', setupInfo.handler);
+                        document.getElementById('account-setup-check-link').addEventListener('click', checkAccountDomainSetupNow);
                     }
                 }
                 if (submitCreateAccountBtn) submitCreateAccountBtn.disabled = true;
@@ -5600,9 +5634,49 @@
             const form = document.getElementById('createaccount-form');
             const formData = new FormData(form);
             const data = Object.fromEntries(formData.entries());
+            // The hosting-server field's scheme is optional (see its own
+            // comment above normalizePdsEndpoint) - both updateDidDisplay's
+            // preview and the real account-creation submission normalize it
+            // before deriving a DID; this was the one place that didn't,
+            // silently producing a different DID whenever the field was
+            // typed without a scheme.
+            data.pdsEndpoint = normalizePdsEndpoint(data.pdsEndpoint);
             const initialOperation = createDidPlcInitialOperation({ ...data, handle }, currentDidKey);
             const signedInitialOperation = await signDidPlcOperation(initialOperation, currentKey);
             return generateDidPlcId(signedInitialOperation);
+        }
+
+        // Shared by the postMessage handler below and the manual "check"
+        // link's own success path, so there's one place that decides what
+        // "confirmed" looks like.
+        function markAccountDomainSetupConfirmed() {
+            if (accountSetupGroup) accountSetupGroup.innerHTML = '<div class="eth-ready-note">ready</div>';
+            if (submitCreateAccountBtn) submitCreateAccountBtn.disabled = false;
+        }
+
+        // Manual fallback for the domain.html popup's postMessage, which
+        // isn't guaranteed to arrive - e.g. confirmed against Freedom
+        // Browser loading this app natively over ipfs://, where a
+        // successful .gwei setup in the popup never reached this window's
+        // 'message' listener even though window.opener.postMessage was
+        // same-origin (ipfs://<name> to ipfs://<name>) and should have
+        // worked. Root cause not fully pinned down (couldn't get a console
+        // in that browser to confirm whether it's an opener or an origin-
+        // string mismatch) - this does the same DNS TXT/well-known check
+        // domain.html itself uses to decide success, by hand, so setup
+        // isn't ever stuck on a message that silently didn't land.
+        async function checkAccountDomainSetupNow() {
+            if (!expectedCreateAccountDid) return;
+            const handle = computeCreateAccountTargetHandle();
+            if (!handle) return;
+            const link = document.getElementById('account-setup-check-link');
+            if (link) { link.disabled = true; link.textContent = 'Checking...'; }
+            const resolvedDid = await resolveHandleToDid(handle);
+            if (resolvedDid === expectedCreateAccountDid) {
+                markAccountDomainSetupConfirmed();
+                return;
+            }
+            if (link && document.body.contains(link)) { link.disabled = false; link.textContent = 'Not found yet - check again'; }
         }
 
         async function setupAccountEth() {
@@ -6415,16 +6489,11 @@
             if (!msg || msg.type !== 'atproto-onboard-domain-confirmed') return;
 
             if (msg.did === expectedCreateAccountDid) {
-                if (accountSetupGroup) accountSetupGroup.innerHTML = '<div class="eth-ready-note">ready</div>';
-                if (submitCreateAccountBtn) submitCreateAccountBtn.disabled = false;
+                markAccountDomainSetupConfirmed();
             }
 
             if (handleState.did && msg.did === handleState.did && msg.handle === computeHandleTabTargetHandle()) {
-                handleSetupConfirmedHandle = msg.handle;
-                const setupGroup = document.getElementById('handle-setup-group');
-                if (setupGroup) setupGroup.innerHTML = '<div class="eth-ready-note">ready</div>';
-                const changeBtn = document.getElementById('handle-change-btn');
-                if (changeBtn) changeBtn.disabled = false;
+                markHandleDomainSetupConfirmed(msg.handle);
             }
         });
 
