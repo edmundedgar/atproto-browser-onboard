@@ -1245,8 +1245,6 @@
   "imports": {
     "@noble/secp256k1": "https://cdn.jsdelivr.net/npm/@noble/secp256k1@1.7.1/+esm",
     "@ipld/dag-cbor": "https://cdn.jsdelivr.net/npm/@ipld/dag-cbor@9.2.5/+esm",
-    "multiformats": "https://cdn.jsdelivr.net/npm/multiformats@13.4.0/+esm",
-    "multiformats/hashes/digest": "https://cdn.jsdelivr.net/npm/multiformats@13.4.0/hashes/digest/+esm",
     "multiformats/bases/base32": "https://cdn.jsdelivr.net/npm/multiformats@13.4.0/bases/base32/+esm",
     "multiformats/bases/base58": "https://cdn.jsdelivr.net/npm/multiformats@13.4.0/bases/base58/+esm",
     "web-bip39": "https://cdn.jsdelivr.net/npm/web-bip39@0.0.3/+esm",
@@ -1255,8 +1253,6 @@
   "integrity": {
     "https://cdn.jsdelivr.net/npm/@noble/secp256k1@1.7.1/+esm": "sha384-Co8S7Ex4uFdfX2oe+0700TQi+ximEcNkaw1XwzqGCq8bVDXg5ljBG/zXZr2Heh+K",
     "https://cdn.jsdelivr.net/npm/@ipld/dag-cbor@9.2.5/+esm": "sha384-XPBKkfDc/AaOaf/+foMgo5LltkIYMIYYhpKur8SWnkwygX1xssw7Sodt146ygPOO",
-    "https://cdn.jsdelivr.net/npm/multiformats@13.4.0/+esm": "sha384-iwdBNU+aO80Dx1KpGhqTA8F+KIYWz93s7Ad1FYq60+/JxZPBKmkzjTEA9MrQRp50",
-    "https://cdn.jsdelivr.net/npm/multiformats@13.4.0/hashes/digest/+esm": "sha384-pBhX7YkKUjq82McCKa1DIvem3SNkcMod6NQBl56GwrI0txntosieElUgvK0gUwKl",
     "https://cdn.jsdelivr.net/npm/multiformats@13.4.0/bases/base32/+esm": "sha384-PNoUMjtNgoutAdnIRetFgED2e6YmP6mFeM+2gt8r9flQBIdT3+oHRK3GVh45R67i",
     "https://cdn.jsdelivr.net/npm/multiformats@13.4.0/bases/base58/+esm": "sha384-7lWXi7VgbZE7rC1XhsjXHyYkZup9nboxvnNiQrmTAEfjRtGZGYrb6DveOEyJNQyA",
     "https://cdn.jsdelivr.net/npm/web-bip39@0.0.3/+esm": "sha384-fxsJD7QRh/WT1YDTZ5fKFB5KlUih7ZlXc9BB9OjFuT0A7eQrMVMsUc4h87jupTVr",
@@ -1274,8 +1270,6 @@
 
         import * as secp256k1 from '@noble/secp256k1';
         import { encode as dagCborEncode } from '@ipld/dag-cbor';
-        import { CID } from 'multiformats';
-        import * as digest from 'multiformats/hashes/digest';
         import { base32 } from 'multiformats/bases/base32';
         import { base58btc } from 'multiformats/bases/base58';
         import { generateMnemonic, validateMnemonic, mnemonicToEntropy, entropyToMnemonic } from 'web-bip39';
@@ -2370,165 +2364,30 @@
         }
 
         // Generate a DID:PLC ID from operation
+        // A did:plc identifier is the first 24 characters of the multibase
+        // base32 encoding of the sha2-256 hash of the operation's DAG-CBOR
+        // encoding - per did:plc's own spec, not a CID (no version/codec
+        // byte involved, despite superficially resembling one). An earlier
+        // version of this function tried constructing it as an actual CID
+        // via CID.create/multihash digest - dead code, never reached
+        // (removed below), and the wrong tool for the job even if it had
+        // been: this value was never meant to round-trip through the CID
+        // APIs, just this one direct hash-and-truncate. base32.encode
+        // already returns the exact 'b...' multibase form; slicing off
+        // just the prefix character and any padding leaves exactly the
+        // string this needs. Verified against real fetched operations by
+        // testDidPlcIdGeneration.
         async function generateDidPlcId(operation) {
             try {
-                // For testing with real data, include the signature
-                // In production, you'd sign the unsigned operation first
-                const operationForHash = { ...operation };
-
-                console.log('Operation includes signature:', !!operationForHash.sig);
-                console.log('Operation for hashing:', operationForHash);
-
-                // Serialize operation to DAG-CBOR
-                const dagCborBytes = dagCborEncode(operationForHash);
-
-                // Debug: Output the DAG-CBOR bytes
-                console.log('DAG-CBOR bytes length:', dagCborBytes.length);
-                console.log('DAG-CBOR bytes (hex):', secp256k1.utils.bytesToHex(dagCborBytes));
-
-                // Hash the DAG-CBOR bytes with SHA-256
+                const dagCborBytes = dagCborEncode({ ...operation });
                 const hashBytes = await sha256Hash(dagCborBytes);
-
-                console.log('SHA-256 hash (hex):', secp256k1.utils.bytesToHex(hashBytes));
-
-                // Convert hash to base32 and take first 24 characters
                 const hashBase32 = base32.encode(hashBytes);
-                console.log('Hash base32:', hashBase32);
-
-                // Remove 'b' prefix and padding, then take first 24 characters
-                const base32Part = hashBase32.substring(1).replace(/=/g, '');
-                console.log('Base32 part (no prefix/padding):', base32Part);
-                console.log('Base32 part length:', base32Part.length);
-
-                const didPlcId = base32Part.substring(0, 24);
-                console.log('Extracted DID:PLC ID (first 24 chars):', didPlcId);
-                console.log('Expected DID:PLC ID: pyzlzqt6b2nyrha7smfry6rv');
-
+                const didPlcId = hashBase32.slice(1).replace(/=/g, '').substring(0, 24);
                 return `did:plc:${didPlcId}`;
-
-                // Debug: Check multihash digest structure
-                console.log('Multihash digest object:', multihashDigest);
-                console.log('Multihash digest has code property:', 'code' in multihashDigest);
-                console.log('Multihash digest has size property:', 'size' in multihashDigest);
-                console.log('Multihash digest has bytes property:', 'bytes' in multihashDigest);
-                console.log('Multihash digest has digest property:', 'digest' in multihashDigest);
-
-                // Debug: Output multihash digest details
-                console.log('Multihash digest code:', multihashDigest.code);
-                console.log('Multihash digest size:', multihashDigest.size);
-                console.log('Multihash digest bytes (hex):', Array.from(multihashDigest.bytes).map(b => b.toString(16).padStart(2, '0')).join(''));
-                console.log('Multihash digest bytes length:', multihashDigest.bytes.length);
-
-                // Create CID from the digest
-                console.log('Creating CID with:');
-                console.log('- Version: 1');
-                console.log('- Codec: 0x71 (113)');
-                console.log('- Multihash digest:', multihashDigest);
-                console.log('- Multihash digest code:', multihashDigest.code);
-                console.log('- Multihash digest size:', multihashDigest.size);
-                console.log('- Multihash digest bytes length:', multihashDigest.bytes.length);
-
-                cid = CID.create(1, 0x71, multihashDigest); // CIDv1 with DAG-CBOR codec (0x71)
-
-                // Debug: Decode the generated CID to see its raw bytes (including header)
-                const generatedCidBase32 = cid.toString(base32);
-                console.log('Generated CID base32 string:', generatedCidBase32);
-
-                // Use the CID's bytes property directly if available
-                if (cid.bytes) {
-                    const generatedCidHex = Array.from(cid.bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-                    console.log('Generated CID raw bytes (hex):', generatedCidHex);
-                    console.log('Generated CID length:', cid.bytes.length);
-
-                    if (cid.bytes.length >= 2) {
-                        const version = cid.bytes[0];
-                        const codec = cid.bytes[1];
-                        const multihash = cid.bytes.slice(2);
-                        console.log('Generated CID version:', version);
-                        console.log('Generated CID codec:', codec);
-                        console.log('Generated CID multihash (hex):', Array.from(multihash).map(b => b.toString(16).padStart(2, '0')).join(''));
-
-                        if (multihash.length >= 2) {
-                            const mhCode = multihash[0];
-                            const mhSize = multihash[1];
-                            const mhDigest = multihash.slice(2);
-                            console.log('Generated multihash code:', mhCode);
-                            console.log('Generated multihash size:', mhSize);
-                            console.log('Generated multihash digest (hex):', Array.from(mhDigest).map(b => b.toString(16).padStart(2, '0')).join(''));
-                        }
-                    }
-                } else {
-                    console.log('CID.bytes not available, trying base32 decode...');
-                    // Fallback to base32 decoding - decode the full base32 string including 'b' prefix
-                    const generatedCidStandardBase32 = generatedCidBase32.toUpperCase();
-                    const generatedCidPadded = generatedCidStandardBase32 + '='.repeat((8 - generatedCidStandardBase32.length % 8) % 8);
-
-                    try {
-                        // Decode base32 to get raw CID bytes (including header)
-                        const generatedCidBytes = new Uint8Array(
-                            atob(generatedCidPadded.replace(/-/g, '+').replace(/_/g, '/'))
-                                .split('')
-                                .map(c => c.charCodeAt(0))
-                        );
-
-                        // Convert to hex
-                        const generatedCidHex = Array.from(generatedCidBytes).map(b => b.toString(16).padStart(2, '0')).join('');
-                        console.log('Generated CID raw bytes (hex):', generatedCidHex);
-                        console.log('Generated CID length:', generatedCidBytes.length);
-
-                        if (generatedCidBytes.length >= 2) {
-                            const version = generatedCidBytes[0];
-                            const codec = generatedCidBytes[1];
-                            const multihash = generatedCidBytes.slice(2);
-                            console.log('Generated CID version:', version);
-                            console.log('Generated CID codec:', codec);
-                            console.log('Generated CID multihash (hex):', Array.from(multihash).map(b => b.toString(16).padStart(2, '0')).join(''));
-                        }
-                    } catch (e) {
-                        console.log('Error decoding generated CID:', e);
-                    }
-                }
-
-                // Debug: Output the CID before base32 encoding
-                console.log('Generated CID:', cid.toString());
-                console.log('Expected CID:', 'bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq');
-                console.log('CID match:', cid.toString() === 'bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq' ? 'MATCH' : 'NO MATCH');
-
-                // Debug: Check if the issue is in CID generation or base32 encoding
-                console.log('CID version:', cid.version);   
-                console.log('CID codec:', cid.code);
-                console.log('CID multihash:', cid.multihash);
-                console.log('CID multihash code:', cid.multihash.code);
-                console.log('CID multihash size:', cid.multihash.size);
-                console.log('CID multihash digest (hex):', Array.from(cid.multihash.digest).map(b => b.toString(16).padStart(2, '0')).join(''));
-
             } catch (error) {
                 console.error('Error generating DID:PLC ID:', error);
                 throw new Error('Failed to generate DID:PLC ID: ' + error.message);
             }
-
-            // Get base32 representation of CID
-            const cidBase32 = cid.toString(base32);
-
-            // Debug: Output base32 encoding details
-            console.log('CID base32:', cidBase32);
-            console.log('Expected base32 for CID bafyreid6gk6me7qotoejyh4tbmohuniu37anfgb6lhr2po3btqannss3dq:');
-
-            // Extract the base32 part (remove 'b' prefix and '=' padding)
-            const base32Part = cidBase32.substring(1).replace(/=/g, '');
-
-            // Debug: Output base32 part
-            console.log('Base32 part (no prefix/padding):', base32Part);
-            console.log('Base32 part length:', base32Part.length);
-
-            // Take first 24 characters for DID:PLC ID
-            const didPlcId = base32Part.substring(0, 24);
-
-            // Debug: Output DID:PLC ID extraction
-            console.log('Extracted DID:PLC ID (first 24 chars):', didPlcId);
-            console.log('Expected DID:PLC ID: pyzlzqt6b2nyrha7smfry6rv');
-
-            return `did:plc:${didPlcId}`;
         }
 
 
