@@ -1768,7 +1768,7 @@
         function generateJti() {
             const array = new Uint8Array(16);
             crypto.getRandomValues(array);
-            return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+            return secp256k1.utils.bytesToHex(array);
         }
 
         // Get PDS server information including availableUserDomains
@@ -2875,14 +2875,22 @@
                 if (mnemonicDisplay) mnemonicDisplay.classList.add('hidden');
                 if (status) status.innerHTML = '';
 
-                // Generate 256 bits (32 bytes) of random data
-                const randomBytes = new Uint8Array(32);
-                crypto.getRandomValues(randomBytes);
+                // Generate 256 bits (32 bytes) of random data - regenerate
+                // on the astronomically unlikely chance it's not a valid
+                // secp256k1 private key (curve order is a hair under 2^256),
+                // rather than silently using it anyway. Checked directly
+                // against these exact bytes (not a library-derived key)
+                // since the same bytes are used as BIP39 entropy just below -
+                // restoring from that mnemonic has to reconstruct this exact
+                // key, so nothing here can diverge from the raw randomness.
+                let randomBytes;
+                do {
+                    randomBytes = new Uint8Array(32);
+                    crypto.getRandomValues(randomBytes);
+                } while (!secp256k1.utils.isValidPrivateKey(randomBytes));
 
                 // Convert to hexadecimal string
-                currentKey = Array.from(randomBytes)
-                    .map(byte => byte.toString(16).padStart(2, '0'))
-                    .join('');
+                currentKey = secp256k1.utils.bytesToHex(randomBytes);
 
                 // Generate BIP39 mnemonic from the entropy
                 currentMnemonic = await entropyToMnemonic(randomBytes, wordlist);
@@ -3045,11 +3053,12 @@
 
                 // Convert mnemonic to entropy
                 const restoredKeyBytes = await mnemonicToEntropy(inputMnemonic, wordlist);
-                
+                if (!secp256k1.utils.isValidPrivateKey(restoredKeyBytes)) {
+                    throw new Error('This mnemonic does not decode to a valid secp256k1 private key.');
+                }
+
                 // Convert Uint8Array to hex string
-                const restoredKey = Array.from(restoredKeyBytes)
-                    .map(byte => byte.toString(16).padStart(2, '0'))
-                    .join('');
+                const restoredKey = secp256k1.utils.bytesToHex(restoredKeyBytes);
 
                 // Generate secp256k1 public key
                 const restoredPublicKey = generatePublicKey(restoredKey);
