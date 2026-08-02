@@ -1356,21 +1356,12 @@
         // Generate secp256k1 public key from private key
         function generatePublicKey(privateKeyHex) {
             try {
-                // Convert hex string to Uint8Array
-                const privateKeyBytes = new Uint8Array(32);
-                for (let i = 0; i < privateKeyHex.length; i += 2) {
-                    privateKeyBytes[i / 2] = parseInt(privateKeyHex.slice(i, i + 2), 16);
-                }
+                const privateKeyBytes = secp256k1.utils.hexToBytes(privateKeyHex);
 
                 // Generate public key using @noble/secp256k1
                 const publicKeyBytes = secp256k1.getPublicKey(privateKeyBytes, true); // true = compressed
 
-                // Convert public key bytes to hex string
-                const publicKeyHex = Array.from(publicKeyBytes)
-                    .map(byte => byte.toString(16).padStart(2, '0'))
-                    .join('');
-
-                return publicKeyHex;
+                return secp256k1.utils.bytesToHex(publicKeyBytes);
             } catch (error) {
                 console.error('Error generating public key:', error);
                 throw new Error('Failed to generate public key: ' + error.message);
@@ -1380,11 +1371,7 @@
         // Generate DID key from secp256k1 public key
         function generateDidKey(publicKeyHex) {
             try {
-                // Convert hex string to Uint8Array
-                const publicKeyBytes = new Uint8Array(33);
-                for (let i = 0; i < publicKeyHex.length; i += 2) {
-                    publicKeyBytes[i / 2] = parseInt(publicKeyHex.slice(i, i + 2), 16);
-                }
+                const publicKeyBytes = secp256k1.utils.hexToBytes(publicKeyHex);
 
                 // Add multicodec prefix for secp256k1 compressed public key (0xe7)
                 const multicodecPrefix = new Uint8Array([0xe7, 0x01]);
@@ -1489,14 +1476,14 @@
             console.log('Input data type:', typeof data);
             console.log('Input data constructor:', data.constructor.name);
             console.log('Input data length:', data.length);
-            console.log('Input data (first 20 bytes hex):', Array.from(data.slice(0, 20)).map(b => b.toString(16).padStart(2, '0')).join(''));
-            console.log('Input data (last 20 bytes hex):', Array.from(data.slice(-20)).map(b => b.toString(16).padStart(2, '0')).join(''));
+            console.log('Input data (first 20 bytes hex):', secp256k1.utils.bytesToHex(data.slice(0, 20)));
+            console.log('Input data (last 20 bytes hex):', secp256k1.utils.bytesToHex(data.slice(-20)));
 
             const hashBuffer = await crypto.subtle.digest('SHA-256', data);
             const result = new Uint8Array(hashBuffer);
 
             console.log('Hash result length:', result.length);
-            console.log('Hash result (hex):', Array.from(result).map(b => b.toString(16).padStart(2, '0')).join(''));
+            console.log('Hash result (hex):', secp256k1.utils.bytesToHex(result));
 
             return result;
         }
@@ -1521,7 +1508,7 @@
                 const paddedSignature = signatureBase64Standard + '='.repeat(padding ? 4 - padding : 0);
 
                 const signatureBytes = new Uint8Array(atob(paddedSignature).split('').map(c => c.charCodeAt(0)));
-                console.log('Signature bytes (hex):', Array.from(signatureBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+                console.log('Signature bytes (hex):', secp256k1.utils.bytesToHex(signatureBytes));
                 console.log('Signature length:', signatureBytes.length);
 
                 // Create unsigned operation for verification
@@ -1531,17 +1518,17 @@
 
                 // Serialize to DAG-CBOR
                 const dagCborBytes = dagCborEncode(unsignedOperation);
-                console.log('DAG-CBOR bytes for verification:', Array.from(dagCborBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+                console.log('DAG-CBOR bytes for verification:', secp256k1.utils.bytesToHex(dagCborBytes));
 
                 // Extract r and s from the 64-byte signature
                 const r = signatureBytes.slice(0, 32);
                 const s = signatureBytes.slice(32, 64);
-                console.log('r (hex):', Array.from(r).map(b => b.toString(16).padStart(2, '0')).join(''));
-                console.log('s (hex):', Array.from(s).map(b => b.toString(16).padStart(2, '0')).join(''));
+                console.log('r (hex):', secp256k1.utils.bytesToHex(r));
+                console.log('s (hex):', secp256k1.utils.bytesToHex(s));
 
                 // Hash the DAG-CBOR bytes for signature verification
                 const messageHash = await crypto.subtle.digest('SHA-256', dagCborBytes);
-                const messageHashHex = Array.from(new Uint8Array(messageHash)).map(b => b.toString(16).padStart(2, '0')).join('');
+                const messageHashHex = secp256k1.utils.bytesToHex(new Uint8Array(messageHash));
                 console.log('Message hash (SHA-256):', messageHashHex);
 
                 // Get all rotation keys to verify against
@@ -1556,8 +1543,7 @@
                 for (let recovery = 0; recovery <= 1; recovery++) {
                     try {
                         // Create a 64-byte signature (r + s) as hex string
-                        const signatureHex = Array.from(r).map(b => b.toString(16).padStart(2, '0')).join('') + 
-                                           Array.from(s).map(b => b.toString(16).padStart(2, '0')).join('');
+                        const signatureHex = secp256k1.utils.bytesToHex(r) + secp256k1.utils.bytesToHex(s);
 
                         console.log(`Trying recovery ${recovery} with signature hex:`, signatureHex);
                         console.log(`Signature hex length:`, signatureHex.length, 'characters');
@@ -1566,10 +1552,10 @@
                         const recovered = secp256k1.recoverPublicKey(messageHashHex, signatureHex, recovery, true);
 
                         if (recovered) {
-                            console.log(`Recovered public key with recovery ${recovery}:`, Array.from(recovered).map(b => b.toString(16).padStart(2, '0')).join(''));
+                            console.log(`Recovered public key with recovery ${recovery}:`, secp256k1.utils.bytesToHex(recovered));
 
                             // Generate DID:key from recovered public key
-                            const recoveredPublicKeyHex = Array.from(recovered).map(b => b.toString(16).padStart(2, '0')).join('');
+                            const recoveredPublicKeyHex = secp256k1.utils.bytesToHex(recovered);
                             const recoveredDidKey = generateDidKey(recoveredPublicKeyHex);
                             console.log(`Recovered DID:key with recovery ${recovery}:`, recoveredDidKey);
 
@@ -1608,7 +1594,7 @@
                 console.log(`Matched rotation key:`, matchedRotationKey);
 
                 // Generate DID:key from recovered public key (for final comparison)
-                const recoveredPublicKeyHex = Array.from(recoveredPublicKey).map(b => b.toString(16).padStart(2, '0')).join('');
+                const recoveredPublicKeyHex = secp256k1.utils.bytesToHex(recoveredPublicKey);
                 const recoveredDidKey = generateDidKey(recoveredPublicKeyHex);
                 console.log('Final recovered DID:key:', recoveredDidKey);
                 console.log('Keys match:', recoveredDidKey === matchedRotationKey);
@@ -1868,17 +1854,11 @@
                 // Hash the signing input with SHA-256
                 const signingInputBytes = new TextEncoder().encode(signingInput);
                 const messageHash = await crypto.subtle.digest('SHA-256', signingInputBytes);
-                const messageHashHex = Array.from(new Uint8Array(messageHash))
-                    .map(b => b.toString(16).padStart(2, '0'))
-                    .join('');
+                const messageHashHex = secp256k1.utils.bytesToHex(new Uint8Array(messageHash));
 
                 console.log('Message hash (SHA-256):', messageHashHex);
 
-                // Convert hex private key to Uint8Array
-                const privateKeyBytes = new Uint8Array(32);
-                for (let i = 0; i < privateKeyHex.length; i += 2) {
-                    privateKeyBytes[i / 2] = parseInt(privateKeyHex.slice(i, i + 2), 16);
-                }
+                const privateKeyBytes = secp256k1.utils.hexToBytes(privateKeyHex);
 
                 // Sign the hashed message using @noble/secp256k1, asking for the
                 // compact (r||s, 64-byte) format directly instead of DER. The
@@ -1895,7 +1875,7 @@
                     throw new Error(`Unexpected signature format: expected 64-byte Uint8Array, got ${signatureArray && signatureArray.length}`);
                 }
 
-                console.log('Signature array before encoding (hex):', Array.from(signatureArray).map(b => b.toString(16).padStart(2, '0')).join(''));
+                console.log('Signature array before encoding (hex):', secp256k1.utils.bytesToHex(signatureArray));
                 console.log('Signature array length:', signatureArray.length);
 
                 // Base64URL encode the signature
@@ -1958,9 +1938,7 @@
                 // Hash the signing input with SHA-256
                 const signingInputBytes = new TextEncoder().encode(signingInput);
                 const messageHash = await crypto.subtle.digest('SHA-256', signingInputBytes);
-                const messageHashHex = Array.from(new Uint8Array(messageHash))
-                    .map(b => b.toString(16).padStart(2, '0'))
-                    .join('');
+                const messageHashHex = secp256k1.utils.bytesToHex(new Uint8Array(messageHash));
 
                 console.log('Message hash (SHA-256):', messageHashHex);
 
@@ -1978,7 +1956,7 @@
                 }
 
                 console.log('Signature bytes length:', signatureBytes.length);
-                console.log('Signature bytes (hex):', Array.from(signatureBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+                console.log('Signature bytes (hex):', secp256k1.utils.bytesToHex(signatureBytes));
 
                 if (signatureBytes.length !== 64) {
                     console.error(`Invalid signature length: expected 64 bytes, got ${signatureBytes.length}`);
@@ -1986,11 +1964,7 @@
                     throw new Error(`Invalid signature length: expected 64 bytes, got ${signatureBytes.length}`);
                 }
 
-                // Convert public key hex to Uint8Array
-                const publicKeyBytes = new Uint8Array(33); // Compressed public key is 33 bytes
-                for (let i = 0; i < publicKeyHex.length; i += 2) {
-                    publicKeyBytes[i / 2] = parseInt(publicKeyHex.slice(i, i + 2), 16);
-                }
+                const publicKeyBytes = secp256k1.utils.hexToBytes(publicKeyHex);
 
                 // Verify signature using @noble/secp256k1
                 // Note: secp256k1.verify expects the signature in compact format (64 bytes: r + s)
@@ -2378,12 +2352,9 @@
 
             const dagCborBytes = dagCborEncode(operationForSigning);
             const messageHash = await crypto.subtle.digest('SHA-256', dagCborBytes);
-            const messageHashHex = Array.from(new Uint8Array(messageHash)).map(b => b.toString(16).padStart(2, '0')).join('');
+            const messageHashHex = secp256k1.utils.bytesToHex(new Uint8Array(messageHash));
 
-            const privateKeyBytes = new Uint8Array(32);
-            for (let i = 0; i < privateKeyHex.length; i += 2) {
-                privateKeyBytes[i / 2] = parseInt(privateKeyHex.slice(i, i + 2), 16);
-            }
+            const privateKeyBytes = secp256k1.utils.hexToBytes(privateKeyHex);
 
             const signatureArray = await secp256k1.sign(messageHashHex, privateKeyBytes, { der: false });
             if (!(signatureArray instanceof Uint8Array) || signatureArray.length !== 64) {
@@ -2413,12 +2384,12 @@
 
                 // Debug: Output the DAG-CBOR bytes
                 console.log('DAG-CBOR bytes length:', dagCborBytes.length);
-                console.log('DAG-CBOR bytes (hex):', Array.from(dagCborBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+                console.log('DAG-CBOR bytes (hex):', secp256k1.utils.bytesToHex(dagCborBytes));
 
                 // Hash the DAG-CBOR bytes with SHA-256
                 const hashBytes = await sha256Hash(dagCborBytes);
 
-                console.log('SHA-256 hash (hex):', Array.from(hashBytes).map(b => b.toString(16).padStart(2, '0')).join(''));
+                console.log('SHA-256 hash (hex):', secp256k1.utils.bytesToHex(hashBytes));
 
                 // Convert hash to base32 and take first 24 characters
                 const hashBase32 = base32.encode(hashBytes);
