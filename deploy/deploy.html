@@ -116,7 +116,26 @@
          does not support in Chromium, so this is normally served over
          http(s) like the rest of the app (see eth_server.py). -->
     <script src="https://cdn.jsdelivr.net/npm/ethers@6/dist/ethers.umd.min.js"></script>
-    <script>
+    <!-- Same versions/SRI pins index.html already uses for the same
+         purpose - see this file's own comment near cidToContenthash for
+         why reusing them here (rather than deploy.html's previous
+         hand-rolled base32/base58) no longer costs anything new. -->
+    <script type="importmap">
+    {
+      "imports": {
+        "multiformats/bases/base32": "https://cdn.jsdelivr.net/npm/multiformats@13.4.0/bases/base32/+esm",
+        "multiformats/bases/base58": "https://cdn.jsdelivr.net/npm/multiformats@13.4.0/bases/base58/+esm"
+      },
+      "integrity": {
+        "https://cdn.jsdelivr.net/npm/multiformats@13.4.0/bases/base32/+esm": "sha384-PNoUMjtNgoutAdnIRetFgED2e6YmP6mFeM+2gt8r9flQBIdT3+oHRK3GVh45R67i",
+        "https://cdn.jsdelivr.net/npm/multiformats@13.4.0/bases/base58/+esm": "sha384-7lWXi7VgbZE7rC1XhsjXHyYkZup9nboxvnNiQrmTAEfjRtGZGYrb6DveOEyJNQyA"
+      }
+    }
+    </script>
+    <script type="module">
+        import { base32 } from 'multiformats/bases/base32';
+        import { base58btc } from 'multiformats/bases/base58';
+
         // Names this tool manages - hardcoded, not a general-purpose "any
         // domain" tool like domain.html, since this is a personal deploy
         // script for one operator's own names.
@@ -152,33 +171,16 @@
 
         // ---- CID -> EIP-1577 contenthash bytes ----
         //
-        // No external CID/multiformats library - this only ever needs to
-        // handle exactly what `ipfs add -r --cid-version=1` produces
-        // (base32 multibase, CIDv1, dag-pb, sha2-256), so a general-purpose
-        // dependency would be more surface than the problem needs. Verified
-        // against Python's base64.b32decode on several real CIDs from this
-        // project before relying on it here.
-        const BASE32_ALPHABET = 'abcdefghijklmnopqrstuvwxyz234567';
-        function base32Decode(body) {
-            const bytes = [];
-            let bits = 0, buffer = 0;
-            for (const ch of body) {
-                const idx = BASE32_ALPHABET.indexOf(ch);
-                if (idx === -1) throw new Error(`Invalid base32 character in CID: ${ch}`);
-                // Arithmetic, not << - JS bitwise ops truncate to 32 bits,
-                // which a ~290-bit accumulator (58 chars x 5 bits) would hit.
-                buffer = (buffer * 32 + idx) % 4294967296;
-                bits += 5;
-                if (bits >= 8) {
-                    bits -= 8;
-                    bytes.push(Math.floor(buffer / Math.pow(2, bits)) & 0xff);
-                }
-            }
-            return new Uint8Array(bytes);
-        }
+        // Uses the same multiformats base32/base58 modules index.html
+        // already imports (same version, same SRI pins) rather than the
+        // hand-rolled decoder/encoder this file used to carry - previously
+        // deliberately avoided as "more surface than the problem needs",
+        // but that reasoning was about pulling in a *new* dependency; this
+        // one's already vetted and loaded elsewhere in the same project, so
+        // reusing it here is strictly less code to maintain, not more.
         function cidToContenthash(cidStr) {
             if (!cidStr.startsWith('b')) throw new Error('Expected a base32 (multibase "b"...) CIDv1 string');
-            const cidBytes = base32Decode(cidStr.slice(1).toLowerCase());
+            const cidBytes = base32.decode(cidStr.toLowerCase());
             // ipfs-ns protocol code per EIP-1577, unsigned-varint encoded
             // (0xe3 >= 0x80, so it takes two bytes: 0xe3 0x01).
             const out = new Uint8Array(2 + cidBytes.length);
@@ -196,26 +198,18 @@
         // convenience: some tools/browsers (e.g. Freedom Browser) print the
         // Qm form, so showing it here makes it easy to eyeball whether a
         // freshly pinned CID has actually propagated somewhere.
-        const BASE58_ALPHABET = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-        function base58Encode(bytes) {
-            let leadingZeros = 0;
-            while (leadingZeros < bytes.length && bytes[leadingZeros] === 0) leadingZeros++;
-            let num = 0n;
-            for (const b of bytes) num = num * 256n + BigInt(b);
-            let out = '';
-            while (num > 0n) {
-                out = BASE58_ALPHABET[Number(num % 58n)] + out;
-                num /= 58n;
-            }
-            return '1'.repeat(leadingZeros) + out;
-        }
+        //
+        // base58btc.encode() always prepends the 'z' multibase prefix
+        // character (per the multibase spec), which a CIDv0 string never
+        // has - it's raw, unprefixed base58btc - so that one character has
+        // to be sliced back off.
         function cidV1ToCidV0(cidStr) {
             if (!cidStr.startsWith('b')) throw new Error('Expected a base32 (multibase "b"...) CIDv1 string');
-            const cidBytes = base32Decode(cidStr.slice(1).toLowerCase());
+            const cidBytes = base32.decode(cidStr.toLowerCase());
             if (cidBytes[0] !== 0x01 || cidBytes[1] !== 0x70) {
                 throw new Error('Not a CIDv1 dag-pb CID - no CIDv0 form exists');
             }
-            return base58Encode(cidBytes.slice(2));
+            return base58btc.encode(cidBytes.slice(2)).slice(1);
         }
 
         // ---- UI plumbing ----
