@@ -2128,13 +2128,17 @@
         // handle, PDS endpoint) exactly as currently published.
         async function submitRotationKeysUpdate(didPlcId, newRotationKeys, privateKeyHex) {
             const currentDoc = await fetchDidPlcRecord(didPlcId);
+            // Spread the current document (minus our own id/previousRotationKey
+            // bookkeeping fields, not real operation fields) rather than
+            // picking out just the known ones, so anything unexpected
+            // carries forward untouched - see submitPlcUpdateForDid's
+            // matching comment.
+            const { id, previousRotationKey, ...operationBase } = currentDoc.didDocument;
             const op = {
+                ...operationBase,
                 type: 'plc_operation',
                 prev: await getLastOperationCid(didPlcId),
                 rotationKeys: newRotationKeys,
-                verificationMethods: currentDoc.didDocument.verificationMethods,
-                alsoKnownAs: currentDoc.didDocument.alsoKnownAs,
-                services: currentDoc.didDocument.services
             };
             const signedOp = await signDidPlcOperation(op, privateKeyHex);
             return submitDidPlcOperation(signedOp, didPlcId);
@@ -2581,13 +2585,21 @@
                 console.log('Latest record operation:', operation);
                 console.log('Operation rotation keys:', operation.rotationKeys);
 
+                // Spread the whole operation rather than picking out just
+                // the fields we know about, so any field neither did:plc's
+                // spec nor we explicitly document (there's no stated
+                // closed-set guarantee - checked directly against the spec
+                // and the reference implementation's non-strict validation)
+                // survives being read back out here, rather than silently
+                // vanishing the moment this DID document gets used to build
+                // a new operation. sig/prev/type are excluded since a new
+                // operation always gets its own fresh versions of those,
+                // not carried forward from the old one.
+                const { sig, prev, type, ...operationFields } = operation;
                 const didDocument = {
+                    ...operationFields,
                     id: latestRecord.did,
-                    rotationKeys: operation.rotationKeys,
-                    verificationMethods: operation.verificationMethods,
-                    services: operation.services,
-                    alsoKnownAs: operation.alsoKnownAs,
-                    previousRotationKey: latestRecord.operation.prev
+                    previousRotationKey: prev,
                 };
 
                 console.log('Extracted DID document:', didDocument);
@@ -3609,13 +3621,20 @@
             const { didDocument, auditLog } = await fetchDidPlcRecord(did);
             const fields = buildFields(didDocument);
             const prevCid = auditLog[auditLog.length - 1].cid;
+            // id/previousRotationKey are our own bookkeeping additions from
+            // fetchDidPlcRecord, not real operation fields - stripped back
+            // out here rather than let them leak into a submitted
+            // operation. Everything else - including any field neither we
+            // nor buildFields know about - spreads through as the base,
+            // with only type/prev (always fresh) and whatever buildFields
+            // actually returned overriding it, so this only ever
+            // overwrites what it's actually meant to.
+            const { id, previousRotationKey, ...operationBase } = didDocument;
             const unsignedOp = {
+                ...operationBase,
                 type: 'plc_operation',
                 prev: prevCid,
-                rotationKeys: fields.rotationKeys || didDocument.rotationKeys,
-                verificationMethods: fields.verificationMethods || didDocument.verificationMethods,
-                alsoKnownAs: fields.alsoKnownAs || didDocument.alsoKnownAs,
-                services: fields.services || didDocument.services,
+                ...fields,
             };
             const signedOp = await signDidPlcOperation(unsignedOp, privateKeyHex);
             await submitDidPlcOperation(signedOp, did);
@@ -4063,11 +4082,23 @@
             }
 
             if (migrateState.heldKeyRegistered) {
-                await submitMigratePlcUpdate((didDocument) => ({
-                    verificationMethods: { ...didDocument.verificationMethods, atproto: newSigningKey },
-                    services: { ...didDocument.services, ...newServices },
-                    alsoKnownAs: newAlsoKnownAs,
-                }));
+                await submitMigratePlcUpdate((didDocument) => {
+                    // Merge, don't replace: newAlsoKnownAs is just the new
+                    // PDS's recommendation for the atproto handle entry -
+                    // wholesale-replacing the whole array would silently
+                    // drop any other alsoKnownAs entry the account had
+                    // (a second at:// alias, or an unrelated URI). Drop
+                    // only the old handle and anything about to be
+                    // re-added, keep everything else, put the new
+                    // entries first (canonical position).
+                    const oldAka = `at://${migrateState.handle}`;
+                    const kept = (didDocument.alsoKnownAs || []).filter((aka) => aka !== oldAka && !newAlsoKnownAs.includes(aka));
+                    return {
+                        verificationMethods: { ...didDocument.verificationMethods, atproto: newSigningKey },
+                        services: { ...didDocument.services, ...newServices },
+                        alsoKnownAs: [...newAlsoKnownAs, ...kept],
+                    };
+                });
             } else {
                 // Cooperative path, no self-held key: old PDS must co-sign this
                 // final operation too, same as the standard/goat-style flow.
@@ -4580,15 +4611,17 @@
                 </div>
                 <div class="form-button-group hidden" id="handle-setup-group"></div>
                 <div class="form-button-group">
-                    <button type="button" class="submit-btn" id="handle-change-btn">Change handle</button>
+                    <button type="button" class="submit-btn" id="handle-change-btn">Change handle</button><button type="button" class="check-link" id="handle-change-check-link">Check</button>
                 </div>
                 <div class="form-help">${handleState.heldKeyRegistered
                     ? 'The key you selected controls this account, so we can self-sign your handle change. We will still ask you to sign in to your PDS, so it can update its own record of your handle.'
                     : 'The key you selected does not control this account. We will ask your PDS to sign your handle change.'}</div>
                 <div id="handle-change-status"></div>
+                <div id="handle-change-oauth-continue-slot"></div>
             `;
             handleContentDiv.appendChild(section);
             document.getElementById('handle-change-btn').addEventListener('click', runHandleChange);
+            document.getElementById('handle-change-check-link').addEventListener('click', checkHandleChangeCompletedNow);
 
             const subdomainInput = document.getElementById('handle-new-subdomain');
             const customDomainInput = document.getElementById('handle-new-custom-domain');
@@ -4894,8 +4927,93 @@
             }
         }
 
+        // Shared by runHandleChange's own success path and
+        // checkHandleChangeCompletedNow's manual fallback - everything
+        // that needs to happen once newHandle is confirmed live, regardless
+        // of how we found out.
+        async function finalizeHandleChangeSuccess(newHandle) {
+            // Refresh by the DID we already have, not by re-resolving the
+            // new handle - DNS/resolver propagation for a handle that only
+            // just changed can lag behind the change itself by a few
+            // seconds even though it already fully landed on both
+            // plc.directory and the PDS.
+            const { didDocument: freshDoc } = await fetchDidPlcRecord(handleState.did);
+            handleState.handle = newHandle;
+            handleState.didDocument = freshDoc;
+            handleState.heldKeyRegistered = !!currentDidKey && (freshDoc.rotationKeys || []).includes(currentDidKey);
+
+            // Keep the saved account list (and the header, if this account
+            // is the one currently selected) from showing a handle this
+            // account no longer has.
+            if (selectedAccount && selectedAccount.did === handleState.did) {
+                const updated = { did: handleState.did, handle: newHandle, pds: handleState.pds };
+                upsertKnownAccount(updated);
+                // Same reason as Migrate's equivalent call: the DID is
+                // unchanged, so the cache's own DID check wouldn't catch
+                // that its handle is now stale.
+                invalidateResolvedAccountCache();
+                selectAccount(updated);
+                renderKnownAccountsList();
+            }
+
+            // renderHandleChangeSection() rebuilds the whole section,
+            // including the status div - set its message after rebuilding,
+            // not before, or the fresh (empty) div replaces the one we just
+            // wrote to.
+            renderHandleChangeSection();
+            document.getElementById('handle-change-status').replaceChildren(migrateStatusBlock('success', `Handle changed to ${newHandle}.`));
+        }
+
+        // Manual fallback for when openOAuthPopup's window.open() gets
+        // blocked (browsers vary on whether an await-gapped call still
+        // counts as "direct result of a click") but the user approves it
+        // anyway via the browser's own "popup blocked" UI - our code has
+        // already rejected/errored out by then and never wires up a result
+        // listener for that window, so runHandleChange never finds out the
+        // change actually went through.
+        //
+        // Checks the PDS's own record directly (com.atproto.repo.describeRepo,
+        // public/unauthenticated) rather than resolveHandleToDid's DNS TXT/
+        // well-known lookup - for domains like .gwei.name/.eth.xyz, DNS
+        // resolution is maintained by an entirely separate on-chain sync
+        // bot and would happily report success even if the PDS itself
+        // never actually updated its own account record. describeRepo's
+        // `handle` field is read straight from the PDS's account DB, and
+        // `handleIsCorrect` confirms it also matches DID-document
+        // resolution - the actual thing "did this complete" means here.
+        async function checkHandleChangeCompletedNow() {
+            if (!handleState.did || !handleState.pds) return;
+            const newHandle = computeHandleTabTargetHandle();
+            if (!newHandle) return;
+            const status = document.getElementById('handle-change-status');
+            status.replaceChildren(migrateStatusBlock('loading', 'Checking...'));
+            let describeRepo;
+            try {
+                const res = await fetch(`${handleState.pds}/xrpc/com.atproto.repo.describeRepo?repo=${encodeURIComponent(handleState.did)}`, { cache: 'no-store' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                describeRepo = await res.json();
+            } catch (error) {
+                status.replaceChildren(migrateStatusBlock('error', `Could not reach the PDS to check: ${error.message}`));
+                return;
+            }
+            if (describeRepo.handle === newHandle && describeRepo.handleIsCorrect) {
+                await finalizeHandleChangeSuccess(newHandle);
+                return;
+            }
+            status.replaceChildren(migrateStatusBlock('error', `The PDS still has ${describeRepo.handle} on record for this account - the change may not have completed yet.`));
+        }
+
         async function runHandleChange() {
             const status = document.getElementById('handle-change-status');
+            // Separate from status: status gets wiped on every
+            // status.replaceChildren() call (including the "Popup blocked"
+            // error message when window.open() fails outright), but the
+            // manual continue button below needs to survive exactly that
+            // error - the browser can still open the popup via its own
+            // "blocked - open anyway?" affordance after we've already
+            // given up on it, so the button has to stay usable.
+            const oauthContinueSlot = document.getElementById('handle-change-oauth-continue-slot');
+            oauthContinueSlot.replaceChildren();
             const newHandle = computeHandleTabTargetHandle();
 
             if (!newHandle) {
@@ -4911,18 +5029,66 @@
             let sessionOpened = false;
             try {
                 if (handleState.heldKeyRegistered) {
-                    await submitPlcUpdateForDid(handleState.did, currentKey, (didDocument) => {
-                        const oldAka = `at://${handleState.handle}`;
-                        const kept = (didDocument.alsoKnownAs || []).filter((aka) => aka !== oldAka);
-                        return { alsoKnownAs: [...kept, `at://${newHandle}`] };
-                    });
+                    // handleState.handle can be stale - e.g. a previous
+                    // attempt's self-sign already landed on plc.directory
+                    // (confirmed by re-fetching here, not trusting the
+                    // cached value) but its OAuth step never completed, so
+                    // this ran again with the same newHandle. Skip the
+                    // self-sign entirely when the DID document already
+                    // reflects it, straight to the OAuth step below - and
+                    // even when it doesn't, filter out newHandle as well as
+                    // the (possibly stale) old one before appending, so a
+                    // retry can never submit a literal duplicate entry.
+                    const { didDocument: currentDidDoc } = await fetchDidPlcRecord(handleState.did);
+                    const newAka = `at://${newHandle}`;
+                    if ((currentDidDoc.alsoKnownAs || [])[0] !== newAka) {
+                        await submitPlcUpdateForDid(handleState.did, currentKey, (didDocument) => {
+                            const oldAka = `at://${handleState.handle}`;
+                            const kept = (didDocument.alsoKnownAs || []).filter((aka) => aka !== oldAka && aka !== newAka);
+                            return { alsoKnownAs: [...kept, newAka] };
+                        });
+                    }
                 }
 
                 status.replaceChildren(migrateStatusBlock('loading', 'Opening sign-in window...'));
-                await openOAuthPopup('migration-session', {
-                    pds: handleState.pds, did: handleState.did, handle: handleState.handle,
+                // openOAuthPopup resolves via a BroadcastChannel message the
+                // popup sends once it's signed in - confirmed unreliable in
+                // at least one real browser (Freedom Browser, over ipfs://):
+                // the popup shows "Signed in" but the message never arrives
+                // here, leaving this awaiting forever with no way to know.
+                // Races it against a manual button so a stuck wait isn't a
+                // dead end - if the popup really did sign in, clicking it
+                // moves on to the next step regardless of whether the
+                // automatic notice ever lands.
+                const continueBtn = document.createElement('button');
+                continueBtn.type = 'button';
+                continueBtn.className = 'check-link';
+                continueBtn.textContent = "I've signed in - continue";
+                const manualContinue = new Promise((resolve) => {
+                    continueBtn.addEventListener('click', () => {
+                        continueBtn.disabled = true;
+                        continueBtn.textContent = 'Continuing...';
+                        resolve();
+                    }, { once: true });
                 });
+                oauthContinueSlot.appendChild(continueBtn);
+                // A rejection here (most commonly window.open() returning
+                // null - "Popup blocked") must not settle the race: the
+                // browser can still open the popup via its own "blocked -
+                // open anyway?" affordance after we've already given up on
+                // it, so once that happens the manual button has to remain
+                // the one live path forward rather than the whole attempt
+                // having already thrown. Show the error inline instead, and
+                // let only the button resolve the race from here on.
+                const popupAttempt = openOAuthPopup('migration-session', {
+                    pds: handleState.pds, did: handleState.did, handle: handleState.handle, sessionLabel: 'handle change',
+                }).catch((err) => {
+                    status.replaceChildren(migrateStatusBlock('error', err.message));
+                    return new Promise(() => {});
+                });
+                await Promise.race([popupAttempt, manualContinue]);
                 sessionOpened = true;
+                oauthContinueSlot.replaceChildren();
 
                 status.replaceChildren(migrateStatusBlock('loading', 'Updating handle on the PDS...'));
                 try {
@@ -4940,36 +5106,7 @@
                     await updateHandleWithTemporaryPdsRotationKey(handleState.did, currentDidKey, pdsRotationKey, currentKey, newHandle);
                 }
 
-                // Refresh by the DID we already have, not by re-resolving the
-                // new handle - DNS/resolver propagation for a handle that
-                // only just changed can lag behind the change itself by a
-                // few seconds even though it already fully landed on both
-                // plc.directory and the PDS.
-                const { didDocument: freshDoc } = await fetchDidPlcRecord(handleState.did);
-                handleState.handle = newHandle;
-                handleState.didDocument = freshDoc;
-                handleState.heldKeyRegistered = !!currentDidKey && (freshDoc.rotationKeys || []).includes(currentDidKey);
-
-                // Keep the saved account list (and the header, if this
-                // account is the one currently selected) from showing a
-                // handle this account no longer has.
-                if (selectedAccount && selectedAccount.did === handleState.did) {
-                    const updated = { did: handleState.did, handle: newHandle, pds: handleState.pds };
-                    upsertKnownAccount(updated);
-                    // Same reason as Migrate's equivalent call: the DID is
-                    // unchanged, so the cache's own DID check wouldn't catch
-                    // that its handle is now stale.
-                    invalidateResolvedAccountCache();
-                    selectAccount(updated);
-                    renderKnownAccountsList();
-                }
-
-                // renderHandleChangeSection() rebuilds the whole section,
-                // including this status div - set its message after
-                // rebuilding, not before, or the fresh (empty) div replaces
-                // the one we just wrote to.
-                renderHandleChangeSection();
-                document.getElementById('handle-change-status').replaceChildren(migrateStatusBlock('success', `Handle changed to ${newHandle}.`));
+                await finalizeHandleChangeSuccess(newHandle);
             } catch (error) {
                 status.replaceChildren(migrateStatusBlock('error', error.message));
             } finally {

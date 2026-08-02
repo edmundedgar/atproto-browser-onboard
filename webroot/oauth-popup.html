@@ -32,12 +32,14 @@
             const auditLog = await response.json();
             if (auditLog.length === 0) throw new Error('No records found in audit log');
             const operation = auditLog[auditLog.length - 1].operation;
-            const didDocument = {
-                rotationKeys: operation.rotationKeys,
-                verificationMethods: operation.verificationMethods,
-                services: operation.services,
-                alsoKnownAs: operation.alsoKnownAs,
-            };
+            // Spread the whole operation rather than picking out just the
+            // fields we know about - see index.html's matching comment on
+            // its own fetchDidPlcRecord. Only matters defensively here:
+            // doPlcCosign's callers only ever send a partial patch (never a
+            // complete operation built from this), and the PDS server
+            // itself already spreads {...lastOp} before applying it.
+            const { sig, prev, type, ...operationFields } = operation;
+            const didDocument = { ...operationFields };
             return { didDocument, auditLog };
         }
 
@@ -447,11 +449,20 @@
                         rotationKeys: [pending.pubkey, ...(didDocument.rotationKeys || [])],
                     }));
                 case 'final-cosign':
-                    return doPlcCosign(pending, dpopCtx, (didDocument) => ({
-                        verificationMethods: { ...didDocument.verificationMethods, atproto: pending.newSigningKey },
-                        services: { ...didDocument.services, atproto_pds: { type: 'AtprotoPersonalDataServer', endpoint: pending.newPdsEndpoint } },
-                        alsoKnownAs: pending.newHandle ? [`at://${pending.newHandle}`] : didDocument.alsoKnownAs,
-                    }));
+                    return doPlcCosign(pending, dpopCtx, (didDocument) => {
+                        // Merge, don't replace - see index.html's
+                        // updateMigrateIdentity for why: wholesale-replacing
+                        // alsoKnownAs would silently drop any entry beyond
+                        // the one atproto handle this popup knows about.
+                        const oldAka = pending.handle ? `at://${pending.handle}` : null;
+                        const newAka = pending.newHandle ? `at://${pending.newHandle}` : null;
+                        const kept = (didDocument.alsoKnownAs || []).filter((aka) => aka !== oldAka && aka !== newAka);
+                        return {
+                            verificationMethods: { ...didDocument.verificationMethods, atproto: pending.newSigningKey },
+                            services: { ...didDocument.services, atproto_pds: { type: 'AtprotoPersonalDataServer', endpoint: pending.newPdsEndpoint } },
+                            alsoKnownAs: newAka ? [newAka, ...kept] : didDocument.alsoKnownAs,
+                        };
+                    });
                 case 'update-rotation-keys':
                     return doPlcCosign(pending, dpopCtx, () => ({
                         rotationKeys: pending.newRotationKeys.split(','),
@@ -530,7 +541,7 @@
                         // one per step - later ones, opened deep inside an
                         // async chain after repo/blob transfer, are exactly
                         // what browsers block as no longer "from" the click.
-                        setContent(statusBlock('success', 'Signed in. This window will handle the rest of the migration automatically - leave it open until the migration finishes.'));
+                        setContent(statusBlock('success', `Signed in. This window will handle the rest of the ${pending.sessionLabel} automatically - leave it open until it finishes.`));
                         reportResult({ purpose: 'migration-session', success: true });
                         listenForSessionRequests(pending, dpopCtx);
                         return;
@@ -563,6 +574,14 @@
                         newPdsEndpoint: extra.newPdsEndpoint || '',
                         newHandle: extra.newHandle || '',
                         newRotationKeys: extra.newRotationKeys || '',
+                        // What to call this in the "stay open" message below
+                        // for the 'migration-session' purpose, which is
+                        // shared as-is by callers doing quite different
+                        // things (a full PDS migration vs. just a handle
+                        // change) - the popup has no other way to tell them
+                        // apart, since both use the exact same purpose/param
+                        // shape.
+                        sessionLabel: extra.sessionLabel || 'migration',
                     };
                     await startOAuth(pending);
                 }
