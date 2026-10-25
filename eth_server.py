@@ -30,11 +30,15 @@ load_dotenv()
 
 app = FastAPI(title="atproto-browser-onboard static server")
 
-# Configure CORS to allow requests from anywhere
+# Configure CORS to allow requests from anywhere. No allow_credentials:
+# this server sets no cookies and has no session state, and CORS doesn't
+# allow combining it with a wildcard origin anyway (browsers require a
+# specific origin for credentialed requests) - Starlette's workaround for
+# that combination is to dynamically reflect back the request's Origin,
+# which would let any site make credentialed requests here for no benefit.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
