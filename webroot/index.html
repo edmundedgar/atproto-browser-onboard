@@ -1012,8 +1012,9 @@
             /* This button's text is long enough to already be most of the
                way to full width on a phone - close the gap. */
             .confirm-seed-section .generate-btn { width: 100%; }
-            /* rows="3" wraps a 24-word phrase onto more lines than that on a
-               narrow screen, so it doesn't fit without scrolling - ~50% taller. */
+            /* rows="3" can wrap a phrase onto more lines than that on a
+               narrow screen, so it doesn't fit without scrolling - ~50% taller.
+               Sized for a 24-word phrase; a 12-word one fits with room to spare. */
             .mnemonic-input-container textarea { min-height: 130px; }
         }
     </style>
@@ -1270,7 +1271,7 @@
         import { encode as dagCborEncode } from '@ipld/dag-cbor';
         import { base32 } from 'multiformats/bases/base32';
         import { base58btc } from 'multiformats/bases/base58';
-        import { generateMnemonic, validateMnemonic, mnemonicToEntropy, entropyToMnemonic } from 'web-bip39';
+        import { generateMnemonic, validateMnemonic, entropyToMnemonic } from 'web-bip39';
         import wordlist from 'web-bip39/wordlists/english.js';
 
         let currentKey = null;
@@ -1379,6 +1380,114 @@
                 console.error('Error generating DID key:', error);
                 throw new Error('Failed to generate DID key: ' + error.message);
             }
+        }
+
+        // === BIP32 derivation, m/231'/0'/0'/0/0 ===
+        //
+        // The seed phrase is BIP39 (checksum + wordlist), but the signing
+        // key is NOT the phrase's raw entropy - it's BIP32-derived from the
+        // phrase's 64-byte PBKDF2 seed, same as a normal HD wallet. Same
+        // shape as standard BIP44 (purpose'/coin_type'/account'/change/
+        // address_index), just with our own purpose constant in place of a
+        // real BIP43 entry, and confirmed interoperable with an independent
+        // implementation (same mnemonic in, same key out):
+        //   231' - "purpose" - 0xe7 is the did:key multicodec for a
+        //          secp256k1 public key (see generateDidKey above), so this
+        //          is a direct callback to how this app encodes its own
+        //          keys, not an arbitrary pick. Hardened: every other use
+        //          of this constant should mean the same thing.
+        //   0'   - "coin_type" equivalent - always 0, there's only one.
+        //   0'   - "account" - room for more than one derived identity from
+        //          the same phrase later; always 0 while there's only one.
+        //   0    - "change" - not hardened, matching real BIP44 (xpub-based
+        //          derivation of this level and the next is the reason
+        //          those two are conventionally left non-hardened; we don't
+        //          use that, but matching the shape is what makes this
+        //          interoperable with other implementations of it).
+        //   0    - "address_index" - not hardened, same reasoning; room to
+        //          derive more than one key under one account later.
+        //
+        // Built on Web Crypto (crypto.subtle) + BigInt + @noble/secp256k1
+        // (already a dependency, for CURVE.n, the public-key step non-
+        // hardened derivation needs, and the validity check) - no extra
+        // library. Verified against @scure/bip32 and @scure/bip39 (a
+        // trusted reference implementation, not a runtime dependency of
+        // this app) across the BIP39 test vectors, this exact path, and the
+        // independent implementation's own test case.
+        const ATPROTO_DERIVATION_PATH = [
+            { index: 231, hardened: true },
+            { index: 0, hardened: true },
+            { index: 0, hardened: true },
+            { index: 0, hardened: false },
+            { index: 0, hardened: false },
+        ];
+
+        function hexToBigInt(hex) { return BigInt('0x' + hex); }
+        function bigIntToBytes32(n) {
+            const hex = n.toString(16).padStart(64, '0');
+            if (hex.length > 64) throw new Error('scalar overflow');
+            return Uint8Array.from(hex.match(/.{2}/g).map((b) => parseInt(b, 16)));
+        }
+        function concatBytes(...arrs) {
+            const out = new Uint8Array(arrs.reduce((n, a) => n + a.length, 0));
+            let off = 0;
+            for (const a of arrs) { out.set(a, off); off += a.length; }
+            return out;
+        }
+
+        async function hmacSha512(keyBytes, dataBytes) {
+            const key = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-512' }, false, ['sign']);
+            return new Uint8Array(await crypto.subtle.sign('HMAC', key, dataBytes));
+        }
+
+        // BIP39 seed (not the same as BIP39 entropy): PBKDF2-HMAC-SHA512,
+        // 2048 rounds, salt "mnemonic" + passphrase, both NFKD-normalized.
+        async function mnemonicToSeed(mnemonic, passphrase = '') {
+            const te = new TextEncoder();
+            const mnemonicBytes = te.encode(mnemonic.normalize('NFKD'));
+            const salt = te.encode(('mnemonic' + passphrase).normalize('NFKD'));
+            const key = await crypto.subtle.importKey('raw', mnemonicBytes, { name: 'PBKDF2' }, false, ['deriveBits']);
+            const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 2048, hash: 'SHA-512' }, key, 64 * 8);
+            return new Uint8Array(bits);
+        }
+
+        async function masterKeyFromSeed(seed) {
+            const te = new TextEncoder();
+            const I = await hmacSha512(te.encode('Bitcoin seed'), seed);
+            const key = I.slice(0, 32);
+            const chainCode = I.slice(32, 64);
+            const k = hexToBigInt(secp256k1.utils.bytesToHex(key));
+            if (k === 0n || k >= secp256k1.CURVE.n) throw new Error('invalid master key (vanishingly unlikely) - try again');
+            return { key, chainCode };
+        }
+
+        // CKDpriv. Hardened: data = 0x00 || parent private key || ser32(index + 2^31).
+        // Normal (non-hardened): data = parent's compressed public key || ser32(index).
+        async function deriveChild(parent, index, hardened) {
+            const indexBytes = new Uint8Array(4);
+            new DataView(indexBytes.buffer).setUint32(0, hardened ? index + 0x80000000 : index, false);
+            const data = hardened
+                ? concatBytes(new Uint8Array([0]), parent.key, indexBytes)
+                : concatBytes(secp256k1.getPublicKey(parent.key, true), indexBytes);
+            const I = await hmacSha512(parent.chainCode, data);
+            const il = I.slice(0, 32);
+            const chainCode = I.slice(32, 64);
+            const childScalar = (hexToBigInt(secp256k1.utils.bytesToHex(il)) + hexToBigInt(secp256k1.utils.bytesToHex(parent.key))) % secp256k1.CURVE.n;
+            if (childScalar === 0n) throw new Error('invalid derived key (vanishingly unlikely) - try again');
+            return { key: bigIntToBytes32(childScalar), chainCode };
+        }
+
+        // mnemonic -> the one key this app derives, at m/231'/0'/0'/0/0.
+        async function deriveAtprotoKey(mnemonic, passphrase = '') {
+            let node = await masterKeyFromSeed(await mnemonicToSeed(mnemonic, passphrase));
+            for (const { index, hardened } of ATPROTO_DERIVATION_PATH) {
+                node = await deriveChild(node, index, hardened);
+            }
+            const keyHex = secp256k1.utils.bytesToHex(node.key);
+            if (!secp256k1.utils.isValidPrivateKey(node.key)) {
+                throw new Error('derived key is not a valid secp256k1 private key (vanishingly unlikely) - try again');
+            }
+            return keyHex;
         }
 
         // Fetch actual operation from plc.directory
@@ -2643,25 +2752,22 @@
                 if (mnemonicDisplay) mnemonicDisplay.classList.add('hidden');
                 if (status) status.innerHTML = '';
 
-                // Generate 256 bits (32 bytes) of random data - regenerate
-                // on the astronomically unlikely chance it's not a valid
-                // secp256k1 private key (curve order is a hair under 2^256),
-                // rather than silently using it anyway. Checked directly
-                // against these exact bytes (not a library-derived key)
-                // since the same bytes are used as BIP39 entropy just below -
-                // restoring from that mnemonic has to reconstruct this exact
-                // key, so nothing here can diverge from the raw randomness.
-                let randomBytes;
-                do {
-                    randomBytes = new Uint8Array(32);
-                    crypto.getRandomValues(randomBytes);
-                } while (!secp256k1.utils.isValidPrivateKey(randomBytes));
-
-                // Convert to hexadecimal string
-                currentKey = secp256k1.utils.bytesToHex(randomBytes);
+                // Generate 128 bits (16 bytes) of fresh BIP39 entropy for
+                // the seed phrase itself (a 12-word mnemonic) - 128-bit
+                // security, the same level as AES-128 and what most
+                // wallets default to. The signing key is NOT this entropy
+                // directly - see deriveAtprotoKey above - it's BIP32-derived
+                // (m/231'/0'/0'/0/0) from the phrase's PBKDF2 seed, so there's
+                // no secp256k1-validity constraint on the entropy bytes
+                // themselves.
+                const randomBytes = new Uint8Array(16);
+                crypto.getRandomValues(randomBytes);
 
                 // Generate BIP39 mnemonic from the entropy
                 currentMnemonic = await entropyToMnemonic(randomBytes, wordlist);
+
+                // Derive the actual signing key from the phrase
+                currentKey = await deriveAtprotoKey(currentMnemonic);
 
                 // Generate secp256k1 public key
                 currentPublicKey = generatePublicKey(currentKey);
@@ -2819,14 +2925,8 @@
                     throw new Error('Invalid mnemonic phrase');
                 }
 
-                // Convert mnemonic to entropy
-                const restoredKeyBytes = await mnemonicToEntropy(inputMnemonic, wordlist);
-                if (!secp256k1.utils.isValidPrivateKey(restoredKeyBytes)) {
-                    throw new Error('This mnemonic does not decode to a valid secp256k1 private key.');
-                }
-
-                // Convert Uint8Array to hex string
-                const restoredKey = secp256k1.utils.bytesToHex(restoredKeyBytes);
+                // Derive the signing key from the phrase (m/231'/0'/0'/0/0)
+                const restoredKey = await deriveAtprotoKey(inputMnemonic);
 
                 // Generate secp256k1 public key
                 const restoredPublicKey = generatePublicKey(restoredKey);
