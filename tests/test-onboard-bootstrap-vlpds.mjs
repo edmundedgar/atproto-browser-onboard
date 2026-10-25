@@ -1,0 +1,97 @@
+#!/usr/bin/env node
+// vlpds port of test-onboard-bootstrap.mjs. vlpds's availableUserDomains is
+// only [".vlpds.goat.navy"] (no ".id.goat.navy"), so this picks the first
+// real domain option dynamically instead of hardcoding one - everything
+// else is unchanged.
+//
+// Like test-onboard.mjs, but also waits for the post-activation bootstrap
+// step (follows/feeds/blocklists from bootstrap-config.js) to finish, so we
+// can see its summary/failures before the browser closes.
+
+import { chromium } from 'playwright'
+import fs from 'node:fs/promises'
+
+const ONBOARD_URL = process.env.ONBOARD_URL || 'https://ens.goat.navy/'
+const PDS_ENDPOINT = process.env.PDS_ENDPOINT || 'https://vlpds.goat.navy'
+const ADMIN_PASSWORD = process.env.PDS_ADMIN_PASSWORD
+if (!ADMIN_PASSWORD) throw new Error('Set PDS_ADMIN_PASSWORD (vlpds admin token)')
+const ACCOUNT_PASSWORD = process.env.PDS_ACCOUNT_PASSWORD
+if (!ACCOUNT_PASSWORD) throw new Error('Set PDS_ACCOUNT_PASSWORD (shared test-account password)')
+const SEED_PATH = process.env.SEED_PATH || `${process.env.HOME}/.config/onboard-test/seed.txt`
+const subdomain = process.argv[2] || `test${Date.now().toString(36)}`
+
+async function makeInviteCode() {
+  const res = await fetch(`${PDS_ENDPOINT}/xrpc/com.atproto.server.createInviteCode`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Basic ' + Buffer.from(`admin:${ADMIN_PASSWORD}`).toString('base64'),
+    },
+    body: JSON.stringify({ useCount: 1 }),
+  })
+  if (!res.ok) throw new Error(`createInviteCode failed: ${res.status} ${await res.text()}`)
+  return (await res.json()).code
+}
+
+async function main() {
+  const inviteCode = await makeInviteCode()
+
+  const browser = await chromium.launch()
+  const page = await browser.newPage()
+
+  page.on('console', (msg) => console.log(`[console.${msg.type()}] ${msg.text()}`))
+  page.on('pageerror', (err) => console.log(`[pageerror] ${err}`))
+
+  await page.goto(ONBOARD_URL)
+
+  const mnemonic = (await fs.readFile(SEED_PATH, 'utf8')).trim()
+  await page.fill('#mnemonicInput', mnemonic)
+  await page.click('#restoreBtn')
+  await page.waitForSelector('#didKeyText:not(:empty)', { timeout: 10000, state: 'attached' })
+
+  await page.click('#createaccount-tab')
+
+  await page.fill('#pds-endpoint', '')
+  await page.fill('#pds-endpoint', PDS_ENDPOINT)
+  await page.locator('#pds-endpoint').blur()
+
+  await page.waitForSelector('#account-handle-domain option:not([value=""])', { timeout: 10000, state: 'attached' })
+  const handleDomain = await page.locator('#account-handle-domain option:not([value=""])').first().getAttribute('value')
+  await page.selectOption('#account-handle-domain', handleDomain)
+  console.log(`handle: ${subdomain}${handleDomain}`)
+  console.log(`invite code: ${inviteCode}`)
+
+  await page.fill('#account-handle-subdomain', subdomain)
+  await page.fill('#account-email', `${subdomain}@test.invalid`)
+  await page.fill('#account-password', ACCOUNT_PASSWORD)
+  await page.fill('#account-invite-code', inviteCode)
+
+  await page.click('#submit-createaccount-btn')
+
+  // "Account created successfully!" is the transient message shown right
+  // after activation, before bootstrap/import run - wait specifically for
+  // the final combined message (with its em-dash extras) so this doesn't
+  // resolve early on that transient text.
+  const status = await page.waitForFunction(() => {
+    const el = document.getElementById('status-line')
+    if (!el) return null
+    const text = el.textContent || ''
+    if (el.querySelector('.status.error')) return text
+    if (/Account created —/i.test(text)) return text
+    return null
+  }, null, { timeout: 60000 }).then((h) => h.jsonValue())
+
+  console.log('---')
+  console.log('final status:', status)
+
+  await browser.close()
+
+  if (!/Account created/i.test(status)) {
+    process.exit(1)
+  }
+}
+
+main().catch((err) => {
+  console.error(err)
+  process.exit(1)
+})
