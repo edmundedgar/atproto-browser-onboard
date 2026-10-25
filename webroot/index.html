@@ -1138,8 +1138,6 @@
                                 </div>
                                 <small class="form-help hidden" id="account-domain-help-pds">A subdomain hosted directly by your PDS. Works immediately - no extra setup needed.</small>
                                 <small class="form-help hidden" id="account-domain-help-eth">Uses your existing .eth ENS name. You'll connect a wallet and publish a small on-chain record; eth.xyz then makes it work as a handle over regular DNS.</small>
-                                <small class="form-help hidden" id="account-domain-help-gwei">Uses a .gwei name (a separate ENS-like naming system). You'll connect a wallet and publish a small on-chain record; gwei.name then makes it work as a handle over regular DNS.</small>
-                                <small class="form-help hidden" id="account-domain-help-sepolia-gwei">Same as .gwei.name, but on Sepolia testnet - for testing, not a real handle. Needs a wallet connected to Sepolia and a .gwei name registered there.</small>
                                 <small class="form-help hidden" id="account-domain-help-custom">Use any domain you already control. You'll add a DNS TXT record or a small file to your own site - we'll show you exactly what to add.</small>
                                 <small class="form-help hidden" id="account-availability-status"></small>
                                 <input type="hidden" id="account-handle" name="handle">
@@ -4354,8 +4352,6 @@
                     </div>
                     <small class="form-help hidden" id="handle-domain-help-pds">A subdomain hosted directly by your PDS. Works immediately - no extra setup needed.</small>
                     <small class="form-help hidden" id="handle-domain-help-eth">Uses your existing .eth ENS name. You'll connect a wallet and publish a small on-chain record; eth.xyz then makes it work as a handle over regular DNS.</small>
-                    <small class="form-help hidden" id="handle-domain-help-gwei">Uses a .gwei name (a separate ENS-like naming system). You'll connect a wallet and publish a small on-chain record; gwei.name then makes it work as a handle over regular DNS.</small>
-                    <small class="form-help hidden" id="handle-domain-help-sepolia-gwei">Same as .gwei.name, but on Sepolia testnet - for testing, not a real handle. Needs a wallet connected to Sepolia and a .gwei name registered there.</small>
                     <small class="form-help hidden" id="handle-domain-help-custom">Use any domain you already control. You'll add a DNS TXT record or a small file to your own site - we'll show you exactly what to add.</small>
                     <small class="form-help hidden" id="handle-availability-status"></small>
                 </div>
@@ -4428,16 +4424,6 @@
             ethXyzOption.textContent = ETH_XYZ_DOMAIN_VALUE;
             domainSelectEl.appendChild(ethXyzOption);
 
-            const gweiOption = document.createElement('option');
-            gweiOption.value = GWEI_DOMAIN_VALUE;
-            gweiOption.textContent = GWEI_DOMAIN_VALUE;
-            domainSelectEl.appendChild(gweiOption);
-
-            const sepoliaGweiOption = document.createElement('option');
-            sepoliaGweiOption.value = SEPOLIA_GWEI_DOMAIN_VALUE;
-            sepoliaGweiOption.textContent = SEPOLIA_GWEI_DOMAIN_VALUE;
-            domainSelectEl.appendChild(sepoliaGweiOption);
-
             const customOption = document.createElement('option');
             customOption.value = CUSTOM_DOMAIN_VALUE;
             customOption.textContent = 'Custom domain...';
@@ -4447,12 +4433,11 @@
         }
 
         // Same shape as create-account's handleDomainChange (both offer the
-        // same choices: PDS domain / .eth.xyz / .gwei.name /
-        // .sepolia.gwei.name / custom domain), scoped to the Handle tab's
-        // own elements and gating the Change handle button instead of
-        // Create Account.
+        // same choices: PDS domain / .eth.xyz / custom domain), scoped to
+        // the Handle tab's own elements and gating the Change handle button
+        // instead of Create Account.
         function handleSetupMethodFor(selectedDomain) {
-            return setupMethodFor(selectedDomain, { ethHandler: setupHandleEth, gweiHandler: setupHandleGwei, sepoliaGweiHandler: setupHandleSepoliaGwei, customHandler: setupHandleCustomDomain });
+            return setupMethodFor(selectedDomain, { ethHandler: setupHandleEth, customHandler: setupHandleCustomDomain });
         }
 
         function handleTabDomainChange() {
@@ -4468,9 +4453,9 @@
 
             // The custom-domain input takes the select's own place in the
             // row rather than appearing in a separate box underneath it -
-            // only one of the two is ever visible at a time. .eth.xyz and
-            // .gwei.name are just other fixed select options, same as any
-            // PDS domain - no extra field needed beyond the subdomain.
+            // only one of the two is ever visible at a time. .eth.xyz is
+            // just another fixed select option, same as any PDS domain -
+            // no extra field needed beyond the subdomain.
             domainSelectEl.classList.toggle('hidden', isCustom);
             if (customGroup) {
                 customGroup.classList.toggle('hidden', !isCustom);
@@ -4484,9 +4469,8 @@
                     setupGroup.classList.remove('hidden');
                     // Rebuild whenever the method actually changes, not
                     // just when the group is empty - switching between
-                    // .eth.xyz/.gwei.name/custom domain without ever
-                    // clicking the button needs a relabel and a different
-                    // click handler.
+                    // .eth.xyz/custom domain without ever clicking the
+                    // button needs a relabel and a different click handler.
                     if (setupGroup.dataset.forMethod !== setupInfo.method) {
                         setupGroup.dataset.forMethod = setupInfo.method;
                         setupGroup.innerHTML = `<button type="button" class="submit-btn" id="handle-setup-btn">${setupInfo.label}</button><button type="button" class="check-link" id="handle-setup-check-link">Check</button>`;
@@ -4535,32 +4519,6 @@
             }
             const account = `${subdomain}.eth`;
             openDomainPopup(`domain.html?did=${encodeURIComponent(handleState.did)}&account=${encodeURIComponent(account)}${SEPOLIA_TEST_MODE ? '&net=sepolia' : ''}`);
-        }
-
-        function setupHandleGwei() {
-            const status = document.getElementById('handle-change-status');
-            const subdomain = document.getElementById('handle-new-subdomain').value.trim();
-            if (!subdomain) {
-                status.replaceChildren(migrateStatusBlock('error', 'Enter a handle first.'));
-                return;
-            }
-            openDomainPopup(`domain.html?did=${encodeURIComponent(handleState.did)}&gwei=${encodeURIComponent(subdomain)}`);
-        }
-
-        // Same as setupHandleGwei, plus &net=sepolia - domain.html already
-        // reads that param itself (SEPOLIA_TEST_MODE) and applies it to
-        // whichever branch is active, same mechanism setupHandleEth already
-        // relies on for .eth.xyz's own sepolia mode - reused here rather
-        // than invented fresh, just triggered by this domain choice instead
-        // of a page-wide flag.
-        function setupHandleSepoliaGwei() {
-            const status = document.getElementById('handle-change-status');
-            const subdomain = document.getElementById('handle-new-subdomain').value.trim();
-            if (!subdomain) {
-                status.replaceChildren(migrateStatusBlock('error', 'Enter a handle first.'));
-                return;
-            }
-            openDomainPopup(`domain.html?did=${encodeURIComponent(handleState.did)}&gwei=${encodeURIComponent(subdomain)}&net=sepolia`);
         }
 
         function setupHandleCustomDomain() {
@@ -4642,9 +4600,9 @@
             const isCustom = domainSelectEl?.value === CUSTOM_DOMAIN_VALUE;
             const subdomain = document.getElementById('handle-new-subdomain')?.value.trim() || '';
             const customDomain = document.getElementById('handle-new-custom-domain')?.value.trim() || '';
-            // .eth.xyz and .gwei.name always need a subdomain; a custom
-            // domain can stand alone as the handle (the root-domain case),
-            // so only the domain field itself is required there.
+            // .eth.xyz always needs a subdomain; a custom domain can stand
+            // alone as the handle (the root-domain case), so only the
+            // domain field itself is required there.
             setupBtn.disabled = isCustom ? !customDomain : !subdomain;
         }
 
@@ -4724,11 +4682,11 @@
         //
         // Checks the PDS's own record directly (com.atproto.repo.describeRepo,
         // public/unauthenticated) rather than resolveHandleToDid's DNS TXT/
-        // well-known lookup - for domains like .gwei.name/.eth.xyz, DNS
-        // resolution is maintained by an entirely separate on-chain sync
-        // bot and would happily report success even if the PDS itself
-        // never actually updated its own account record. describeRepo's
-        // `handle` field is read straight from the PDS's account DB, and
+        // well-known lookup - for a domain like .eth.xyz, DNS resolution is
+        // maintained by an entirely separate on-chain sync bot and would
+        // happily report success even if the PDS itself never actually
+        // updated its own account record. describeRepo's `handle` field is
+        // read straight from the PDS's account DB, and
         // `handleIsCorrect` confirms it also matches DID-document
         // resolution - the actual thing "did this complete" means here.
         async function checkHandleChangeCompletedNow() {
@@ -5055,22 +5013,14 @@
         // both branch on the same constants rather than repeating the
         // string literals.
         const ETH_XYZ_DOMAIN_VALUE = '.eth.xyz';
-        const GWEI_DOMAIN_VALUE = '.gwei.name';
-        // A separate, always-available option rather than reusing GWEI_DOMAIN_VALUE
-        // under some global test-mode flag (like ETH_XYZ_DOMAIN_VALUE does via
-        // ?net=sepolia) - picking it from the dropdown is enough, no need to
-        // reload the whole app in a special mode just to test the .gwei path.
-        // domain.html still reuses its own existing net=sepolia param
-        // internally once opened, though - see setupHandleSepoliaGwei.
-        const SEPOLIA_GWEI_DOMAIN_VALUE = '.sepolia.gwei.name';
         const CUSTOM_DOMAIN_VALUE = '__custom__';
 
         // Combines a subdomain + selected domain into the final handle
         // string, for whichever of the two tabs' field IDs is passed in -
-        // both tabs offer the same choices (a PDS domain, .eth.xyz,
-        // .gwei.name, .sepolia.gwei.name, or a custom domain), so the
-        // combination rule only needs writing once. Returns null if not
-        // enough is filled in yet to produce a real handle.
+        // both tabs offer the same choices (a PDS domain, .eth.xyz, or a
+        // custom domain), so the combination rule only needs writing once.
+        // Returns null if not enough is filled in yet to produce a real
+        // handle.
         function computeTargetHandleFor(subdomainId, domainSelectId, customDomainId) {
             const domainSelectEl = document.getElementById(domainSelectId);
             if (!domainSelectEl) return null;
@@ -5080,14 +5030,6 @@
             if (selectedDomain === ETH_XYZ_DOMAIN_VALUE) {
                 if (!subdomain) return null;
                 return ethXyzDnsDomain(`${subdomain}.eth`);
-            }
-            if (selectedDomain === GWEI_DOMAIN_VALUE) {
-                if (!subdomain) return null;
-                return `${subdomain}.gwei.name`;
-            }
-            if (selectedDomain === SEPOLIA_GWEI_DOMAIN_VALUE) {
-                if (!subdomain) return null;
-                return `${subdomain}.sepolia.gwei.name`;
             }
             if (selectedDomain === CUSTOM_DOMAIN_VALUE) {
                 const customDomain = document.getElementById(customDomainId).value.trim();
@@ -5104,26 +5046,22 @@
         // say and do, for whichever of the two tabs' setup handlers are
         // passed in. Returns null for a plain PDS domain, which needs no
         // setup step at all.
-        function setupMethodFor(selectedDomain, { ethHandler, gweiHandler, sepoliaGweiHandler, customHandler }) {
+        function setupMethodFor(selectedDomain, { ethHandler, customHandler }) {
             if (selectedDomain === ETH_XYZ_DOMAIN_VALUE) return { method: 'eth', label: 'Set up .eth', handler: ethHandler };
-            if (selectedDomain === GWEI_DOMAIN_VALUE) return { method: 'gwei', label: 'Set up .gwei', handler: gweiHandler };
-            if (selectedDomain === SEPOLIA_GWEI_DOMAIN_VALUE) return { method: 'sepolia-gwei', label: 'Set up .gwei (Sepolia)', handler: sepoliaGweiHandler };
             if (selectedDomain === CUSTOM_DOMAIN_VALUE) return { method: 'custom', label: 'Set up custom domain', handler: customHandler };
             return null;
         }
 
-        // Shows the one #<prefix>-domain-help-{pds,eth,gwei,sepolia-gwei,custom}
-        // caption matching the current selection, hides the rest - shared by
-        // both tabs (prefix is "handle" or "account"). The caption text
-        // itself lives in the markup, not here, so it's easy to find and edit.
+        // Shows the one #<prefix>-domain-help-{pds,eth,custom} caption
+        // matching the current selection, hides the rest - shared by both
+        // tabs (prefix is "handle" or "account"). The caption text itself
+        // lives in the markup, not here, so it's easy to find and edit.
         function updateDomainMethodHelp(prefix, selectedDomain) {
             const activeKey = selectedDomain === ETH_XYZ_DOMAIN_VALUE ? 'eth'
-                : selectedDomain === GWEI_DOMAIN_VALUE ? 'gwei'
-                : selectedDomain === SEPOLIA_GWEI_DOMAIN_VALUE ? 'sepolia-gwei'
                 : selectedDomain === CUSTOM_DOMAIN_VALUE ? 'custom'
                 : selectedDomain ? 'pds'
                 : null;
-            for (const key of ['pds', 'eth', 'gwei', 'sepolia-gwei', 'custom']) {
+            for (const key of ['pds', 'eth', 'custom']) {
                 const el = document.getElementById(`${prefix}-domain-help-${key}`);
                 if (el) el.classList.toggle('hidden', key !== activeKey);
             }
@@ -5169,7 +5107,7 @@
         // Live-checks whether `handle` is already taken on `pdsEndpoint`,
         // rather than only finding out from a failed submit. Only
         // meaningful for the plain "any PDS-supported domain" method -
-        // .eth.xyz/.gwei.name/custom domain aren't about this PDS's own
+        // .eth.xyz/custom domain aren't about this PDS's own
         // namespace, so callers pass null for pdsEndpoint/handle
         // otherwise, which just hides the status line. Any inconclusive
         // result (network error, unexpected response) also just hides the
@@ -5222,11 +5160,10 @@
         }
 
         // selectedDomain === one of the fixed sentinels means .eth.xyz/
-        // .gwei.name/.sepolia.gwei.name/custom domain, none of which are
-        // about this PDS's own namespace - only a plain PDS-provided
-        // domain is.
+        // custom domain, neither of which is about this PDS's own
+        // namespace - only a plain PDS-provided domain is.
         function isPdsDomainSelected(selectedDomain) {
-            return !!selectedDomain && selectedDomain !== ETH_XYZ_DOMAIN_VALUE && selectedDomain !== GWEI_DOMAIN_VALUE && selectedDomain !== SEPOLIA_GWEI_DOMAIN_VALUE && selectedDomain !== CUSTOM_DOMAIN_VALUE;
+            return !!selectedDomain && selectedDomain !== ETH_XYZ_DOMAIN_VALUE && selectedDomain !== CUSTOM_DOMAIN_VALUE;
         }
 
         // Populates a domain <select> with a PDS's availableUserDomains (or a
@@ -5305,23 +5242,13 @@
             ethXyzOption.textContent = ETH_XYZ_DOMAIN_VALUE;
             domainSelect.appendChild(ethXyzOption);
 
-            const gweiOption = document.createElement('option');
-            gweiOption.value = GWEI_DOMAIN_VALUE;
-            gweiOption.textContent = GWEI_DOMAIN_VALUE;
-            domainSelect.appendChild(gweiOption);
-
-            const sepoliaGweiOption = document.createElement('option');
-            sepoliaGweiOption.value = SEPOLIA_GWEI_DOMAIN_VALUE;
-            sepoliaGweiOption.textContent = SEPOLIA_GWEI_DOMAIN_VALUE;
-            domainSelect.appendChild(sepoliaGweiOption);
-
             const customOption = document.createElement('option');
             customOption.value = CUSTOM_DOMAIN_VALUE;
             customOption.textContent = 'Custom domain...';
             domainSelect.appendChild(customOption);
 
             // Restore selection if it was one of the fixed options.
-            if ([ETH_XYZ_DOMAIN_VALUE, GWEI_DOMAIN_VALUE, SEPOLIA_GWEI_DOMAIN_VALUE, CUSTOM_DOMAIN_VALUE].includes(currentSelection)) {
+            if ([ETH_XYZ_DOMAIN_VALUE, CUSTOM_DOMAIN_VALUE].includes(currentSelection)) {
                 domainSelect.value = currentSelection;
             }
 
@@ -5359,9 +5286,9 @@
             }
         }
         
-        // Handle domain selection changes - four-way, same choices as the
-        // Handle tab (see handleTabDomainChange): a PDS domain, .eth.xyz,
-        // .gwei.name, or a custom domain.
+        // Handle domain selection changes - same choices as the Handle tab
+        // (see handleTabDomainChange): a PDS domain, .eth.xyz, or a custom
+        // domain.
         const domainSelect = document.getElementById('account-handle-domain');
         const accountSetupGroup = document.getElementById('account-setup-group');
         const submitCreateAccountBtn = document.getElementById('submit-createaccount-btn');
@@ -5378,7 +5305,7 @@
         }
 
         function accountSetupMethodFor(selectedDomain) {
-            return setupMethodFor(selectedDomain, { ethHandler: setupAccountEth, gweiHandler: setupAccountGwei, sepoliaGweiHandler: setupAccountSepoliaGwei, customHandler: setupAccountCustomDomain });
+            return setupMethodFor(selectedDomain, { ethHandler: setupAccountEth, customHandler: setupAccountCustomDomain });
         }
 
         // Same combination rule as the Handle tab's computeHandleTabTargetHandle.
@@ -5409,9 +5336,8 @@
                     accountSetupGroup.classList.remove('hidden');
                     // Rebuild whenever the method actually changes, not just
                     // when the group is empty - switching between
-                    // .eth.xyz/.gwei.name/custom domain without ever
-                    // clicking the button needs a relabel and a different
-                    // click handler.
+                    // .eth.xyz/custom domain without ever clicking the
+                    // button needs a relabel and a different click handler.
                     if (accountSetupGroup.dataset.forMethod !== setupInfo.method) {
                         accountSetupGroup.dataset.forMethod = setupInfo.method;
                         accountSetupGroup.innerHTML = `<button type="button" class="submit-btn" id="account-setup-btn">${setupInfo.label}</button><button type="button" class="check-link" id="account-setup-check-link">Check</button>`;
@@ -5511,8 +5437,8 @@
             }
         }
 
-        // Shared by setupAccountEth/setupAccountGwei/setupAccountCustomDomain:
-        // builds the genesis DID:PLC operation for the current form fields
+        // Shared by setupAccountEth/setupAccountCustomDomain: builds the
+        // genesis DID:PLC operation for the current form fields
         // plus the given handle, signs it, and derives the DID that
         // operation would produce - the same "would-be DID" domain.html
         // needs to know what to check for, computed fresh (not yet
@@ -5544,7 +5470,7 @@
         // Manual fallback for the domain.html popup's postMessage, which
         // isn't guaranteed to arrive - e.g. confirmed against Freedom
         // Browser loading this app natively over ipfs://, where a
-        // successful .gwei setup in the popup never reached this window's
+        // successful domain setup in the popup never reached this window's
         // 'message' listener even though window.opener.postMessage was
         // same-origin (ipfs://<name> to ipfs://<name>) and should have
         // worked. Root cause not fully pinned down (couldn't get a console
@@ -5585,54 +5511,6 @@
                 openDomainPopup(`domain.html?did=${encodeURIComponent(didPlcId)}&account=${encodeURIComponent(accountName)}${SEPOLIA_TEST_MODE ? '&net=sepolia' : ''}`);
             } catch (error) {
                 console.error('Error calculating DID for .eth setup:', error);
-                const status = getCurrentStatusElement();
-                if (status) status.replaceChildren(statusBlock('error', `couldn't calculate DID: ${error.message}`));
-            }
-        }
-
-        async function setupAccountGwei() {
-            if (!currentKey) {
-                const status = getCurrentStatusElement();
-                if (status) status.replaceChildren(statusBlock('error', 'no key loaded — generate or restore one on the key tab first'));
-                return;
-            }
-            const subdomain = document.getElementById('account-handle-subdomain').value.trim();
-            if (!subdomain) {
-                const status = getCurrentStatusElement();
-                if (status) status.replaceChildren(statusBlock('error', 'enter a handle first'));
-                return;
-            }
-            try {
-                const didPlcId = await computeAccountDidPlcId(`${subdomain}.gwei.name`);
-                expectedCreateAccountDid = didPlcId;
-                openDomainPopup(`domain.html?did=${encodeURIComponent(didPlcId)}&gwei=${encodeURIComponent(subdomain)}`);
-            } catch (error) {
-                console.error('Error calculating DID for .gwei setup:', error);
-                const status = getCurrentStatusElement();
-                if (status) status.replaceChildren(statusBlock('error', `couldn't calculate DID: ${error.message}`));
-            }
-        }
-
-        // Same as setupAccountGwei, plus &net=sepolia - see
-        // setupHandleSepoliaGwei's comment for why that's enough.
-        async function setupAccountSepoliaGwei() {
-            if (!currentKey) {
-                const status = getCurrentStatusElement();
-                if (status) status.replaceChildren(statusBlock('error', 'no key loaded — generate or restore one on the key tab first'));
-                return;
-            }
-            const subdomain = document.getElementById('account-handle-subdomain').value.trim();
-            if (!subdomain) {
-                const status = getCurrentStatusElement();
-                if (status) status.replaceChildren(statusBlock('error', 'enter a handle first'));
-                return;
-            }
-            try {
-                const didPlcId = await computeAccountDidPlcId(`${subdomain}.sepolia.gwei.name`);
-                expectedCreateAccountDid = didPlcId;
-                openDomainPopup(`domain.html?did=${encodeURIComponent(didPlcId)}&gwei=${encodeURIComponent(subdomain)}&net=sepolia`);
-            } catch (error) {
-                console.error('Error calculating DID for .gwei (Sepolia) setup:', error);
                 const status = getCurrentStatusElement();
                 if (status) status.replaceChildren(statusBlock('error', `couldn't calculate DID: ${error.message}`));
             }
@@ -6357,8 +6235,8 @@
             }
         }, true);
 
-        // domain.html popups (opened by setupAccountEth/setupAccountGwei/
-        // setupAccountCustomDomain/setupHandleEth/setupHandleGwei/
+        // domain.html popups (opened by setupAccountEth/
+        // setupAccountCustomDomain/setupHandleEth/
         // setupHandleCustomDomain via openDomainPopup, all on our own
         // origin - no OAuth-style cross-origin redirect involved, so
         // window.opener stays valid) post this once the user has

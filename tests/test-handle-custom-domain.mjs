@@ -2,8 +2,8 @@
 // Exercises the Handle tab's custom-domain path end to end: creates an
 // account, publishes a real _atproto TXT record for a gwei.name test label
 // (simulating the not-yet-built blockchain-watching bot by writing straight
-// to /var/www/gwei/atproto-did/<label> - the same file it will write to),
-// then drives the Handle tab's "Custom domain..." option with a blank
+// to /var/www/gwei/mainnet/atproto-did/<label> - the same file it will write
+// to), then drives the Handle tab's "Custom domain..." option with a blank
 // subdomain (the root-domain-as-handle case) through to the domain.html popup's
 // manual "I've set this up" check flow: idle button -> checking -> success
 // tick -> auto-close, and confirms the main page gets notified (via
@@ -14,14 +14,10 @@
 //
 // gwei.name is used here purely as a convenient *real* DNS zone this box
 // can write to - not because it's special to the generic custom-domain
-// code path, and not to be confused with the Handle tab's separate,
-// dedicated ".gwei.name" option (GWEI_DOMAIN_VALUE), which goes through
-// domain.html's on-chain GNS branch instead of typed-in DNS-TXT instructions.
-// That dedicated option is checked below too, but only up to the
-// wallet-connect prompt - actually submitting a setText transaction needs
-// a real wallet with a real registered .gwei name, which nothing in this
-// sandbox has (same limitation as the .eth.xyz/ENS path, which has never
-// had automated coverage past its own wallet-connect prompt either).
+// code path. The Handle tab's separate, dedicated ".gwei.name" domain-method
+// option (which went through domain.html's on-chain GNS branch) has been
+// removed along with that branch - only .eth.xyz, a plain PDS domain, and
+// this generic custom-domain path remain.
 //
 // The record is published *before* the popup's check button is ever
 // clicked: an earlier design (auto-poll from page load) was scrapped
@@ -56,7 +52,7 @@ const ADMIN_PASSWORD = process.env.PDS_ADMIN_PASSWORD
 const ACCOUNT_PASSWORD = process.env.PDS_ACCOUNT_PASSWORD
 if (!ACCOUNT_PASSWORD) throw new Error('Set PDS_ACCOUNT_PASSWORD (shared test-account password)')
 const SEED_PATH = process.env.SEED_PATH || `${process.env.HOME}/.config/onboard-test/seed.txt`
-const GWEI_ATPROTO_DID_DIR = process.env.GWEI_ATPROTO_DID_DIR || '/var/www/gwei/atproto-did'
+const GWEI_ATPROTO_DID_DIR = process.env.GWEI_ATPROTO_DID_DIR || '/var/www/gwei/mainnet/atproto-did'
 const GWEI_AUTHORITATIVE_NS = process.env.GWEI_AUTHORITATIVE_NS || '141.94.131.139'
 
 const testLabel = process.argv[2] || `pwtest${Date.now().toString(36)}`
@@ -204,46 +200,6 @@ async function main() {
       }
     }
     if (!handleTabReady) throw new Error('Handle tab never became ready - own-handle DNS resolution kept failing')
-
-    // --- Dedicated ".gwei.name" option: UI/URL wiring only, up to the
-    // wallet-connect prompt (see the top-of-file note - no real wallet
-    // available here, same limitation as .eth.xyz) ---
-    await page.waitForSelector('#handle-new-domain option[value=".gwei.name"]', { timeout: 5000, state: 'attached' })
-    await page.selectOption('#handle-new-domain', '.gwei.name')
-
-    const gweiSetupBtnDisabledEmpty = await page.locator('#handle-setup-btn').isDisabled()
-    if (!gweiSetupBtnDisabledEmpty) throw new Error('#handle-setup-btn should be disabled before the subdomain is filled in for .gwei.name')
-
-    const gweiSubdomain = `${testLabel}gwei`
-    await page.fill('#handle-new-subdomain', gweiSubdomain)
-    await page.waitForFunction(() => !document.getElementById('handle-setup-btn')?.disabled, null, { timeout: 3000 })
-
-    const gweiSetupBtnText = (await page.locator('#handle-setup-btn').textContent() || '').trim()
-    if (gweiSetupBtnText !== 'Set up .gwei') throw new Error(`Expected "Set up .gwei" button, got "${gweiSetupBtnText}"`)
-
-    const [gweiPopup] = await Promise.all([
-      page.waitForEvent('popup'),
-      page.click('#handle-setup-btn'),
-    ])
-    gweiPopup.on('console', (msg) => console.log(`[gweiPopup.${msg.type()}] ${msg.text()}`))
-    gweiPopup.on('pageerror', (err) => console.log(`[gweiPopup pageerror] ${err}`))
-    await gweiPopup.waitForLoadState()
-
-    const gweiFields = await gweiPopup.locator('.module').first().locator('.value').allTextContents()
-    const [gweiRenderedName, gweiRenderedDid] = gweiFields.map((s) => s.trim())
-    if (gweiRenderedName !== `${gweiSubdomain}.gwei`) throw new Error(`domain.html popup shows gwei name "${gweiRenderedName}", expected "${gweiSubdomain}.gwei"`)
-    if (gweiRenderedDid !== did) throw new Error(`domain.html popup shows did "${gweiRenderedDid}", expected "${did}"`)
-
-    const gweiConnectWcText = (await gweiPopup.locator('#connect-wc-btn').textContent() || '').trim()
-    if (gweiConnectWcText !== 'Connect via WalletConnect') throw new Error(`Expected the wallet-connect prompt, got "${gweiConnectWcText}"`)
-    console.log(`.gwei.name option correctly opened domain.html?gwei=${gweiSubdomain}, showing the wallet-connect prompt with name=${gweiRenderedName} did=${gweiRenderedDid}`)
-
-    await gweiPopup.close()
-
-    // Reset before moving on to the generic custom-domain flow below - it
-    // expects a blank subdomain field for its own root-domain test case.
-    await page.fill('#handle-new-subdomain', '')
-    await page.selectOption('#handle-new-domain', '')
 
     await page.selectOption('#handle-new-domain', '__custom__')
 
@@ -403,6 +359,16 @@ async function main() {
     else await fs.unlink(gweiDidFile).catch(() => {})
     await browser.close()
   }
+}
+
+// Paused: this test's custom-domain round trip is published through
+// gwei.name, and the sync service that turns a dropped file into a real DNS
+// record (atproto-txt-sync-gwei) is deliberately off (the .gwei system
+// hasn't been publicly released yet) - so this would just hang/fail waiting
+// for DNS that will never update. Set RUN_GWEI_TESTS=1 once that's back on.
+if (!process.env.RUN_GWEI_TESTS) {
+  console.log('SKIPPED: gwei.name sync is paused - set RUN_GWEI_TESTS=1 to run this test')
+  process.exit(0)
 }
 
 main().catch((err) => {

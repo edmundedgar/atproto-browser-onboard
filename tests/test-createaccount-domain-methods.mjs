@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Exercises the create-account tab's domain-method UX now that it has the
-// same four choices as the Handle tab (PDS domain / .eth.xyz / .gwei.name /
-// custom domain), not just .eth.xyz:
-//   - .eth.xyz and .gwei.name: disabled-until-filled "Set up ..." button,
-//     opens domain.html with the right params - checked only up to the
+// same three choices as the Handle tab (PDS domain / .eth.xyz / custom
+// domain), not just .eth.xyz:
+//   - .eth.xyz: disabled-until-filled "Set up ..." button, opens
+//     domain.html with the right params - checked only up to the
 //     wallet-connect prompt (no real wallet in this sandbox, same
 //     limitation as everywhere else this has come up).
 //   - Custom domain: select<->text-input swap with the × revert button
@@ -14,7 +14,10 @@
 //     account is created with the expected custom-domain handle. This is
 //     new capability this session added (create-account previously only
 //     ever offered .eth.xyz), so it's worth the full round-trip rather than
-//     stopping at the UI layer the way the eth.xyz/gwei checks do.
+//     stopping at the UI layer the way the eth.xyz check does. gwei.name is
+//     used here purely as a convenient real DNS zone this box controls to
+//     publish a record for - not the (now removed) dedicated ".gwei.name"
+//     domain-method option.
 //
 // Root-domain (blank subdomain) custom-domain case only, same as the
 // Handle-tab test - gwei.name's sync script only accepts single-label
@@ -34,7 +37,7 @@ const ADMIN_PASSWORD = process.env.PDS_ADMIN_PASSWORD
 const ACCOUNT_PASSWORD = process.env.PDS_ACCOUNT_PASSWORD
 if (!ACCOUNT_PASSWORD) throw new Error('Set PDS_ACCOUNT_PASSWORD (shared test-account password)')
 const SEED_PATH = process.env.SEED_PATH || `${process.env.HOME}/.config/onboard-test/seed.txt`
-const GWEI_ATPROTO_DID_DIR = process.env.GWEI_ATPROTO_DID_DIR || '/var/www/gwei/atproto-did'
+const GWEI_ATPROTO_DID_DIR = process.env.GWEI_ATPROTO_DID_DIR || '/var/www/gwei/mainnet/atproto-did'
 const GWEI_AUTHORITATIVE_NS = process.env.GWEI_AUTHORITATIVE_NS || '141.94.131.139'
 
 const testLabel = process.argv[2] || `pwca${Date.now().toString(36)}`
@@ -103,7 +106,7 @@ async function main() {
     await page.fill('#pds-endpoint', '')
     await page.fill('#pds-endpoint', PDS_ENDPOINT)
     await page.locator('#pds-endpoint').blur()
-    await page.waitForSelector('#account-handle-domain option[value=".gwei.name"]', { timeout: 10000, state: 'attached' })
+    await page.waitForSelector('#account-handle-domain option[value=".eth.xyz"]', { timeout: 10000, state: 'attached' })
 
     // --- .eth.xyz: disabled-until-filled, opens domain.html with the
     // wallet-connect prompt (no real wallet here) ---
@@ -129,31 +132,6 @@ async function main() {
     await ethPopup.close()
     console.log(`.eth.xyz option correctly gated on subdomain and opened domain.html?account=${ethSubdomain}.eth, showing the wallet-connect prompt`)
 
-    // --- .gwei.name: same checks ---
-    await page.fill('#account-handle-subdomain', '')
-    await page.selectOption('#account-handle-domain', '')
-    await page.selectOption('#account-handle-domain', '.gwei.name')
-    const gweiBtnDisabledEmpty = await page.locator('#account-setup-btn').isDisabled()
-    if (!gweiBtnDisabledEmpty) throw new Error('#account-setup-btn should be disabled before the subdomain is filled in for .gwei.name')
-
-    const gweiSubdomain = `${testLabel}gwei`
-    await page.fill('#account-handle-subdomain', gweiSubdomain)
-    await page.waitForFunction(() => !document.getElementById('account-setup-btn')?.disabled, null, { timeout: 3000 })
-    const gweiBtnText = (await page.locator('#account-setup-btn').textContent() || '').trim()
-    if (gweiBtnText !== 'Set up .gwei') throw new Error(`Expected "Set up .gwei" button, got "${gweiBtnText}"`)
-
-    const [gweiPopup] = await Promise.all([
-      page.waitForEvent('popup'),
-      page.click('#account-setup-btn'),
-    ])
-    await gweiPopup.waitForLoadState()
-    const gweiFields = await gweiPopup.locator('.module').first().locator('.value').allTextContents()
-    if (gweiFields[0]?.trim() !== `${gweiSubdomain}.gwei`) throw new Error(`gwei popup shows name "${gweiFields[0]}", expected "${gweiSubdomain}.gwei"`)
-    const gweiConnectWcText = (await gweiPopup.locator('#connect-wc-btn').textContent() || '').trim()
-    if (gweiConnectWcText !== 'Connect via WalletConnect') throw new Error('Expected the wallet-connect prompt for .gwei.name')
-    await gweiPopup.close()
-    console.log(`.gwei.name option correctly gated on subdomain and opened domain.html?gwei=${gweiSubdomain}, showing the wallet-connect prompt`)
-
     // --- Custom domain: select<->input swap + revert round-trip ---
     await page.fill('#account-handle-subdomain', '')
     await page.selectOption('#account-handle-domain', '')
@@ -171,6 +149,19 @@ async function main() {
     if (!selectVisibleAfterRevert) throw new Error('#account-handle-domain select should reappear after clicking revert')
     if (!customGroupHiddenAfterRevert) throw new Error('#account-handle-custom-domain-group should hide after clicking revert')
     console.log('revert (×) button correctly swaps the select back in and clears the custom domain field')
+
+    // Paused here: everything above (PDS domain / .eth.xyz UI gating,
+    // custom-domain select<->input swap) has no gwei dependency and still
+    // ran. What follows needs gwei.name's DNS to actually update, and the
+    // sync service for that (atproto-txt-sync-gwei) is deliberately off -
+    // the .gwei system hasn't been publicly released yet - so it would just
+    // hang/fail waiting for a record that will never land. Set
+    // RUN_GWEI_TESTS=1 once that's back on to run the rest of this test.
+    if (!process.env.RUN_GWEI_TESTS) {
+      console.log('SKIPPING custom-domain full round trip: gwei.name sync is paused - set RUN_GWEI_TESTS=1 to run it')
+      console.log('--- PASS (partial: domain-method UI checks only) ---')
+      return
+    }
 
     // --- Custom domain: full end-to-end account creation ---
     // Publish the record *before* the popup's check button is ever clicked

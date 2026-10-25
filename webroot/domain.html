@@ -33,12 +33,11 @@
             var params = new URLSearchParams(window.location.search);
             var did = params.get('did');
             var account = params.get('account');
-            var gweiName = params.get('gwei');
             var customDomain = params.get('domain');
             var sepolia = params.get('net') === 'sepolia';
             var name = account
                 ? (sepolia ? account + '.sepolia.id.goat.navy' : account + '.xyz')
-                : (gweiName ? gweiName + '.gwei.name' : customDomain);
+                : customDomain;
             if (!did || !name) return;
             document.title = 'Link ' + name;
             var amber = document.createElement('span');
@@ -76,19 +75,12 @@
         const urlParams = new URLSearchParams(window.location.search);
         const did = urlParams.get('did');
         const account = urlParams.get('account'); // the underlying .eth name, e.g. "bot.reality.eth"
-        const gweiName = urlParams.get('gwei'); // the underlying .gwei name (GNS), e.g. "bot"
         const customDomain = urlParams.get('domain'); // a plain domain the caller owns, e.g. "alice.example.com"
 
         // Set by index.html when it's running in ?net=sepolia mode - swaps
         // the DNS target from the real eth.xyz to our own Sepolia test zone
-        // (see ethXyzHandle()/ETH_SERVER_README.md), and for the GNS branch,
-        // which chain the connected wallet is required to be on (see
-        // REQUIRED_GWEI_CHAIN/connectAndCheckGwei) - both branches read the
-        // same flag, but a given popup only ever exercises one of them.
+        // (see ethXyzHandle()/ETH_SERVER_README.md).
         const SEPOLIA_TEST_MODE = urlParams.get('net') === 'sepolia';
-        const REQUIRED_GWEI_CHAIN = SEPOLIA_TEST_MODE
-            ? { hex: '0xaa36a7', decimal: 11155111n, label: 'Sepolia' }
-            : { hex: '0x1', decimal: 1n, label: 'Mainnet' };
 
         const contentDiv = document.getElementById('content');
 
@@ -126,18 +118,6 @@
             return SEPOLIA_TEST_MODE ? `${account}.sepolia.id.goat.navy` : `${account}.xyz`;
         }
 
-        // gwei.name is the eth.xyz equivalent for GNS (.gwei) names: same
-        // idea (publish an on-chain text record, a watcher notices and
-        // republishes it as a real DNS TXT record), different registry -
-        // see gwei-onchain-sync.py. "bot" -> "bot.gwei.name", or
-        // "bot.sepolia.gwei.name" in test mode (GNS_NAME_NFT_ADDRESS is
-        // deployed at the same address on both networks; SEPOLIA_TEST_MODE
-        // here is driven by index.html's own .sepolia.gwei.name domain
-        // option, not tied to the eth.xyz branch's use of the same flag -
-        // see connectAndCheckGwei for the matching chain requirement).
-        function gweiHandle() {
-            return SEPOLIA_TEST_MODE ? `${gweiName}.sepolia.gwei.name` : `${gweiName}.gwei.name`;
-        }
 
         // Same DNS-TXT lookup the main page's own handle resolution uses
         // (see resolveHandleToDid in index.html) - eth.xyz is just another
@@ -260,18 +240,16 @@
             renderIdle();
         }
 
-        if (!did || (!account && !gweiName && !customDomain)) {
+        if (!did || (!account && !customDomain)) {
             const missingParams = [];
             if (!did) missingParams.push('did');
-            if (!account && !gweiName && !customDomain) missingParams.push('account, gwei, or domain');
+            if (!account && !customDomain) missingParams.push('account or domain');
 
             contentDiv.innerHTML = `
                 <div class="status error">Missing required parameter${missingParams.length > 1 ? 's' : ''}: ${escapeHtml(missingParams.join(', '))}. Please return to the account creation page and try again.</div>
             `;
         } else if (account) {
             showConnectPrompt();
-        } else if (gweiName) {
-            showGweiConnectPrompt();
         } else {
             showCustomDomainInstructions();
         }
@@ -394,7 +372,7 @@
                     showQrModal: true,
                     metadata: {
                         name: 'Link a domain',
-                        description: 'Set up your .eth or .gwei name as an ATProto handle',
+                        description: 'Set up your .eth name as an ATProto handle',
                         // Reflects wherever this page is actually being
                         // served from, rather than a fixed string - see the
                         // WALLET_CONNECT_PROJECT_ID comment above for why
@@ -612,310 +590,6 @@
                         ? `This won't resolve on its own in test mode - run <code>sync-one-sepolia-ens.py ${escapeHtml(account)}</code> on the server to publish it. We'll keep checking automatically.`
                         : `Still not found. Visit <a href="https://${escapeHtml(handle)}" target="_blank" rel="noopener">your eth.xyz profile</a> and click "Refresh Records" if this doesn't finish on its own. We'll keep checking automatically.`;
                 },
-            });
-        }
-
-        // ---- GNS (.gwei) branch - gwei.domains is an "ownerless fork of
-        // wei-names" (github.com/lucadonnoh/gwei-names, forked from
-        // github.com/z0r0z/wei-names), giving .gwei the same kind of
-        // on-chain-text-record mechanism ENS gives .eth - gwei.name (this
-        // project's own DNS side, see sync-gwei-atproto-did-files.py) is
-        // meant to be its equivalent of eth.xyz, once the bot that watches
-        // for on-chain changes and republishes them as DNS TXT records
-        // exists. This only wires up the on-chain half.
-        //
-        // Structurally unlike ENS: no separate Registry+Resolver - a single
-        // NameNFT contract (Ethereum mainnet) is both, and it's an ERC721
-        // keyed by tokenId rather than by an ENS-style namehash node
-        // directly (though text() also accepts a node/bytes32 for
-        // ENS-compatible reads). Verified against the real deployed
-        // contract via a handful of read-only eth_call checks before
-        // wiring this up - name()/symbol() return "Gwei Name Service"/
-        // "GWEI", and computeId("test") === computeId("test.gwei"),
-        // confirming both the address and that the ".gwei" suffix is
-        // optional/stripped the same way ENS's namehash works.
-        const GNS_NAME_NFT_ADDRESS = '0x9D51D507BC7264d4fE8Ad1cf7Fe191933A0a81d6';
-        const GNS_NAME_NFT_ABI = [
-            "function computeId(string fullName) view returns (uint256)",
-            "function ownerOf(uint256 tokenId) view returns (address)",
-            "function text(uint256 tokenId, string key) view returns (string)",
-            "function setText(uint256 tokenId, string key, string value)",
-        ];
-
-        // Set once a wallet is connected, reused by the setup transaction.
-        let gweiSigner, gweiTokenId, gweiWriteContract;
-
-        function showGweiConnectPrompt() {
-            const injectedButton = typeof window.ethereum !== 'undefined'
-                ? `<button id="connect-btn" class="primary">Connect wallet</button>`
-                : '';
-            contentDiv.innerHTML = `
-                <div class="module">
-                    ${SEPOLIA_TEST_MODE ? '<div class="field"><label>network</label><div class="value">Sepolia testnet - not a real handle</div></div>' : ''}
-                    <div class="field">
-                        <label>gwei name</label>
-                        <div class="value">${escapeHtml(gweiName)}.gwei</div>
-                    </div>
-                    <div class="field">
-                        <label>did:plc identifier</label>
-                        <div class="value">${escapeHtml(did)}</div>
-                    </div>
-                </div>
-                ${injectedButton}
-                <button id="connect-wc-btn" class="primary">Connect via WalletConnect</button>
-                <div id="connect-status"></div>
-                <div class="module">
-                    <div class="field">
-                        <label>or set it up manually</label>
-                        <div class="value value-wrap">
-                            Prefer not to connect a wallet here? Set the record yourself on the regular
-                            <a href="https://gwei.domains" target="_blank" rel="noopener">gwei.domains app</a>:
-                            search for <code>${escapeHtml(gweiName)}.gwei</code>, add a text record with
-                            key <code>${escapeHtml(ATPROTO_TEXT_RECORD_KEY)}</code> and value <code>did=${escapeHtml(did)}</code>.
-                        </div>
-                    </div>
-                </div>
-                <button id="manual-setup-done-btn" class="primary">I've set this up</button>
-            `;
-            const connectBtn = document.getElementById('connect-btn');
-            if (connectBtn) connectBtn.addEventListener('click', () => connectAndCheckGwei(window.ethereum));
-            document.getElementById('connect-wc-btn').addEventListener('click', connectViaWalletConnectGwei);
-            document.getElementById('manual-setup-done-btn').addEventListener('click', showManualGweiCheck);
-        }
-
-        // Same end state as showAlreadySetGwei/runSetTextGwei's success
-        // path, minus the on-chain read - see showManualEthCheck's comment.
-        function showManualGweiCheck() {
-            contentDiv.innerHTML = `
-                <div class="module">
-                    ${SEPOLIA_TEST_MODE ? '<div class="field"><label>network</label><div class="value">Sepolia testnet - not a real handle</div></div>' : ''}
-                    <div class="field">
-                        <label>gwei name</label>
-                        <div class="value">${escapeHtml(gweiName)}.gwei</div>
-                    </div>
-                    <div class="field">
-                        <label>did:plc identifier</label>
-                        <div class="value">${escapeHtml(did)}</div>
-                    </div>
-                </div>
-                <div id="dns-status"></div>
-            `;
-            startGweiDnsCheck();
-        }
-
-        async function connectViaWalletConnectGwei() {
-            const statusDiv = document.getElementById('connect-status');
-            setConnectButtonsDisabled(true);
-            statusDiv.innerHTML = `<div class="status loading">Opening WalletConnect...</div>`;
-
-            try {
-                const provider = await getWalletConnectProvider();
-                if (!provider.session) {
-                    statusDiv.innerHTML = `<div class="status loading">Scan the QR code with your wallet...</div>`;
-                    await provider.connect();
-                }
-                await connectAndCheckGwei(provider);
-            } catch (error) {
-                console.error('Error connecting via WalletConnect:', error);
-                statusDiv.innerHTML = `<div class="status error">${escapeHtml(error.message)}</div>`;
-                setConnectButtonsDisabled(false);
-            }
-        }
-
-        async function connectAndCheckGwei(rawProvider) {
-            const statusDiv = document.getElementById('connect-status');
-            setConnectButtonsDisabled(true);
-            statusDiv.innerHTML = `<div class="status loading">Connecting wallet...</div>`;
-
-            try {
-                // Actively switches rather than just erroring on the wrong
-                // chain - GNS_NAME_NFT_ADDRESS is deployed at the same
-                // address on both Mainnet and Sepolia (confirmed via
-                // eth_getCode), so which one is "right" depends entirely on
-                // which .gwei option the user picked on index.html
-                // (REQUIRED_GWEI_CHAIN), not on anything this popup can
-                // infer from the name itself. Mirrors deploy.html's
-                // wallet_switchEthereumChain use for the same reason.
-                try {
-                    await rawProvider.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: REQUIRED_GWEI_CHAIN.hex }] });
-                } catch (switchError) {
-                    throw new Error(`Please switch your wallet to ${REQUIRED_GWEI_CHAIN.label} for .gwei - could not switch automatically: ${switchError.message || switchError}`);
-                }
-
-                const provider = new ethers.BrowserProvider(rawProvider);
-                gweiSigner = await provider.getSigner();
-                const network = await provider.getNetwork();
-                console.log('Connected to network:', network.name, 'Chain ID:', network.chainId);
-
-                // Defensive - some wallets/WalletConnect sessions may not
-                // actually honor wallet_switchEthereumChain (no error, but
-                // no real switch either), so don't just trust the request
-                // above succeeded silently.
-                if (network.chainId !== REQUIRED_GWEI_CHAIN.decimal) {
-                    throw new Error(
-                        `.gwei needs ${REQUIRED_GWEI_CHAIN.label} - your wallet is on ${network.name || `chain ID ${network.chainId}`}. ` +
-                        `Switch networks in your wallet and try again.`
-                    );
-                }
-
-                const readContract = new ethers.Contract(GNS_NAME_NFT_ADDRESS, GNS_NAME_NFT_ABI, provider);
-                gweiTokenId = await readContract.computeId(gweiName);
-
-                let owner;
-                try {
-                    owner = await readContract.ownerOf(gweiTokenId);
-                } catch {
-                    throw new Error(
-                        `"${gweiName}.gwei" isn't registered yet.\n\n` +
-                        `Please register it first at https://gwei.domains, then come back here.`
-                    );
-                }
-                const signerAddress = await gweiSigner.getAddress();
-                if (ethers.getAddress(owner) !== ethers.getAddress(signerAddress)) {
-                    throw new Error(
-                        `You connected as ${signerAddress}, but "${gweiName}.gwei" is owned by ${owner}.\n\n` +
-                        `Connect the wallet that owns it.`
-                    );
-                }
-
-                statusDiv.innerHTML = `<div class="status loading">Checking existing record...</div>`;
-                const existing = await readContract.text(gweiTokenId, ATPROTO_TEXT_RECORD_KEY);
-                const expectedValue = `did=${did}`;
-
-                gweiWriteContract = new ethers.Contract(GNS_NAME_NFT_ADDRESS, GNS_NAME_NFT_ABI, gweiSigner);
-
-                if (existing === expectedValue) {
-                    showAlreadySetGwei();
-                } else if (existing) {
-                    showDifferentValueWarningGwei(existing);
-                } else {
-                    showSetupButtonGwei();
-                }
-            } catch (error) {
-                console.error('Error connecting/checking GNS record:', error);
-                statusDiv.innerHTML = `<div class="status error">${escapeHtml(error.message)}</div>`;
-                setConnectButtonsDisabled(false);
-            }
-        }
-
-        function showAlreadySetGwei() {
-            contentDiv.innerHTML = `
-                <div class="status success">Already set up — found the expected DID on-chain.</div>
-                <div class="module">
-                    ${SEPOLIA_TEST_MODE ? '<div class="field"><label>network</label><div class="value">Sepolia testnet - not a real handle</div></div>' : ''}
-                    <div class="field">
-                        <label>gwei name</label>
-                        <div class="value">${escapeHtml(gweiName)}.gwei</div>
-                    </div>
-                    <div class="field">
-                        <label>did:plc identifier</label>
-                        <div class="value">${escapeHtml(did)}</div>
-                    </div>
-                </div>
-                <div id="dns-status"></div>
-            `;
-            startGweiDnsCheck();
-        }
-
-        function showDifferentValueWarningGwei(existingValue) {
-            contentDiv.innerHTML = `
-                <div class="status error">This name already has a different _atproto record set.</div>
-                <div class="module">
-                    <div class="field">
-                        <label>gwei name</label>
-                        <div class="value">${escapeHtml(gweiName)}.gwei</div>
-                    </div>
-                    <div class="field">
-                        <label>did:plc identifier (yours)</label>
-                        <div class="value">${escapeHtml(did)}</div>
-                    </div>
-                    <div class="field">
-                        <label>currently published value (someone else's, or stale)</label>
-                        <div class="value">${escapeHtml(existingValue)}</div>
-                    </div>
-                </div>
-                <div class="module">
-                    <div class="value value-wrap">
-                        Continuing will replace it with your DID. Whoever currently controls that value will stop being able to use this name as their handle - only do this if that's you, or you're intentionally taking over the name.
-                    </div>
-                </div>
-                <button id="setup-btn" class="primary">Continue and replace it</button>
-                <div id="setup-status"></div>
-            `;
-            document.getElementById('setup-btn').addEventListener('click', runSetTextGwei);
-        }
-
-        function showSetupButtonGwei() {
-            contentDiv.innerHTML = `
-                <div class="module">
-                    ${SEPOLIA_TEST_MODE ? '<div class="field"><label>network</label><div class="value">Sepolia testnet - not a real handle</div></div>' : ''}
-                    <div class="field">
-                        <label>gwei name</label>
-                        <div class="value">${escapeHtml(gweiName)}.gwei</div>
-                    </div>
-                    <div class="field">
-                        <label>did:plc identifier</label>
-                        <div class="value">${escapeHtml(did)}</div>
-                    </div>
-                </div>
-                <button id="setup-btn" class="primary">Set up _atproto record</button>
-                <div id="setup-status"></div>
-            `;
-            document.getElementById('setup-btn').addEventListener('click', runSetTextGwei);
-        }
-
-        async function runSetTextGwei() {
-            const setupBtn = document.getElementById('setup-btn');
-            const statusDiv = document.getElementById('setup-status');
-            if (setupBtn) setupBtn.disabled = true;
-
-            try {
-                statusDiv.innerHTML = `<div class="status loading">Please confirm the transaction in your wallet...</div>`;
-                const tx = await gweiWriteContract.setText(gweiTokenId, ATPROTO_TEXT_RECORD_KEY, `did=${did}`);
-
-                statusDiv.innerHTML = `
-                    <div class="status loading">Transaction sent! Waiting for confirmation...
-                        <small>Transaction hash: ${escapeHtml(tx.hash)}</small>
-                    </div>
-                `;
-                const receipt = await tx.wait();
-                if (receipt.status !== 1) throw new Error('Transaction failed');
-
-                contentDiv.innerHTML = `
-                    <div class="status success">Record set on-chain! Confirmed in block ${receipt.blockNumber}.</div>
-                    <div class="module">
-                        <div class="field">
-                            <label>gwei name</label>
-                            <div class="value">${escapeHtml(gweiName)}.gwei</div>
-                        </div>
-                        <div class="field">
-                            <label>did:plc identifier</label>
-                            <div class="value">${escapeHtml(did)}</div>
-                        </div>
-                    </div>
-                    <div id="dns-status"></div>
-                `;
-                startGweiDnsCheck();
-            } catch (error) {
-                console.error('Error setting GNS record:', error);
-                statusDiv.innerHTML = `<div class="status error">${escapeHtml(error.message)}</div>`;
-                if (setupBtn) setupBtn.disabled = false;
-            }
-        }
-
-        // Same DNS-TXT check as eth.xyz's - resolveAtprotoTxtRecord is a
-        // plain "_atproto.<handle>" lookup, nothing ENS/GNS-specific about
-        // it once the record is (eventually) live in real DNS.
-        function startGweiDnsCheck() {
-            const handle = gweiHandle();
-            startManualDomainCheck({
-                containerId: 'dns-status',
-                idleLabel: 'Check now',
-                targetLabel: handle,
-                checkFn: async () => (await resolveAtprotoTxtRecord(handle)) === did,
-                hintFn: (attempts) => attempts < 4
-                    ? `Didn't find it yet. We'll keep checking automatically every 10 seconds.`
-                    : `Still not found. gwei.name's bot may take a little while to notice the on-chain change and republish it. We'll keep checking automatically.`,
             });
         }
 
