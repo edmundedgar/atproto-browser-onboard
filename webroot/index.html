@@ -1121,7 +1121,7 @@
                         <div class="module">
                             <div class="form-group">
                                 <label for="pds-endpoint">hosting server<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">Your PDS is the server that hosts your data. You can host your own PDS or move to a different provider at any time..</span></span></label>
-                                <input type="text" id="pds-endpoint" name="pdsEndpoint" placeholder="pds.example.com" value="https://pds.goat.navy" required>
+                                <input type="text" id="pds-endpoint" name="pdsEndpoint" placeholder="pds.example.com" value="https://streamplace.com" required>
                             </div>
 
                             <div class="form-group">
@@ -1382,43 +1382,35 @@
             }
         }
 
-        // === BIP32 derivation, m/231'/0'/0'/0/0 ===
+        // === BIP32 derivation, m/129419'/0 ===
         //
         // The seed phrase is BIP39 (checksum + wordlist), but the signing
         // key is NOT the phrase's raw entropy - it's BIP32-derived from the
-        // phrase's 64-byte PBKDF2 seed, same as a normal HD wallet. Same
-        // shape as standard BIP44 (purpose'/coin_type'/account'/change/
-        // address_index), just with our own purpose constant in place of a
-        // real BIP43 entry, and confirmed interoperable with an independent
-        // implementation (same mnemonic in, same key out):
-        //   231' - "purpose" - 0xe7 is the did:key multicodec for a
-        //          secp256k1 public key (see generateDidKey above), so this
-        //          is a direct callback to how this app encodes its own
-        //          keys, not an arbitrary pick. Hardened: every other use
-        //          of this constant should mean the same thing.
-        //   0'   - "coin_type" equivalent - always 0, there's only one.
-        //   0'   - "account" - room for more than one derived identity from
-        //          the same phrase later; always 0 while there's only one.
-        //   0    - "change" - not hardened, matching real BIP44 (xpub-based
-        //          derivation of this level and the next is the reason
-        //          those two are conventionally left non-hardened; we don't
-        //          use that, but matching the shape is what makes this
-        //          interoperable with other implementations of it).
-        //   0    - "address_index" - not hardened, same reasoning; room to
-        //          derive more than one key under one account later.
+        // phrase's 64-byte PBKDF2 seed, same as a normal HD wallet.
+        //   129419' - "purpose" - U+1F98B, the butterfly emoji's Unicode
+        //             code point (0x1F98B = 129419 decimal) - Bluesky's own
+        //             symbol, not an arbitrary pick. Hardened. Matches an
+        //             existing hardware-wallet tool that already uses this
+        //             same path, which is why it's two levels rather than
+        //             BIP44's five: that tool's the thing to stay
+        //             interoperable with, not our own earlier 5-level
+        //             scheme (231'/0'/0'/0/0, since replaced - if you have
+        //             a key derived under that path, it needs re-deriving
+        //             under this one).
+        //   0        - not hardened, room to derive more than one key from
+        //              the same phrase later, same reasoning as a BIP44
+        //              address_index (we just don't have the account/
+        //              change levels in between - two levels is what the
+        //              tool we're matching uses).
         //
         // Built on Web Crypto (crypto.subtle) + BigInt + @noble/secp256k1
         // (already a dependency, for CURVE.n, the public-key step non-
         // hardened derivation needs, and the validity check) - no extra
         // library. Verified against @scure/bip32 and @scure/bip39 (a
         // trusted reference implementation, not a runtime dependency of
-        // this app) across the BIP39 test vectors, this exact path, and the
-        // independent implementation's own test case.
+        // this app) across the BIP39 test vectors and this exact path.
         const ATPROTO_DERIVATION_PATH = [
-            { index: 231, hardened: true },
-            { index: 0, hardened: true },
-            { index: 0, hardened: true },
-            { index: 0, hardened: false },
+            { index: 129419, hardened: true },
             { index: 0, hardened: false },
         ];
 
@@ -1477,7 +1469,7 @@
             return { key: bigIntToBytes32(childScalar), chainCode };
         }
 
-        // mnemonic -> the one key this app derives, at m/231'/0'/0'/0/0.
+        // mnemonic -> the one key this app derives, at m/129419'/0.
         async function deriveAtprotoKey(mnemonic, passphrase = '') {
             let node = await masterKeyFromSeed(await mnemonicToSeed(mnemonic, passphrase));
             for (const { index, hardened } of ATPROTO_DERIVATION_PATH) {
@@ -2757,7 +2749,7 @@
                 // security, the same level as AES-128 and what most
                 // wallets default to. The signing key is NOT this entropy
                 // directly - see deriveAtprotoKey above - it's BIP32-derived
-                // (m/231'/0'/0'/0/0) from the phrase's PBKDF2 seed, so there's
+                // (m/129419'/0) from the phrase's PBKDF2 seed, so there's
                 // no secp256k1-validity constraint on the entropy bytes
                 // themselves.
                 const randomBytes = new Uint8Array(16);
@@ -2925,7 +2917,7 @@
                     throw new Error('Invalid mnemonic phrase');
                 }
 
-                // Derive the signing key from the phrase (m/231'/0'/0'/0/0)
+                // Derive the signing key from the phrase (m/129419'/0)
                 const restoredKey = await deriveAtprotoKey(inputMnemonic);
 
                 // Generate secp256k1 public key
