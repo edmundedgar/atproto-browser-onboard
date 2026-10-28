@@ -3366,8 +3366,22 @@
         // through to its DID, current DID document (with full audit log),
         // current PDS endpoint, and whether that PDS is reachable right now -
         // everything either tab needs before showing its own tab-specific UI.
-        async function resolveAccountForManagement(handle) {
-            const did = await resolveHandleToDid(handle);
+        // knownDid: skip handle->DID resolution (DNS TXT / .well-known) when
+        // the caller already has a trusted DID for this handle - e.g. a
+        // DID we minted and the PDS just confirmed moments ago in the same
+        // createAccount response, where forward resolution adds nothing but
+        // a dependency on DNS/well-known propagation (which can lag well
+        // behind account creation) for a fact we already know. Only the
+        // bootstrap case - resolving a handle someone just typed in, where
+        // no DID is known yet at all (the Migrate/Control "find account"
+        // search) - still needs real forward resolution; that caller passes
+        // no knownDid and this behaves exactly as before. Everything below
+        // this point already re-derives the handle from the DID document
+        // itself (akaHandle) rather than trusting the input handle, so
+        // skipping the forward step doesn't skip any actual verification -
+        // it just stops requiring an unrelated network round trip to do it.
+        async function resolveAccountForManagement(handle, knownDid = null) {
+            const did = knownDid || await resolveHandleToDid(handle);
             if (!did) throw new Error('Could not resolve this handle to a DID (checked DNS TXT and .well-known/atproto-did).');
 
             const { didDocument, auditLog } = await fetchDidPlcRecord(did);
@@ -3432,7 +3446,7 @@
             if (resolvedAccountDid !== selectedAccount.did) {
                 const did = selectedAccount.did;
                 resolvedAccountDid = did;
-                resolvedAccountPromise = resolveAccountForManagement(selectedAccount.handle).catch((error) => {
+                resolvedAccountPromise = resolveAccountForManagement(selectedAccount.handle, selectedAccount.did).catch((error) => {
                     // Don't leave a failure cached - resolution can fail on
                     // a transient DNS/propagation hiccup (common right after
                     // creating an account), and caching that would make
