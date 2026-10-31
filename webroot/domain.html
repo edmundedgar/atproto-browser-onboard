@@ -435,6 +435,28 @@
                     );
                 }
 
+                // Catches the single most common cause of the setText
+                // transaction failing with an opaque bare "require(false)"
+                // revert and no reason string (confirmed against a live
+                // case): the connected wallet isn't the address the ENS
+                // registry actually has on file as this name's owner - a
+                // different account/wallet/hardware device than whichever
+                // one the user meant to connect. Named explicitly, with the
+                // actual owner address, rather than letting them hit that
+                // revert and have no idea why. Not exhaustive - a name held
+                // by the ENS NameWrapper (registry owner = the wrapper
+                // contract, not a wallet) or one with a delegated operator
+                // could still be writable by a non-owner signer, so the
+                // message says so rather than claiming this is certain.
+                const signerAddress = await signer.getAddress();
+                if (ethers.getAddress(owner) !== ethers.getAddress(signerAddress)) {
+                    throw new Error(
+                        `This wallet (${signerAddress}) is not the owner of "${account}" on-chain.\n\n` +
+                        `The ENS registry lists the owner as:\n${owner}\n\n` +
+                        `Connect that address instead and try again. (If "${account}" is held by the ENS Name Wrapper or an approved operator rather than a plain wallet, this check can be wrong about who's actually allowed to set records - check ${testnetUrlFor(network.chainId)} if that might be your situation.)`
+                    );
+                }
+
                 resolverAddress = ethers.getAddress(await registry.resolver(namehash));
                 if (resolverAddress === ethers.getAddress(ethers.ZeroAddress)) {
                     const networkName = network.name || `Chain ID ${network.chainId}`;
