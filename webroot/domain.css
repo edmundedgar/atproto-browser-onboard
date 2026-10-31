@@ -142,6 +142,16 @@
             word-break: break-all;
         }
 
+        /* Buttons are rendered as plain siblings with nothing between them
+           (e.g. "Connect wallet" next to "Connect via WalletConnect") - on
+           a screen too narrow to fit two side by side, they wrap onto
+           separate lines with no gap at all between them, since inline-block
+           elements only get horizontal whitespace from the source text
+           between them, never vertical. A small margin on every button
+           covers this wherever it happens, not just the one pair it was
+           first noticed on. */
+        button.primary, button.secondary { margin: 4px 0; }
+
         button.primary {
             appearance: none;
             border: 1px solid var(--text);
