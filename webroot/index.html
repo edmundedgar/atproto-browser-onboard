@@ -614,6 +614,37 @@
             margin-bottom: 22px;
         }
 
+        /* The create-account page's "set up my account with" checklist
+           (see renderBootstrapOptions) - one heading + a checkbox per item
+           per category (follows/feeds/blocklists/lists/starterpacks),
+           all checked by default. */
+        .bootstrap-option-group {
+            margin-bottom: 14px;
+        }
+        .bootstrap-option-group:last-child {
+            margin-bottom: 0;
+        }
+        .bootstrap-option-heading {
+            font-weight: 500;
+            color: var(--text-dim);
+            font-size: 12.5px;
+            margin-bottom: 6px;
+        }
+        .bootstrap-option {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--text);
+            padding: 4px 0;
+            cursor: pointer;
+        }
+        .bootstrap-option input[type="checkbox"] {
+            margin-top: 2px;
+            accent-color: var(--amber);
+            cursor: pointer;
+        }
+
         .form-group label {
             display: flex;
             align-items: center;
@@ -1178,6 +1209,8 @@
                         </div>
 
                         <div class="form-button-group hidden" id="account-setup-group"></div>
+
+                        <div class="module hidden" id="bootstrap-options-group"></div>
 
                         <div class="form-button-group">
                             <button type="submit" class="submit-btn" id="submit-createaccount-btn">
@@ -2554,12 +2587,73 @@
             }
         }
 
-        // Resolves window.BOOTSTRAP_CONFIG's starter packs/lists/follows into a
-        // flat set of DIDs to follow and feeds to save, writes the records, and
-        // reports what succeeded/failed. Best-effort: one bad entry (a stale
-        // feed URI, an unresolvable handle) doesn't stop the rest.
-        async function runBootstrap(pdsEndpoint, accessJwt, did) {
+        const BOOTSTRAP_CATEGORIES = [
+            { key: 'follows', heading: 'Follow' },
+            { key: 'feeds', heading: 'Feeds' },
+            { key: 'blocklists', heading: 'Moderation lists' },
+            { key: 'lists', heading: 'Lists' },
+            { key: 'starterpacks', heading: 'Starter packs' },
+        ];
+
+        // Builds the create-account page's "set up my account with"
+        // checklist from window.BOOTSTRAP_CONFIG - one heading + a checkbox
+        // per item, per category, all checked by default. A category with
+        // no items (follows/lists are currently empty) renders nothing
+        // rather than an empty heading. Hides the whole module if every
+        // category is empty, same as runBootstrap's own all-empty check.
+        function renderBootstrapOptions() {
+            const container = document.getElementById('bootstrap-options-group');
+            if (!container) return;
             const config = window.BOOTSTRAP_CONFIG || {};
+            const sections = BOOTSTRAP_CATEGORIES.map(({ key, heading }) => {
+                const items = config[key] || [];
+                if (!items.length) return '';
+                const checkboxes = items.map((item) => `
+                    <label class="bootstrap-option">
+                        <input type="checkbox" class="bootstrap-option-checkbox" data-category="${escapeHtml(key)}" data-id="${escapeHtml(item.id)}" checked>
+                        ${escapeHtml(item.label || item.id)}
+                    </label>
+                `).join('');
+                return `<div class="bootstrap-option-group"><div class="bootstrap-option-heading">${escapeHtml(heading)}</div>${checkboxes}</div>`;
+            }).filter(Boolean).join('');
+
+            if (!sections) {
+                container.classList.add('hidden');
+                container.innerHTML = '';
+                return;
+            }
+            container.classList.remove('hidden');
+            container.innerHTML = `<div class="form-group"><label>set up my account with</label>${sections}</div>`;
+        }
+
+        // Reads the checklist's current checkbox state into the same plain
+        // {follows, feeds, blocklists, lists, starterpacks} id-array shape
+        // runBootstrap expects - an unchecked box just doesn't contribute
+        // its id, so nothing downstream needs to know checkboxes exist at
+        // all. Safe to call even if the module was never rendered (no
+        // config, or the create-account tab wasn't visited) - every
+        // category defaults to [].
+        function selectedBootstrapConfig() {
+            const selection = { follows: [], feeds: [], blocklists: [], lists: [], starterpacks: [] };
+            document.querySelectorAll('.bootstrap-option-checkbox:checked').forEach((checkbox) => {
+                const category = checkbox.dataset.category;
+                if (selection[category]) selection[category].push(checkbox.dataset.id);
+            });
+            return selection;
+        }
+
+        // Resolves starter packs/lists/follows into a flat set of DIDs to
+        // follow and feeds to save, writes the records, and reports what
+        // succeeded/failed. Best-effort: one bad entry (a stale feed URI, an
+        // unresolvable handle) doesn't stop the rest.
+        //
+        // selection is plain id arrays ({follows, feeds, blocklists, lists,
+        // starterpacks}), already filtered down to whatever the user left
+        // checked on the create-account page (see selectedBootstrapConfig) -
+        // this function doesn't read window.BOOTSTRAP_CONFIG itself, so it
+        // has no way to re-include something the user unchecked.
+        async function runBootstrap(pdsEndpoint, accessJwt, did, selection) {
+            const config = selection || {};
             const follows = config.follows || [];
             const feeds = [...(config.feeds || [])];
             const blocklists = config.blocklists || [];
@@ -5754,6 +5848,12 @@
             createaccountForm.addEventListener('submit', async function(event) {
             event.preventDefault();
 
+            // Captured now, not when runBootstrap actually runs (after the
+            // account's created and activated) - by then there's no reason
+            // to assume the checkboxes are still in the state the user left
+            // them in before clicking submit.
+            const bootstrapSelection = selectedBootstrapConfig();
+
             const status = getCurrentStatusElement();
 
             // Check if a private key has been generated or loaded
@@ -6011,7 +6111,7 @@
                 // line or two - full failure detail still goes to the console.
                 let bootstrapNote = '';
                 try {
-                    const bootstrapSummary = await runBootstrap(data.pdsEndpoint, accountResult.result.accessJwt, didPlcId);
+                    const bootstrapSummary = await runBootstrap(data.pdsEndpoint, accountResult.result.accessJwt, didPlcId, bootstrapSelection);
                     if (bootstrapSummary) {
                         const parts = [];
                         if (bootstrapSummary.followTotal) parts.push(`${bootstrapSummary.followed}/${bootstrapSummary.followTotal} follows`);
@@ -6273,6 +6373,7 @@
 
         renderKnownAccountsList();
         renderAccountDetail();
+        renderBootstrapOptions();
 
         // Check if Web Crypto API is available
         if (!window.crypto || !window.crypto.getRandomValues) {
