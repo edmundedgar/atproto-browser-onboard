@@ -1199,8 +1199,8 @@
 
                         <div class="module" id="account-find-module">
                             <div class="form-group">
-                                <label for="account-find-handle">find an account by handle<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">You can add your account if you don't see it listed. If it's not controlled by your self-custodied key, we'll prompt you to log in when you want to change something about it.</span></span></label>
-                                <input type="text" id="account-find-handle" placeholder="alice.example.com">
+                                <label for="account-find-handle">find an account by handle or did:plc<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">You can add your account if you don't see it listed. If it's not controlled by your self-custodied key, we'll prompt you to log in when you want to change something about it. If the handle doesn't resolve (its DNS/well-known isn't set up, even though the account itself works fine), enter its did:plc instead.</span></span></label>
+                                <input type="text" id="account-find-handle" placeholder="alice.example.com or did:plc:...">
                             </div>
                             <div class="form-button-group">
                                 <button type="button" class="submit-btn" id="account-find-btn">Look up account</button>
@@ -6230,19 +6230,35 @@
             }
         }
 
+        // did:plc's own format: "did:plc:" + 24 lowercase base32 (RFC4648,
+        // no padding: a-z2-7) characters - e.g. did:plc:ckygybsrjugux7przqdvysd5.
+        const DID_PLC_RE = /^did:plc:[a-z2-7]{24}$/;
+
         const accountFindBtn = document.getElementById('account-find-btn');
         if (accountFindBtn) {
             accountFindBtn.addEventListener('click', async () => {
                 const status = document.getElementById('account-find-status');
                 const handleInput = document.getElementById('account-find-handle');
-                const handle = handleInput.value.trim();
-                if (!handle) {
-                    status.replaceChildren(migrateStatusBlock('error', 'Enter a handle.'));
+                const input = handleInput.value.trim();
+                if (!input) {
+                    status.replaceChildren(migrateStatusBlock('error', 'Enter a handle or did:plc.'));
                     return;
                 }
-                status.replaceChildren(migrateStatusBlock('loading', 'Resolving handle...'));
+                // A handle may not resolve at all (no DNS TXT, no
+                // .well-known) while the account it names is perfectly
+                // functional - the spec's own "handle.invalid" sentinel is
+                // for exactly this case. If the user already has the DID
+                // (e.g. from a previous lookup, or because that's genuinely
+                // all they have to go on when restoring on a fresh browser
+                // with no saved accounts), skip handle resolution entirely
+                // rather than require a working handle just to find an
+                // account that's otherwise fine.
+                const isDid = DID_PLC_RE.test(input);
+                status.replaceChildren(migrateStatusBlock('loading', isDid ? 'Loading account...' : 'Resolving handle...'));
                 try {
-                    const account = await resolveAccountForManagement(handle);
+                    const account = isDid
+                        ? await resolveAccountForManagement('handle.invalid', input)
+                        : await resolveAccountForManagement(input);
                     upsertKnownAccount({ did: account.did, handle: account.handle, pds: account.pds });
                     selectAccount({ did: account.did, handle: account.handle, pds: account.pds });
                     accountFindExpanded = false;
