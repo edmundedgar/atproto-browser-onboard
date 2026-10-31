@@ -337,6 +337,20 @@
         // it doesn't have to re-derive any of this.
         let signer, namehash, resolverAddress;
 
+        // Set when the connected wallet doesn't match the registry's
+        // owner(node) - see the check in connectAndCheck. Non-fatal: a name
+        // held by the ENS Name Wrapper or with a delegated operator can
+        // still be writable by a non-owner signer, so this is surfaced as a
+        // warning the user can act on or ignore, not a hard stop - carried
+        // through to whichever screen ends up with the actual setup
+        // button, since connectAndCheck's own status line gets replaced
+        // once contentDiv re-renders past it.
+        let ownerMismatchWarning = null;
+        function ownerMismatchWarningBanner() {
+            if (!ownerMismatchWarning) return '';
+            return `<div class="status error">${escapeHtml(ownerMismatchWarning)}</div>`;
+        }
+
         function setConnectButtonsDisabled(disabled) {
             const connectBtn = document.getElementById('connect-btn');
             const wcBtn = document.getElementById('connect-wc-btn');
@@ -409,6 +423,10 @@
             const statusDiv = document.getElementById('connect-status');
             setConnectButtonsDisabled(true);
             statusDiv.innerHTML = `<div class="status loading">Connecting wallet...</div>`;
+            // Cleared on every attempt, not just set - otherwise reconnecting
+            // with the correct wallet after an earlier mismatch would still
+            // carry the stale warning through to the setup screen.
+            ownerMismatchWarning = null;
 
             try {
                 const provider = new ethers.BrowserProvider(rawProvider);
@@ -443,18 +461,22 @@
                 // different account/wallet/hardware device than whichever
                 // one the user meant to connect. Named explicitly, with the
                 // actual owner address, rather than letting them hit that
-                // revert and have no idea why. Not exhaustive - a name held
-                // by the ENS NameWrapper (registry owner = the wrapper
-                // contract, not a wallet) or one with a delegated operator
-                // could still be writable by a non-owner signer, so the
-                // message says so rather than claiming this is certain.
+                // revert and have no idea why.
+                //
+                // A warning, not a throw: a name held by the ENS Name
+                // Wrapper (registry owner = the wrapper contract, not a
+                // wallet) or with a delegated operator can still be
+                // writable by a non-owner signer, so this check can be
+                // wrong - the user can read the warning and decide to
+                // continue anyway rather than being hard-blocked by a false
+                // positive. Carried through to whichever screen shows the
+                // actual setup button (see ownerMismatchWarningBanner).
                 const signerAddress = await signer.getAddress();
                 if (ethers.getAddress(owner) !== ethers.getAddress(signerAddress)) {
-                    throw new Error(
+                    ownerMismatchWarning =
                         `This wallet (${signerAddress}) is not the owner of "${account}" on-chain.\n\n` +
                         `The ENS registry lists the owner as:\n${owner}\n\n` +
-                        `Connect that address instead and try again. (If "${account}" is held by the ENS Name Wrapper or an approved operator rather than a plain wallet, this check can be wrong about who's actually allowed to set records - check ${testnetUrlFor(network.chainId)} if that might be your situation.)`
-                    );
+                        `If you continue, the transaction will likely fail. Connect that address instead, unless "${account}" is held by the ENS Name Wrapper or an approved operator rather than a plain wallet - check ${testnetUrlFor(network.chainId)} if that might be your situation.`;
                 }
 
                 resolverAddress = ethers.getAddress(await registry.resolver(namehash));
@@ -510,6 +532,7 @@
 
         function showDifferentValueWarning(existingValue) {
             contentDiv.innerHTML = `
+                ${ownerMismatchWarningBanner()}
                 <div class="status error">This domain already has a different _atproto record set.</div>
                 <div class="module">
                     <div class="field">
@@ -538,6 +561,7 @@
 
         function showSetupButton() {
             contentDiv.innerHTML = `
+                ${ownerMismatchWarningBanner()}
                 <div class="module">
                     <div class="field">
                         <label>account name</label>
