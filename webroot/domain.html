@@ -348,7 +348,40 @@
         let ownerMismatchWarning = null;
         function ownerMismatchWarningBanner() {
             if (!ownerMismatchWarning) return '';
-            return `<div class="status error">${escapeHtml(ownerMismatchWarning)}</div>`;
+            return `
+                <div class="status error">${escapeHtml(ownerMismatchWarning)}</div>
+                <button id="owner-mismatch-disconnect-btn" class="secondary">Disconnect wallet</button>
+            `;
+        }
+
+        // Wire up the banner's own button wherever it's rendered - it's
+        // conditional markup from a shared string (ownerMismatchWarningBanner),
+        // not a fixed part of any one screen's template, so it can't be
+        // wired once up front the way setup-btn is; each screen that
+        // includes the banner calls this after setting its innerHTML.
+        function wireOwnerMismatchDisconnectButton() {
+            const btn = document.getElementById('owner-mismatch-disconnect-btn');
+            if (btn) btn.addEventListener('click', disconnectWallet);
+        }
+
+        // "Disconnect" in the sense this page can actually act on: drop our
+        // own held signer/addresses and, for WalletConnect, tear down the
+        // session so reconnecting opens a fresh pairing rather than
+        // silently resuming the same wallet/account. An injected wallet
+        // (MetaMask etc.) has no programmatic disconnect - there, this
+        // just clears our side; picking a different account happens in the
+        // wallet itself, and the next "Connect wallet" click picks up
+        // whatever account is active there at that point.
+        async function disconnectWallet() {
+            if (wcProvider && wcProvider.session) {
+                try { await wcProvider.disconnect(); } catch { /* best-effort */ }
+                wcProvider = null;
+            }
+            signer = undefined;
+            resolverAddress = undefined;
+            namehash = undefined;
+            ownerMismatchWarning = null;
+            showConnectPrompt();
         }
 
         function setConnectButtonsDisabled(disabled) {
@@ -557,6 +590,7 @@
                 <div id="setup-status"></div>
             `;
             document.getElementById('setup-btn').addEventListener('click', runSetText);
+            wireOwnerMismatchDisconnectButton();
         }
 
         function showSetupButton() {
@@ -576,6 +610,7 @@
                 <div id="setup-status"></div>
             `;
             document.getElementById('setup-btn').addEventListener('click', runSetText);
+            wireOwnerMismatchDisconnectButton();
         }
 
         async function runSetText() {
