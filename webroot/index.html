@@ -617,7 +617,16 @@
         /* The create-account page's "set up my account with" checklist
            (see renderBootstrapOptions) - one heading + a checkbox per item
            per category (follows/feeds/blocklists/lists/starterpacks),
-           all checked by default. */
+           all checked by default, a short label with a field-help-style "?"
+           tooltip for the longer description. Selectors here are deliberately
+           more specific than ".form-group label" (one class + element,
+           defined below) - without that, its display/align-items/font-size/
+           color rules win on specificity regardless of source order and
+           silently reshape every row (that's what caused the checkboxes to
+           end up at inconsistent horizontal positions instead of a plain
+           left-aligned list - each row's own flex box, centered vertically
+           instead of pinned to the top, made rows with wrapped text look
+           like their checkbox had drifted). */
         .bootstrap-option-group {
             margin-bottom: 14px;
         }
@@ -630,19 +639,35 @@
             font-size: 12.5px;
             margin-bottom: 6px;
         }
-        .bootstrap-option {
+        .bootstrap-option-group label.bootstrap-option {
             display: flex;
             align-items: flex-start;
             gap: 8px;
+            width: 100%;
+            font-weight: 400;
             font-size: 13px;
+            font-family: inherit;
             color: var(--text);
+            text-transform: none;
+            letter-spacing: normal;
             padding: 4px 0;
+            margin-bottom: 0;
             cursor: pointer;
+            box-sizing: border-box;
         }
         .bootstrap-option input[type="checkbox"] {
+            flex: 0 0 auto;
+            width: 16px;
+            height: 16px;
+            padding: 0;
+            border: none;
+            background: none;
             margin-top: 2px;
             accent-color: var(--amber);
             cursor: pointer;
+        }
+        .bootstrap-option-label {
+            flex: 1 1 auto;
         }
 
         .form-group label {
@@ -2611,7 +2636,7 @@
                 const checkboxes = items.map((item) => `
                     <label class="bootstrap-option">
                         <input type="checkbox" class="bootstrap-option-checkbox" data-category="${escapeHtml(key)}" data-id="${escapeHtml(item.id)}" checked>
-                        ${escapeHtml(item.label || item.id)}
+                        <span class="bootstrap-option-label">${escapeHtml(item.label || item.id)}${item.description ? `<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this item">?</button><span class="field-help-tip" role="tooltip">${escapeHtml(item.description)}</span></span>` : ''}</span>
                     </label>
                 `).join('');
                 return `<div class="bootstrap-option-group"><div class="bootstrap-option-heading">${escapeHtml(heading)}</div>${checkboxes}</div>`;
