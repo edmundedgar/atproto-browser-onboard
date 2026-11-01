@@ -848,6 +848,15 @@
             margin-top: 7px;
             font-style: normal;
         }
+        #about-pane p {
+            color: var(--text-dim);
+            font-size: 12px;
+            line-height: 1.6;
+            margin: 0 0 14px;
+        }
+        #about-pane p:last-child {
+            margin-bottom: 0;
+        }
         .availability-checking { color: var(--text-dim); }
         .availability-available { color: var(--ok); }
         .availability-taken { color: var(--bad); }
@@ -1104,7 +1113,7 @@
     </style>
 </head>
 <body>
-    <div class="untested-warning">This app hasn't been fully tested yet. If you use it, you might lose your account.</div>
+    <div class="untested-warning">This app is experimental, don't use it for anything mission-critical.</div>
     <div class="container">
         <div class="header-slot">
             <div class="path">~/atproto <span class="amber">$</span> <span id="status-line">self-sovereign identity</span></div>
@@ -1137,9 +1146,14 @@
             <!-- About Tab -->
             <div class="tab-pane active" id="about-pane">
                 <div class="module">
-                    <h2>about</h2>
                     <p>
-                        Placeholder text - explain what this tool does and why here.
+                        This app lets you create and manage an ATProto account, useful for Bluesky and many other ATProto applications.
+                    </p>
+                    <p>
+                        You create your own account using your own seed phrase. If you lose it, nobody can recover it for you.
+                    </p>
+                    <p>
+                        If you have an ENS name, you can use that as your handle via the .eth.xyz gateway. In the event that .xyz stop serving it, you can change it.
                     </p>
                 </div>
             </div>
