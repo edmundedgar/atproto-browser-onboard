@@ -1112,7 +1112,10 @@
 
         <!-- Tab Navigation -->
         <div class="tab-navigation">
-            <button class="tab-btn active" id="keygen-tab" data-tab="keygen">
+            <button class="tab-btn active" id="about-tab" data-tab="about">
+                about
+            </button>
+            <button class="tab-btn" id="keygen-tab" data-tab="keygen">
                 key
             </button>
             <button class="tab-btn" id="createaccount-tab" data-tab="createaccount">
@@ -1131,8 +1134,18 @@
         
         <!-- Tab Content -->
         <div class="tab-content">
+            <!-- About Tab -->
+            <div class="tab-pane active" id="about-pane">
+                <div class="module">
+                    <h2>about</h2>
+                    <p>
+                        Placeholder text - explain what this tool does and why here.
+                    </p>
+                </div>
+            </div>
+
             <!-- Key Generation Tab -->
-            <div class="tab-pane active" id="keygen-pane">
+            <div class="tab-pane" id="keygen-pane">
 
         <div class="did-key-display hidden" id="didKeyDisplay">
             <div class="box-header">
@@ -5131,12 +5144,14 @@
         }
 
         // Add tab event listeners
+        const aboutTab = document.getElementById('about-tab');
         const keygenTab = document.getElementById('keygen-tab');
         const createaccountTab = document.getElementById('createaccount-tab');
         const controlTab = document.getElementById('control-tab');
         const migrateTab = document.getElementById('migrate-tab');
         const handleTab = document.getElementById('handle-tab');
 
+        if (aboutTab) aboutTab.addEventListener('click', () => switchTab('about'));
         if (keygenTab) keygenTab.addEventListener('click', () => switchTab('keygen'));
         if (createaccountTab) createaccountTab.addEventListener('click', () => switchTab('createaccount'));
         if (controlTab) controlTab.addEventListener('click', () => switchTab('control'));
