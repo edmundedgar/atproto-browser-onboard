@@ -789,6 +789,34 @@
             border-color: var(--amber);
         }
 
+        /* Show/hide toggle for password fields (see wirePasswordToggle) -
+           Firefox doesn't add its own reveal icon to plain password inputs
+           (only inside its own password-manager UI), so this is on us. */
+        .password-field {
+            position: relative;
+        }
+        .password-field input {
+            padding-right: 56px;
+        }
+        .password-toggle {
+            position: absolute;
+            top: 50%;
+            right: 6px;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            font-size: 12.5px;
+            font-weight: 500;
+            color: var(--text-dim);
+            padding: 6px 7px;
+            cursor: pointer;
+        }
+        .password-toggle:hover,
+        .password-toggle:focus-visible {
+            color: var(--amber);
+            outline: none;
+        }
+
         .social-import-group {
             display: flex;
             gap: 10px;
@@ -1210,7 +1238,10 @@
 
                             <div class="form-group">
                                 <label for="account-password">password<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">The password you will use to login to your PDS</span></span></label>
-                                <input type="password" id="account-password" name="password" placeholder="Secure password" required>
+                                <div class="password-field">
+                                    <input type="password" id="account-password" name="password" placeholder="Secure password" required>
+                                    <button type="button" class="password-toggle" data-target="account-password" aria-label="Show password" aria-pressed="false">Show</button>
+                                </div>
                             </div>
 
                             <div class="form-group">
@@ -3772,7 +3803,7 @@
                 <div class="form-group"><label for="migrate-new-pds-endpoint">endpoint${fieldHelp('Your new PDS')}</label><input type="text" id="migrate-new-pds-endpoint" placeholder="pds.example.com"></div>
                 <div class="form-group"><label for="migrate-new-handle">handle${fieldHelp('Your handle on the new PDS')}</label><input type="text" id="migrate-new-handle" placeholder="alice.example.com"></div>
                 <div class="form-group"><label for="migrate-new-email">email${fieldHelp('Your email on the new PDS')}</label><input type="email" id="migrate-new-email"></div>
-                <div class="form-group"><label for="migrate-new-password">password${fieldHelp('Your password on the new PDS')}</label><input type="password" id="migrate-new-password"></div>
+                <div class="form-group"><label for="migrate-new-password">password${fieldHelp('Your password on the new PDS')}</label><div class="password-field"><input type="password" id="migrate-new-password"><button type="button" class="password-toggle" data-target="migrate-new-password" aria-label="Show password" aria-pressed="false">Show</button></div></div>
                 <div class="form-group"><label for="migrate-new-invite">invite code <span class="optional-hint">(optional)</span>${fieldHelp('Some PDSes need an invite code to sign up')}</label><input type="text" id="migrate-new-invite"></div>
                 <div class="form-button-group">
                     <button type="button" class="submit-btn" id="migrate-start-btn">Start migration</button>
@@ -6464,6 +6495,22 @@
             if (e.key === 'Escape') {
                 closeAllFieldHelp();
             }
+        });
+        // Password show/hide toggle (see the .password-field/.password-toggle
+        // CSS) - delegated so it covers the migrate form's password field
+        // too, which is built later via a template literal rather than
+        // present in the static HTML.
+        document.addEventListener('click', (e) => {
+            const toggle = e.target.closest('.password-toggle');
+            if (!toggle) return;
+            e.preventDefault();
+            const input = document.getElementById(toggle.dataset.target);
+            if (!input) return;
+            const nowVisible = input.type === 'password';
+            input.type = nowVisible ? 'text' : 'password';
+            toggle.textContent = nowVisible ? 'Hide' : 'Show';
+            toggle.setAttribute('aria-pressed', String(nowVisible));
+            toggle.setAttribute('aria-label', nowVisible ? 'Hide password' : 'Show password');
         });
         // mouseover (not mouseenter) so this can be delegated at the
         // document level rather than attached per-tooltip - the
