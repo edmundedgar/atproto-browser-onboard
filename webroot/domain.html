@@ -171,6 +171,15 @@
         // "not found" for minutes after the record is really live.
         // Waiting for an explicit click means the first-ever query for a
         // given name only happens once the user believes it's ready.
+        //
+        // checkFn returns the DID it actually resolved (or null/undefined
+        // if nothing resolved at all) rather than a plain boolean - success
+        // is decided here by comparing that against the outer `did`, so
+        // hintFn(attempts, resolvedDid) can tell "found nothing yet" apart
+        // from "found a record, but it's still some other (stale) DID" -
+        // those look identical to the user otherwise, e.g. when testing a
+        // second account against a domain that still has the first
+        // account's record live.
         function startManualDomainCheck({ containerId, idleLabel, targetLabel, checkFn, hintFn }) {
             let pollInterval = null;
 
@@ -194,8 +203,9 @@
                 // but also gives a same-instant DNS/file save a beat to land
                 // before we ask.
                 await new Promise((resolve) => setTimeout(resolve, 3000));
-                if (await checkFn()) { onSuccess(); return; }
-                onFailure(1);
+                const resolved = await checkFn();
+                if (resolved === did) { onSuccess(); return; }
+                onFailure(1, resolved);
             }
 
             function onSuccess() {
@@ -212,11 +222,11 @@
                 }
             }
 
-            function onFailure(attempts) {
+            function onFailure(attempts, resolvedDid) {
                 const el = container();
                 if (el) {
                     el.innerHTML = `
-                        <div class="status error">${hintFn(attempts)}</div>
+                        <div class="status error">${hintFn(attempts, resolvedDid)}</div>
                         <button class="primary" type="button" data-role="cancel">Cancel</button>
                     `;
                     el.querySelector('[data-role="cancel"]').addEventListener('click', cancel);
@@ -225,9 +235,10 @@
                 let attemptCount = attempts;
                 pollInterval = setInterval(async () => {
                     attemptCount++;
-                    if (await checkFn()) { clearInterval(pollInterval); pollInterval = null; onSuccess(); return; }
+                    const resolved = await checkFn();
+                    if (resolved === did) { clearInterval(pollInterval); pollInterval = null; onSuccess(); return; }
                     const statusEl = container()?.querySelector('.status');
-                    if (statusEl) statusEl.innerHTML = hintFn(attemptCount);
+                    if (statusEl) statusEl.innerHTML = hintFn(attemptCount, resolved);
                 }, 10000);
             }
 
@@ -664,8 +675,11 @@
                 containerId: 'dns-status',
                 idleLabel: 'Check now',
                 targetLabel: handle,
-                checkFn: async () => (await resolveAtprotoTxtRecord(handle)) === did,
-                hintFn: (attempts) => {
+                checkFn: async () => await resolveAtprotoTxtRecord(handle),
+                hintFn: (attempts, resolvedDid) => {
+                    if (resolvedDid) {
+                        return `Found a record there, but it's still pointing at a different DID (<code>${escapeHtml(resolvedDid)}</code>), not this account's. If you've set this up before, ENS/eth.xyz may not have republished the change to DNS yet - we'll keep checking automatically.`;
+                    }
                     if (attempts < 4) return `Didn't find it yet. We'll keep checking automatically every 10 seconds.`;
                     return SEPOLIA_TEST_MODE
                         ? `This won't resolve on its own in test mode - run <code>sync-one-sepolia-ens.py ${escapeHtml(account)}</code> on the server to publish it. We'll keep checking automatically.`
@@ -715,10 +729,15 @@
                 containerId: 'custom-domain-status',
                 idleLabel: "I've set this up",
                 targetLabel: customDomain,
-                checkFn: async () => (await resolveCustomDomainDid(customDomain)) === did,
-                hintFn: (attempts) => attempts >= 4
-                    ? `Still not found. Double check the record name/value or file URL above, and that DNS/your webserver has finished propagating. We'll keep checking automatically.`
-                    : `Didn't find it yet. We'll keep checking automatically every 10 seconds.`,
+                checkFn: async () => await resolveCustomDomainDid(customDomain),
+                hintFn: (attempts, resolvedDid) => {
+                    if (resolvedDid) {
+                        return `Found a record there, but it's still pointing at a different DID (<code>${escapeHtml(resolvedDid)}</code>), not this account's. Double check you updated the right record/file. We'll keep checking automatically.`;
+                    }
+                    return attempts >= 4
+                        ? `Still not found. Double check the record name/value or file URL above, and that DNS/your webserver has finished propagating. We'll keep checking automatically.`
+                        : `Didn't find it yet. We'll keep checking automatically every 10 seconds.`;
+                },
             });
         }
     </script>
