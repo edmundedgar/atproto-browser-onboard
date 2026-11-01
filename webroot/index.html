@@ -1153,7 +1153,7 @@
                         You create your own account using your own seed phrase. If you lose it, nobody can recover it for you.
                     </p>
                     <p>
-                        If you have an ENS name, you can use that as your handle via the .eth.xyz gateway. In the event that .xyz stop serving it, you can change it.
+                        If you have an ENS name, you can use that as your handle via the .eth.xyz gateway. They will check for a _atproto record on the Ethereum blockchain and publish a DNS record to make it work with ATProto. In the event that .xyz stop serving it, you can change it to a different gateway or use a different name without losing your account.
                     </p>
                 </div>
             </div>
@@ -1250,7 +1250,7 @@
                                 </div>
                                 <small class="form-help hidden" id="account-domain-help-pds">A subdomain hosted directly by your PDS. Works immediately - no extra setup needed.</small>
                                 <small class="form-help hidden" id="account-domain-help-eth">Uses your existing .eth ENS name. You'll connect a wallet and publish a small on-chain record; eth.xyz then makes it work as a handle over regular DNS.</small>
-                                <small class="form-help hidden" id="account-domain-help-custom">Use any domain you already control. You'll add a DNS TXT record or a small file to your own site - we'll show you exactly what to add.</small>
+                                <small class="form-help hidden" id="account-domain-help-custom">Use any domain you already control. You'll add a DNS TXT record or a small file to your own site. We'll show you what to add.</small>
                                 <small class="form-help hidden" id="account-availability-status"></small>
                                 <input type="hidden" id="account-handle" name="handle">
                                 <input type="hidden" id="account-did-value" name="did">
@@ -1264,7 +1264,7 @@
                             </div>
 
                             <div class="form-group">
-                                <label for="account-password">password<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">The password you will use to login to your PDS</span></span></label>
+                                <label for="account-password">password<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">The password you will use to login to your PDS.</span></span></label>
                                 <div class="password-field">
                                     <input type="password" id="account-password" name="password" placeholder="Secure password" required>
                                     <button type="button" class="password-toggle" data-target="account-password" aria-label="Show password" aria-pressed="false">Show</button>
@@ -1315,7 +1315,7 @@
 
                         <div class="module" id="account-find-module">
                             <div class="form-group">
-                                <label for="account-find-handle">find an account by handle or did:plc<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">You can add your account if you don't see it listed. If it's not controlled by your self-custodied key, we'll prompt you to log in when you want to change something about it. If the handle doesn't resolve (its DNS/well-known isn't set up, even though the account itself works fine), enter its did:plc instead.</span></span></label>
+                                <label for="account-find-handle">find an account by handle or did:plc<span class="field-help-wrap"><button type="button" class="field-help" aria-label="About this field">?</button><span class="field-help-tip" role="tooltip">You can add your account if you don't see it listed. If it's not controlled by your self-custodied key, we'll prompt you to log in when you want to change something about it. If the handle doesn't resolve because the something about its setup is wrong, enter its did:plc instead.</span></span></label>
                                 <input type="text" id="account-find-handle" placeholder="alice.example.com or did:plc:...">
                             </div>
                             <div class="form-button-group">
