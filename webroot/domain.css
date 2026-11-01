@@ -188,7 +188,20 @@
         button.secondary:disabled { opacity: 0.4; cursor: not-allowed; }
 
         button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
-        .value-wrap { color: var(--text); font-size: 13.5px; word-break: normal; }
+        /* .field .value (above) sets word-break: break-all for raw
+           hash/DID values, which is right for those but wrong for prose
+           like the manual-setup instructions - this needs to beat that
+           rule's specificity (two classes), not just match it, or the
+           override silently loses and words get split mid-word (e.g.
+           "record" -> "reco"/"rd"). overflow-wrap handles the long
+           did:plc/key tokens still embedded in that prose, without
+           breaking ordinary words. */
+        .field .value.value-wrap {
+            color: var(--text);
+            font-size: 13.5px;
+            word-break: normal;
+            overflow-wrap: break-word;
+        }
 
         @media (max-width: 640px) {
             .header-slot, .content { padding-left: 26px; padding-right: 26px; }
