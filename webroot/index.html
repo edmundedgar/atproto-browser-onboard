@@ -5271,6 +5271,13 @@
         const ETH_XYZ_DOMAIN_VALUE = '.eth.xyz';
         const CUSTOM_DOMAIN_VALUE = '__custom__';
 
+        // PDS-provided domains that are known not to actually resolve right
+        // now (DNS/well-known lookups fail for handles under them), so we
+        // hide them from populateDomainSelect even when a PDS's
+        // describeServer still lists them in availableUserDomains. Remove an
+        // entry here once its underlying DNS setup is fixed.
+        const BROKEN_HANDLE_DOMAINS = ['.stream.place'];
+
         // Combines a subdomain + selected domain into the final handle
         // string, for whichever of the two tabs' field IDs is passed in -
         // both tabs offer the same choices (a PDS domain, .eth.xyz, or a
@@ -5451,7 +5458,9 @@
             let placeholderText = null;
             try {
                 const serverInfo = await getPdsServerInfo(pdsEndpoint.trim());
-                availableDomains = serverInfo.availableUserDomains || [];
+                availableDomains = (serverInfo.availableUserDomains || []).filter(
+                    (domain) => !BROKEN_HANDLE_DOMAINS.includes(domain)
+                );
                 if (availableDomains.length === 0) {
                     placeholderText = 'No domains available';
                 }
