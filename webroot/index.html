@@ -5512,10 +5512,14 @@
             customOption.textContent = 'Custom domain...';
             domainSelect.appendChild(customOption);
 
-            // Restore selection if it was one of the fixed options.
-            if ([ETH_XYZ_DOMAIN_VALUE, CUSTOM_DOMAIN_VALUE].includes(currentSelection)) {
-                domainSelect.value = currentSelection;
-            }
+            // Restore the previous selection if it's still a real option
+            // (either a fixed one, or a PDS-provided domain that's still in
+            // the freshly-fetched list) - otherwise default to .eth.xyz
+            // rather than whichever PDS domain happens to be listed first.
+            // This also covers the very first population on page load,
+            // where currentSelection is still the blank placeholder.
+            const stillValid = Array.from(domainSelect.options).some((opt) => opt.value === currentSelection);
+            domainSelect.value = (currentSelection && stillValid) ? currentSelection : ETH_XYZ_DOMAIN_VALUE;
 
             // Trigger change event to update UI state (if function is defined)
             if (typeof handleDomainChange === 'function') {
